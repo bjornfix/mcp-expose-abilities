@@ -1873,8 +1873,13 @@ function mcp_register_content_abilities(): void {
 				}
 
 				if ( empty( $plugin_folder ) ) {
+					// Debug: list what was found
+					$found_items = array();
+					foreach ( $files as $file => $info ) {
+						$found_items[] = $file . ' (type: ' . $info['type'] . ')';
+					}
 					$wp_filesystem->delete( $temp_dir, true );
-					return array( 'success' => false, 'message' => 'Invalid plugin zip - no plugin folder found' );
+					return array( 'success' => false, 'message' => 'Invalid plugin zip - no plugin folder found. Found: ' . implode( ', ', $found_items ) );
 				}
 
 				$target_dir  = $plugins_dir . '/' . $plugin_folder;
