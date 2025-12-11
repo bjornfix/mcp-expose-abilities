@@ -218,6 +218,23 @@ Three-plugin stack:
 
 PRs welcome! If you add useful abilities, share them.
 
+## Changelog
+
+### 2.0.0
+- Added: Menu abilities (list, get-items, create, add-item, update-item, delete-item, assign-location)
+- Added: User abilities (list, get, create, update, delete)
+- Added: Media abilities (upload, get, update, delete)
+- Added: Widget abilities (list-sidebars, get-sidebar, list-available)
+- Added: Page abilities (list-pages, get-page, create-page, update-page, delete-page, patch-page)
+- Total: 54 abilities
+
+### 1.0.0
+- Initial release
+- Content abilities for posts
+- Plugin management
+- Elementor integration
+- GeneratePress/GenerateBlocks support
+
 ## License
 
 GPL-2.0+
