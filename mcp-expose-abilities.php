@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Exposes WordPress abilities via MCP and registers content management abilities for posts, pages, and media.
- * Version: 2.5.7
+ * Version: 2.5.8
  * Author: Devenia
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -5648,10 +5648,10 @@ function mcp_register_content_abilities(): void {
 			return "Cannot write files with .{$extension} extension.";
 		}
 
-		// Block ALL PHP-like extensions (case variations handled by strtolower above).
-		$php_extensions = array( 'php', 'phtml', 'php3', 'php4', 'php5', 'php7', 'php8', 'phps' );
-		if ( in_array( $extension, $php_extensions, true ) && strpos( $path, '/uploads/' ) !== false ) {
-			return 'Cannot write PHP files in uploads directory (security risk).';
+		// Block ALL PHP-like extensions everywhere. Use plugins/upload for PHP deployment.
+		$php_extensions = array( 'php', 'phtml', 'php3', 'php4', 'php5', 'php7', 'php8', 'phps', 'phar' );
+		if ( in_array( $extension, $php_extensions, true ) ) {
+			return 'Cannot write PHP files via filesystem abilities. Use plugins/upload for PHP deployment.';
 		}
 
 		// Block .htaccess in subdirectories (only allow in document root).
