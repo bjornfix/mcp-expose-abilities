@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Exposes WordPress abilities via MCP and registers content management abilities for posts, pages, and media.
- * Version: 2.5.1
+ * Version: 2.5.2
  * Author: Devenia
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -5552,6 +5552,7 @@ function mcp_register_content_abilities(): void {
 	/**
 	 * Log filesystem operations to wp-content/mcp-filesystem.log
 	 * This log survives context compaction and enables recovery.
+	 * Includes security audit information (user, IP).
 	 *
 	 * @param string $operation The operation type (WRITE, DELETE, MOVE, COPY, APPEND).
 	 * @param string $path      The file path being operated on.
@@ -5561,8 +5562,15 @@ function mcp_register_content_abilities(): void {
 		$log_file  = WP_CONTENT_DIR . '/mcp-filesystem.log';
 		$timestamp = gmdate( 'Y-m-d H:i:s' );
 
+		// Security audit info.
+		$user    = wp_get_current_user();
+		$user_id = $user->ID ?? 0;
+		$email   = $user->user_email ?? 'unknown';
+		$ip      = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+
 		$entry = "[{$timestamp}] {$operation}\n";
 		$entry .= "  File: {$path}\n";
+		$entry .= "  User: {$email} (ID:{$user_id}) IP:{$ip}\n";
 
 		if ( ! empty( $details['backup'] ) ) {
 			$entry .= "  Backup: {$details['backup']}\n";
@@ -5587,6 +5595,104 @@ function mcp_register_content_abilities(): void {
 		if ( wp_rand( 1, 10 ) === 1 ) {
 			$mcp_cleanup_old_backups();
 		}
+	};
+
+	/**
+	 * Check if a file write should be blocked for security reasons.
+	 * Uses WordPress security functions where applicable.
+	 * Based on Wordfence recommendations: https://www.wordfence.com/learn/how-to-prevent-file-upload-vulnerabilities/
+	 *
+	 * @param string $path    The file path to check.
+	 * @param string $content Optional content to scan for malicious patterns.
+	 * @param int    $size    Optional content size in bytes.
+	 * @return string|false Error message if blocked, false if allowed.
+	 */
+	$mcp_check_write_security = function ( string $path, string $content = '', int $size = 0 ): string|false {
+		// Respect WordPress DISALLOW_FILE_EDIT and DISALLOW_FILE_MODS constants.
+		if ( defined( 'DISALLOW_FILE_MODS' ) && DISALLOW_FILE_MODS ) {
+			return 'File modifications are disabled by DISALLOW_FILE_MODS constant.';
+		}
+
+		// For PHP files, check DISALLOW_FILE_EDIT.
+		$extension = strtolower( pathinfo( $path, PATHINFO_EXTENSION ) );
+		if ( 'php' === $extension && defined( 'DISALLOW_FILE_EDIT' ) && DISALLOW_FILE_EDIT ) {
+			return 'PHP file editing is disabled by DISALLOW_FILE_EDIT constant.';
+		}
+
+		// File size limit: 10MB max to prevent DoS.
+		$max_size = 10 * 1024 * 1024; // 10MB
+		if ( $size > $max_size ) {
+			return 'File size exceeds 10MB limit.';
+		}
+		$filename  = basename( $path );
+		$extension = strtolower( pathinfo( $filename, PATHINFO_EXTENSION ) );
+		$dir       = dirname( $path );
+
+		// Use WordPress sanitize_file_name to check for suspicious characters.
+		$sanitized = sanitize_file_name( $filename );
+		if ( $sanitized !== $filename ) {
+			// File has characters that WordPress would sanitize out.
+			return 'Filename contains invalid characters. WordPress sanitized version: ' . $sanitized;
+		}
+
+		// Dangerous extensions that should never be written.
+		$dangerous_anywhere = array( 'phar', 'exe', 'sh', 'bat', 'cmd', 'com', 'scr', 'cgi', 'pl', 'py' );
+		if ( in_array( $extension, $dangerous_anywhere, true ) ) {
+			return "Cannot write files with .{$extension} extension.";
+		}
+
+		// PHP files in uploads directory = web shell risk.
+		if ( 'php' === $extension && strpos( $path, '/uploads/' ) !== false ) {
+			return 'Cannot write PHP files in uploads directory (security risk).';
+		}
+
+		// Use WordPress to validate the file type for upload-like operations.
+		if ( ! empty( $extension ) ) {
+			$allowed_mimes = get_allowed_mime_types();
+			$filetype      = wp_check_filetype( $filename, $allowed_mimes );
+
+			// For known extensions, check if WordPress allows them.
+			// But allow .htaccess, .php, .txt, .log, .json, .xml, .css, .js (config/code files).
+			$always_allowed = array( 'htaccess', 'php', 'txt', 'log', 'json', 'xml', 'css', 'js', 'md', 'html', 'htm' );
+			if ( ! in_array( $extension, $always_allowed, true ) && empty( $filetype['type'] ) ) {
+				return "File type .{$extension} is not allowed by WordPress.";
+			}
+		}
+
+		// Block files that look like web shells.
+		$shell_patterns = array( 'c99', 'r57', 'wso', 'b374k', 'weevely', 'shell', 'alfa', 'bypass', 'backdoor' );
+		$lower_filename = strtolower( $filename );
+		foreach ( $shell_patterns as $pattern ) {
+			if ( strpos( $lower_filename, $pattern ) !== false ) {
+				return "Filename contains blocked pattern: {$pattern}";
+			}
+		}
+
+		// Block double extensions that could be used to bypass filters.
+		if ( preg_match( '/\.(php|phtml|phar)\.[^.]+$/i', $filename ) ) {
+			return 'Double extensions with PHP are not allowed (e.g., file.php.jpg).';
+		}
+
+		// Content scanning for PHP files - detect common malicious patterns.
+		if ( ! empty( $content ) && 'php' === $extension ) {
+			// Dangerous function patterns commonly found in web shells.
+			$dangerous_patterns = array(
+				'/\b(eval|assert|create_function)\s*\(/i',                    // Code execution.
+				'/\b(base64_decode|gzinflate|gzuncompress|str_rot13)\s*\(/i', // Obfuscation.
+				'/\b(shell_exec|exec|system|passthru|popen|proc_open)\s*\(/i', // Command execution.
+				'/\$_(GET|POST|REQUEST|COOKIE)\s*\[.*\]\s*\(/i',              // Direct superglobal execution.
+				'/\bpreg_replace\s*\(\s*[\'"].*\/e[\'"]/i',                    // preg_replace with /e modifier.
+				'/\\x[0-9a-fA-F]{2}/',                                        // Hex-encoded content.
+			);
+
+			foreach ( $dangerous_patterns as $pattern ) {
+				if ( preg_match( $pattern, $content ) ) {
+					return 'PHP content contains potentially malicious code pattern.';
+				}
+			}
+		}
+
+		return false;
 	};
 
 	// =========================================================================
@@ -5811,7 +5917,7 @@ function mcp_register_content_abilities(): void {
 					'bytes'       => array( 'type' => 'integer' ),
 				),
 			),
-			'execute_callback'    => function ( array $input ) use ( $mcp_create_backup, $mcp_log_filesystem_operation ): array {
+			'execute_callback'    => function ( array $input ) use ( $mcp_create_backup, $mcp_log_filesystem_operation, $mcp_check_write_security ): array {
 				$path    = $input['path'] ?? '';
 				$content = $input['content'] ?? '';
 				$backup  = $input['backup'] ?? true;
@@ -5858,6 +5964,15 @@ function mcp_register_content_abilities(): void {
 					return array(
 						'success' => false,
 						'message' => 'Cannot modify WordPress core files in wp-includes or wp-admin.',
+					);
+				}
+
+				// Security: check for dangerous file patterns and content.
+				$security_error = $mcp_check_write_security( $full_path_normalized, $content, strlen( $content ) );
+				if ( $security_error ) {
+					return array(
+						'success' => false,
+						'message' => $security_error,
 					);
 				}
 
@@ -5966,7 +6081,7 @@ function mcp_register_content_abilities(): void {
 					'bytes'       => array( 'type' => 'integer' ),
 				),
 			),
-			'execute_callback'    => function ( array $input ) use ( $mcp_create_backup, $mcp_log_filesystem_operation ): array {
+			'execute_callback'    => function ( array $input ) use ( $mcp_create_backup, $mcp_log_filesystem_operation, $mcp_check_write_security ): array {
 				$path    = $input['path'] ?? '';
 				$content = $input['content'] ?? '';
 				$prepend = $input['prepend'] ?? false;
@@ -5996,7 +6111,7 @@ function mcp_register_content_abilities(): void {
 					);
 				}
 
-				// Security check.
+				// Security check - path.
 				$allowed_base = dirname( ABSPATH );
 				if ( strpos( $full_path, $allowed_base ) !== 0 ) {
 					return array(
@@ -6011,6 +6126,15 @@ function mcp_register_content_abilities(): void {
 					return array(
 						'success' => false,
 						'message' => 'Cannot modify WordPress core files.',
+					);
+				}
+
+				// Security: check for dangerous content patterns.
+				$security_error = $mcp_check_write_security( $full_path, $content, strlen( $content ) );
+				if ( $security_error ) {
+					return array(
+						'success' => false,
+						'message' => $security_error,
 					);
 				}
 
@@ -6236,14 +6360,18 @@ function mcp_register_content_abilities(): void {
 			'input_schema'        => array(
 				'type'                 => 'object',
 				'properties'           => array(
-					'path'   => array(
+					'path'    => array(
 						'type'        => 'string',
 						'description' => 'File path to delete.',
 					),
-					'backup' => array(
+					'backup'  => array(
 						'type'        => 'boolean',
 						'default'     => true,
-						'description' => 'Create a .deleted backup before deleting.',
+						'description' => 'Create a backup before deleting (default: true).',
+					),
+					'context' => array(
+						'type'        => 'string',
+						'description' => 'Brief description of why this file is being deleted (logged for recovery).',
 					),
 				),
 				'required'             => array( 'path' ),
@@ -6257,9 +6385,10 @@ function mcp_register_content_abilities(): void {
 					'backup_path' => array( 'type' => 'string' ),
 				),
 			),
-			'execute_callback'    => function ( array $input ): array {
-				$path   = $input['path'] ?? '';
-				$backup = $input['backup'] ?? true;
+			'execute_callback'    => function ( array $input ) use ( $mcp_create_backup, $mcp_log_filesystem_operation ): array {
+				$path    = $input['path'] ?? '';
+				$backup  = $input['backup'] ?? true;
+				$context = $input['context'] ?? '';
 
 				if ( empty( $path ) ) {
 					return array(
@@ -6319,10 +6448,12 @@ function mcp_register_content_abilities(): void {
 					);
 				}
 
+				$file_size   = filesize( $full_path );
 				$backup_path = null;
+
 				if ( $backup ) {
-					$backup_path = $full_path . '.deleted.' . gmdate( 'YmdHis' );
-					if ( ! copy( $full_path, $backup_path ) ) {
+					$backup_path = $mcp_create_backup( $full_path );
+					if ( false === $backup_path ) {
 						return array(
 							'success' => false,
 							'message' => 'Failed to create backup.',
@@ -6336,6 +6467,13 @@ function mcp_register_content_abilities(): void {
 						'message' => 'Failed to delete file.',
 					);
 				}
+
+				// Log the operation.
+				$mcp_log_filesystem_operation( 'DELETE', $full_path, array(
+					'backup'      => $backup_path,
+					'size_before' => $file_size,
+					'context'     => $context,
+				) );
 
 				$result = array(
 					'success' => true,
@@ -6600,6 +6738,10 @@ function mcp_register_content_abilities(): void {
 						'default'     => false,
 						'description' => 'Overwrite destination if it exists.',
 					),
+					'context'   => array(
+						'type'        => 'string',
+						'description' => 'Brief description of why this copy is being made (logged for recovery).',
+					),
 				),
 				'required'             => array( 'source', 'dest' ),
 				'additionalProperties' => false,
@@ -6607,16 +6749,18 @@ function mcp_register_content_abilities(): void {
 			'output_schema'       => array(
 				'type'       => 'object',
 				'properties' => array(
-					'success' => array( 'type' => 'boolean' ),
-					'message' => array( 'type' => 'string' ),
-					'source'  => array( 'type' => 'string' ),
-					'dest'    => array( 'type' => 'string' ),
+					'success'     => array( 'type' => 'boolean' ),
+					'message'     => array( 'type' => 'string' ),
+					'source'      => array( 'type' => 'string' ),
+					'dest'        => array( 'type' => 'string' ),
+					'backup_path' => array( 'type' => 'string' ),
 				),
 			),
-			'execute_callback'    => function ( array $input ): array {
+			'execute_callback'    => function ( array $input ) use ( $mcp_create_backup, $mcp_log_filesystem_operation, $mcp_check_write_security ): array {
 				$source    = $input['source'] ?? '';
 				$dest      = $input['dest'] ?? '';
 				$overwrite = $input['overwrite'] ?? false;
+				$context   = $input['context'] ?? '';
 
 				if ( empty( $source ) || empty( $dest ) ) {
 					return array(
@@ -6657,11 +6801,26 @@ function mcp_register_content_abilities(): void {
 
 				$final_dest = $dest_dir . '/' . basename( $dest_path );
 
-				if ( file_exists( $final_dest ) && ! $overwrite ) {
+				// Security: check destination for dangerous patterns.
+				$security_error = $mcp_check_write_security( $final_dest );
+				if ( $security_error ) {
 					return array(
 						'success' => false,
-						'message' => 'Destination already exists. Use overwrite=true to replace.',
+						'message' => $security_error,
 					);
+				}
+
+				$backup_path = null;
+
+				if ( file_exists( $final_dest ) ) {
+					if ( ! $overwrite ) {
+						return array(
+							'success' => false,
+							'message' => 'Destination already exists. Use overwrite=true to replace.',
+						);
+					}
+					// Backup destination before overwriting.
+					$backup_path = $mcp_create_backup( $final_dest );
 				}
 
 				if ( ! copy( $source_path, $final_dest ) ) {
@@ -6671,12 +6830,25 @@ function mcp_register_content_abilities(): void {
 					);
 				}
 
-				return array(
+				// Log the operation.
+				$mcp_log_filesystem_operation( 'COPY', $source_path, array(
+					'destination' => $final_dest,
+					'backup'      => $backup_path,
+					'context'     => $context,
+				) );
+
+				$result = array(
 					'success' => true,
 					'message' => 'File copied successfully.',
 					'source'  => $source_path,
 					'dest'    => $final_dest,
 				);
+
+				if ( $backup_path ) {
+					$result['backup_path'] = $backup_path;
+				}
+
+				return $result;
 			},
 			'permission_callback' => function (): bool {
 				return current_user_can( 'manage_options' );
@@ -6716,6 +6888,10 @@ function mcp_register_content_abilities(): void {
 						'default'     => false,
 						'description' => 'Overwrite destination if it exists.',
 					),
+					'context'   => array(
+						'type'        => 'string',
+						'description' => 'Brief description of why this move is being made (logged for recovery).',
+					),
 				),
 				'required'             => array( 'source', 'dest' ),
 				'additionalProperties' => false,
@@ -6723,16 +6899,19 @@ function mcp_register_content_abilities(): void {
 			'output_schema'       => array(
 				'type'       => 'object',
 				'properties' => array(
-					'success' => array( 'type' => 'boolean' ),
-					'message' => array( 'type' => 'string' ),
-					'source'  => array( 'type' => 'string' ),
-					'dest'    => array( 'type' => 'string' ),
+					'success'            => array( 'type' => 'boolean' ),
+					'message'            => array( 'type' => 'string' ),
+					'source'             => array( 'type' => 'string' ),
+					'dest'               => array( 'type' => 'string' ),
+					'source_backup_path' => array( 'type' => 'string' ),
+					'dest_backup_path'   => array( 'type' => 'string' ),
 				),
 			),
-			'execute_callback'    => function ( array $input ): array {
+			'execute_callback'    => function ( array $input ) use ( $mcp_create_backup, $mcp_log_filesystem_operation, $mcp_check_write_security ): array {
 				$source    = $input['source'] ?? '';
 				$dest      = $input['dest'] ?? '';
 				$overwrite = $input['overwrite'] ?? false;
+				$context   = $input['context'] ?? '';
 
 				if ( empty( $source ) || empty( $dest ) ) {
 					return array(
@@ -6782,11 +6961,36 @@ function mcp_register_content_abilities(): void {
 
 				$final_dest = $dest_dir . '/' . basename( $dest_path );
 
-				if ( file_exists( $final_dest ) && ! $overwrite ) {
+				// Security: check destination for dangerous patterns.
+				$security_error = $mcp_check_write_security( $final_dest );
+				if ( $security_error ) {
 					return array(
 						'success' => false,
-						'message' => 'Destination already exists. Use overwrite=true to replace.',
+						'message' => $security_error,
 					);
+				}
+
+				$source_backup_path = null;
+				$dest_backup_path   = null;
+
+				// Always backup source before moving (it will be gone after).
+				$source_backup_path = $mcp_create_backup( $source_path );
+				if ( false === $source_backup_path ) {
+					return array(
+						'success' => false,
+						'message' => 'Failed to create source backup.',
+					);
+				}
+
+				if ( file_exists( $final_dest ) ) {
+					if ( ! $overwrite ) {
+						return array(
+							'success' => false,
+							'message' => 'Destination already exists. Use overwrite=true to replace.',
+						);
+					}
+					// Backup destination before overwriting.
+					$dest_backup_path = $mcp_create_backup( $final_dest );
 				}
 
 				if ( ! rename( $source_path, $final_dest ) ) {
@@ -6796,12 +7000,26 @@ function mcp_register_content_abilities(): void {
 					);
 				}
 
-				return array(
-					'success' => true,
-					'message' => 'File moved successfully.',
-					'source'  => $source_path,
-					'dest'    => $final_dest,
+				// Log the operation.
+				$mcp_log_filesystem_operation( 'MOVE', $source_path, array(
+					'destination' => $final_dest,
+					'backup'      => $source_backup_path,
+					'context'     => $context,
+				) );
+
+				$result = array(
+					'success'            => true,
+					'message'            => 'File moved successfully.',
+					'source'             => $source_path,
+					'dest'               => $final_dest,
+					'source_backup_path' => $source_backup_path,
 				);
+
+				if ( $dest_backup_path ) {
+					$result['dest_backup_path'] = $dest_backup_path;
+				}
+
+				return $result;
 			},
 			'permission_callback' => function (): bool {
 				return current_user_can( 'manage_options' );
