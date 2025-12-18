@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Exposes WordPress abilities via MCP and registers content management abilities for posts, pages, and media.
- * Version: 2.5.6
+ * Version: 2.5.7
  * Author: Devenia
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -5648,9 +5648,28 @@ function mcp_register_content_abilities(): void {
 			return "Cannot write files with .{$extension} extension.";
 		}
 
-		// PHP files in uploads directory = web shell risk.
-		if ( 'php' === $extension && strpos( $path, '/uploads/' ) !== false ) {
+		// Block ALL PHP-like extensions (case variations handled by strtolower above).
+		$php_extensions = array( 'php', 'phtml', 'php3', 'php4', 'php5', 'php7', 'php8', 'phps' );
+		if ( in_array( $extension, $php_extensions, true ) && strpos( $path, '/uploads/' ) !== false ) {
 			return 'Cannot write PHP files in uploads directory (security risk).';
+		}
+
+		// Block .htaccess in subdirectories (only allow in document root).
+		if ( 'htaccess' === $extension && $filename === '.htaccess' ) {
+			$real_dir = realpath( dirname( $path ) );
+			$abspath  = rtrim( realpath( ABSPATH ), '/' );
+			if ( $real_dir !== $abspath ) {
+				return '.htaccess can only be modified in the site root directory.';
+			}
+			// Scan htaccess content for dangerous directives.
+			if ( ! empty( $content ) ) {
+				$dangerous_htaccess = array( 'AddType', 'SetHandler', 'php_value', 'php_flag', 'auto_prepend', 'auto_append' );
+				foreach ( $dangerous_htaccess as $directive ) {
+					if ( stripos( $content, $directive ) !== false ) {
+						return "Dangerous .htaccess directive detected: {$directive}";
+					}
+				}
+			}
 		}
 
 		// Use WordPress to validate the file type for upload-like operations.
@@ -5681,7 +5700,8 @@ function mcp_register_content_abilities(): void {
 		}
 
 		// Content scanning for PHP files - detect common malicious patterns.
-		if ( ! empty( $content ) && 'php' === $extension ) {
+		$php_like_extensions = array( 'php', 'phtml', 'php3', 'php4', 'php5', 'php7', 'php8', 'phps', 'phar' );
+		if ( ! empty( $content ) && in_array( $extension, $php_like_extensions, true ) ) {
 			// Dangerous function patterns commonly found in web shells.
 			$dangerous_patterns = array(
 				'/\b(eval|assert|create_function)\s*\(/i',                    // Code execution.
