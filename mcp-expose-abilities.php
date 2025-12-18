@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Exposes WordPress abilities via MCP and registers content management abilities for posts, pages, and media.
- * Version: 2.2.11
+ * Version: 2.2.12
  * Author: Devenia
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -5181,7 +5181,31 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'name' => '', 'message' => 'Missing required parameter: name' );
 				}
 
-				$name      = sanitize_key( $input['name'] );
+				$name = sanitize_key( $input['name'] );
+
+				// Protected options that cannot be modified via MCP for security.
+				$protected_options = array(
+					'active_plugins',           // Can disable security plugins.
+					'siteurl',                  // Can break site access.
+					'home',                     // Can break site access.
+					'users_can_register',       // Security: user registration.
+					'default_role',             // Security: new user privileges.
+					'admin_email',              // Security: site recovery email.
+					'cron',                     // Can inject malicious scheduled tasks.
+					'auto_updater.lock',        // Can block security updates.
+					'rewrite_rules',            // Can break permalinks.
+					'recently_activated',       // Plugin state tracking.
+					'uninstall_plugins',        // Plugin cleanup callbacks.
+					'wp_user_roles',            // Security: role definitions.
+				);
+
+				if ( in_array( $name, $protected_options, true ) ) {
+					return array(
+						'success' => false,
+						'name'    => $name,
+						'message' => "Option '{$name}' is protected and cannot be modified via MCP for security reasons.",
+					);
+				}
 				$new_value = $input['value'];
 				$key       = isset( $input['key'] ) ? $input['key'] : null;
 				$old_value = get_option( $name );
