@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Exposes WordPress abilities via MCP and registers content management abilities for posts, pages, and media.
- * Version: 2.3.0
+ * Version: 2.3.1
  * Author: Devenia
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -5468,6 +5468,21 @@ function mcp_register_content_abilities(): void {
 			),
 		)
 	);
+
+	// =========================================================================
+	// FILESYSTEM ABILITIES
+	// =========================================================================
+	// SECURITY: Filesystem abilities are DISABLED by default.
+	// To enable, add this to wp-config.php:
+	//   define( 'MCP_ENABLE_FILESYSTEM_ABILITIES', true );
+	//
+	// WARNING: These abilities can read, write, and delete files on your server.
+	// Only enable on sites where you trust all MCP clients with admin access.
+	// =========================================================================
+	if ( ! defined( 'MCP_ENABLE_FILESYSTEM_ABILITIES' ) || ! MCP_ENABLE_FILESYSTEM_ABILITIES ) {
+		// Filesystem abilities disabled - skip registration.
+		return;
+	}
 
 	// =========================================================================
 	// FILESYSTEM - Read File
