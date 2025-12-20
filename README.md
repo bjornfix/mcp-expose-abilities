@@ -1,6 +1,6 @@
 # MCP Expose Abilities
 
-**Let AI assistants edit your WordPress site.** 67 abilities for content, menus, users, media, filesystem, Elementor, system, and more.
+**Let AI assistants edit your WordPress site.** Core WordPress abilities for content, menus, users, media, widgets, plugins, options, and system management.
 
 [![GitHub release](https://img.shields.io/github/v/release/bjornfix/mcp-expose-abilities)](https://github.com/bjornfix/mcp-expose-abilities/releases)
 [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://www.gnu.org/licenses/gpl-2.0)
@@ -12,6 +12,23 @@
 This plugin exposes WordPress functionality through MCP (Model Context Protocol), enabling AI assistants like Claude to directly interact with your WordPress site. No more copy-pasting between chat and admin.
 
 **Example:** "Fix the phone numbers in these 25 articles to be clickable tel: links." - Done in 30 seconds, all 25 articles.
+
+## Modular Architecture
+
+Version 3.0 introduced a modular architecture. The core plugin provides WordPress-native abilities, while vendor-specific features are available as separate add-on plugins:
+
+| Plugin | Abilities | Description |
+|--------|-----------|-------------|
+| **MCP Expose Abilities** (core) | 45 | WordPress core: content, menus, users, media, widgets, plugins, options, system |
+| [MCP Abilities - Filesystem](https://github.com/bjornfix/mcp-abilities-filesystem) | 10 | File operations with security hardening |
+| [MCP Abilities - Elementor](https://github.com/bjornfix/mcp-abilities-elementor) | 6 | Elementor page builder integration |
+| [MCP Abilities - GeneratePress](https://github.com/bjornfix/mcp-abilities-generatepress) | 5 | GeneratePress theme + GenerateBlocks |
+| [MCP Abilities - Cloudflare](https://github.com/bjornfix/mcp-abilities-cloudflare) | 1 | Cloudflare cache management |
+| [MCP Abilities - Email](https://github.com/bjornfix/mcp-abilities-email) | 5 | Email sending and logging |
+
+**Total ecosystem: 72 abilities**
+
+Install only what you need. Running GeneratePress? Install that add-on. Don't use Elementor? Skip it.
 
 ## Requirements
 
@@ -26,8 +43,9 @@ This plugin exposes WordPress functionality through MCP (Model Context Protocol)
 2. Download the latest release from [Releases](https://github.com/bjornfix/mcp-expose-abilities/releases)
 3. Upload via WordPress Admin → Plugins → Add New → Upload Plugin
 4. Activate the plugin
+5. (Optional) Install add-on plugins for vendor-specific features
 
-## All 67 Abilities
+## Core Plugin Abilities (45)
 
 ### Content Management (18)
 
@@ -98,40 +116,6 @@ This plugin exposes WordPress functionality through MCP (Model Context Protocol)
 | `plugins/upload` | Upload plugin from URL |
 | `plugins/list` | List installed plugins |
 
-### Elementor (6)
-
-| Ability | Description |
-|---------|-------------|
-| `elementor/get-data` | Get Elementor JSON for a page |
-| `elementor/update-data` | Replace Elementor JSON |
-| `elementor/patch-data` | Find/replace in Elementor JSON |
-| `elementor/update-element` | Update specific element by ID |
-| `elementor/list-templates` | List saved templates |
-| `elementor/clear-cache` | Clear CSS cache |
-
-### GeneratePress (2)
-
-| Ability | Description |
-|---------|-------------|
-| `generatepress/get-settings` | Get theme settings |
-| `generatepress/update-settings` | Update theme settings |
-
-### GenerateBlocks (3)
-
-| Ability | Description |
-|---------|-------------|
-| `generateblocks/get-global-styles` | Get global styles |
-| `generateblocks/update-global-styles` | Update global styles |
-| `generateblocks/clear-cache` | Clear CSS cache |
-
-### System (3)
-
-| Ability | Description |
-|---------|-------------|
-| `system/get-transient` | Get transient value |
-| `system/debug-log` | Read debug.log file |
-| `system/toggle-debug` | Toggle WP_DEBUG, WP_DEBUG_LOG, WP_DEBUG_DISPLAY in wp-config.php |
-
 ### Options (3)
 
 | Ability | Description |
@@ -140,7 +124,17 @@ This plugin exposes WordPress functionality through MCP (Model Context Protocol)
 | `options/update` | Update option (protected options blocked) |
 | `options/list` | List all options |
 
-### Filesystem (10)
+### System (3)
+
+| Ability | Description |
+|---------|-------------|
+| `system/get-transient` | Get transient value |
+| `system/debug-log` | Read debug.log file |
+| `system/toggle-debug` | Toggle WP_DEBUG, WP_DEBUG_LOG, WP_DEBUG_DISPLAY |
+
+## Add-on Plugin Abilities
+
+### Filesystem (mcp-abilities-filesystem) - 10 abilities
 
 | Ability | Description |
 |---------|-------------|
@@ -155,11 +149,42 @@ This plugin exposes WordPress functionality through MCP (Model Context Protocol)
 | `filesystem/copy-file` | Copy file |
 | `filesystem/move-file` | Move/rename file |
 
-### Cloudflare (1)
+### Elementor (mcp-abilities-elementor) - 6 abilities
 
 | Ability | Description |
 |---------|-------------|
-| `cloudflare/clear-cache` | Clear Cloudflare cache |
+| `elementor/get-data` | Get Elementor JSON for a page |
+| `elementor/update-data` | Replace Elementor JSON |
+| `elementor/patch-data` | Find/replace in Elementor JSON |
+| `elementor/update-element` | Update specific element by ID |
+| `elementor/list-templates` | List saved templates |
+| `elementor/clear-cache` | Clear CSS cache |
+
+### GeneratePress (mcp-abilities-generatepress) - 5 abilities
+
+| Ability | Description |
+|---------|-------------|
+| `generatepress/get-settings` | Get theme settings |
+| `generatepress/update-settings` | Update theme settings |
+| `generateblocks/get-global-styles` | Get global styles |
+| `generateblocks/update-global-styles` | Update global styles |
+| `generateblocks/clear-cache` | Clear CSS cache |
+
+### Cloudflare (mcp-abilities-cloudflare) - 1 ability
+
+| Ability | Description |
+|---------|-------------|
+| `cloudflare/clear-cache` | Clear Cloudflare cache (entire site or specific URLs) |
+
+### Email (mcp-abilities-email) - 5 abilities
+
+| Ability | Description |
+|---------|-------------|
+| `email/send` | Send email with HTML support, CC, BCC, attachments |
+| `email/send-test` | Send test email to verify configuration |
+| `email/get-settings` | Get WordPress email settings |
+| `email/get-log` | Get email log (requires logging plugin) |
+| `email/resend` | Resend previously logged email |
 
 ## Usage with Claude Code
 
@@ -238,25 +263,29 @@ Now Claude can directly edit your WordPress site through conversation.
 - **Authentication required** - Uses WordPress application passwords
 - **Permission checks** - Every ability verifies user capabilities
 - **Your server** - AI connects to your site, you control access
+- **Protected options** - Critical settings blocked from modification
+- **Filesystem hardening** - PHP code detection, path traversal protection (in add-on)
 
 ## Architecture
 
-Three-plugin stack:
+Three-plugin stack plus optional add-ons:
 
 1. **[Abilities API](https://github.com/WordPress/abilities-api)** - Framework for registering abilities (WordPress core team)
 2. **[MCP Adapter](https://github.com/WordPress/mcp-adapter)** - MCP protocol layer (WordPress core team)
-3. **MCP Expose Abilities** (this plugin) - The actual abilities
-
-## Contributing
-
-PRs welcome! If you add useful abilities, share them.
+3. **MCP Expose Abilities** (this plugin) - Core WordPress abilities
+4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.0
+- **Breaking:** Modular architecture - vendor-specific abilities moved to add-on plugins
+- Core plugin now contains only WordPress-native abilities (45)
+- Add-on plugins: Filesystem (10), Elementor (6), GeneratePress (5), Cloudflare (1), Email (5)
+- Cleaner installation - install only what you need
 
 ### 2.2.12
 - Security: Added protected options blocklist (active_plugins, siteurl, admin_email, etc.)
 - Security: Prevents accidental site breakage via options/update
-- Total: 67 abilities
 
 ### 2.2.11
 - Security: Added UTF-7 and UTF-16 encoding bypass detection
@@ -269,36 +298,21 @@ PRs welcome! If you add useful abilities, share them.
 - Security: Restricted to wp-content directory
 
 ### 2.1.0
-- Added: Filesystem abilities (read-file, write-file, append-file, delete-file, list-directory, file-info, create-directory, copy-file, move-file, get-changelog)
-- Added: Options abilities (get, update, list)
-- Added: System abilities (get-transient, debug-log)
+- Added: Filesystem abilities
+- Added: Options abilities
+- Added: System abilities
 - Added: Cloudflare cache clear ability
 - Added: `elementor/update-element` for targeted element updates
-- Added: `content/list-media`, `content/list-users`
-- Total: 67 abilities
-
-### 2.0.2
-- Added: `content/create-tag` ability to create post tags via MCP
-- Total: 56 abilities
-
-### 2.0.1
-- Added: `system/toggle-debug` ability to toggle WP_DEBUG settings via MCP
-- Total: 55 abilities
 
 ### 2.0.0
-- Added: Menu abilities (list, get-items, create, add-item, update-item, delete-item, assign-location)
-- Added: User abilities (list, get, create, update, delete)
-- Added: Media abilities (upload, get, update, delete)
-- Added: Widget abilities (list-sidebars, get-sidebar, list-available)
-- Added: Page abilities (list-pages, get-page, create-page, update-page, delete-page, patch-page)
-- Total: 54 abilities
+- Added: Menu, User, Media, Widget, Page abilities
 
 ### 1.0.0
 - Initial release
-- Content abilities for posts
-- Plugin management
-- Elementor integration
-- GeneratePress/GenerateBlocks support
+
+## Contributing
+
+PRs welcome! For vendor-specific abilities, consider creating an add-on plugin.
 
 ## License
 
@@ -311,6 +325,5 @@ GPL-2.0+
 ## Links
 
 - [Plugin Page](https://devenia.com/plugins/mcp-expose-abilities/)
-- [Blog Post](https://devenia.com/we-built-a-wordpress-plugin-that-lets-ai-edit-your-site/)
 - [Abilities API](https://github.com/WordPress/abilities-api) (WordPress core team)
 - [MCP Adapter](https://github.com/WordPress/mcp-adapter) (WordPress core team)
