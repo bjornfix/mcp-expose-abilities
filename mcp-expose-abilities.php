@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.0
+ * Version: 3.0.3
  * Author: Devenia
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -342,6 +342,10 @@ function mcp_register_content_abilities(): void {
 						'type'        => 'string',
 						'description' => 'Post date (Y-m-d H:i:s format). For scheduled posts.',
 					),
+					'author_id'    => array(
+						'type'        => 'integer',
+						'description' => 'Author user ID. Defaults to current user.',
+					),
 				),
 				'additionalProperties' => false,
 			),
@@ -374,6 +378,9 @@ function mcp_register_content_abilities(): void {
 				}
 				if ( ! empty( $input['date'] ) ) {
 					$post_data['post_date'] = $input['date'];
+				}
+				if ( ! empty( $input['author_id'] ) ) {
+					$post_data['post_author'] = intval( $input['author_id'] );
 				}
 
 				$post_id = wp_insert_post( $post_data, true );
@@ -457,6 +464,10 @@ function mcp_register_content_abilities(): void {
 						'items'       => array( 'type' => 'integer' ),
 						'description' => 'New tag IDs (replaces existing).',
 					),
+					'author_id'    => array(
+						'type'        => 'integer',
+						'description' => 'New author user ID.',
+					),
 				),
 				'additionalProperties' => false,
 			),
@@ -497,6 +508,9 @@ function mcp_register_content_abilities(): void {
 				}
 				if ( isset( $input['slug'] ) ) {
 					$post_data['post_name'] = sanitize_title( $input['slug'] );
+				}
+				if ( isset( $input['author_id'] ) ) {
+					$post_data['post_author'] = intval( $input['author_id'] );
 				}
 
 				$result = wp_update_post( $post_data, true );
@@ -1113,6 +1127,156 @@ function mcp_register_content_abilities(): void {
 					'readonly'    => false,
 					'destructive' => true,
 					'idempotent'  => false,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// REVISIONS - List
+	// =========================================================================
+	wp_register_ability(
+		'content/list-revisions',
+		array(
+			'label'               => 'List Revisions',
+			'description'         => 'Lists revisions for a post or page. Returns revision IDs, dates, and authors.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'required'             => array( 'id' ),
+				'properties'           => array(
+					'id'       => array(
+						'type'        => 'integer',
+						'description' => 'Post/Page ID to get revisions for.',
+					),
+					'per_page' => array(
+						'type'    => 'integer',
+						'default' => 10,
+						'minimum' => 1,
+						'maximum' => 50,
+					),
+				),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success'   => array( 'type' => 'boolean' ),
+					'revisions' => array( 'type' => 'array' ),
+					'total'     => array( 'type' => 'integer' ),
+				),
+			),
+			'execute_callback'    => function ( $input = array() ): array {
+				$input = is_array( $input ) ? $input : array();
+
+				if ( empty( $input['id'] ) ) {
+					return array( 'success' => false, 'message' => 'Post/Page ID is required' );
+				}
+
+				$post = get_post( $input['id'] );
+				if ( ! $post ) {
+					return array( 'success' => false, 'message' => 'Post not found' );
+				}
+
+				$per_page  = $input['per_page'] ?? 10;
+				$revisions = wp_get_post_revisions( $input['id'], array( 'posts_per_page' => $per_page ) );
+
+				$result = array();
+				foreach ( $revisions as $revision ) {
+					$author = get_user_by( 'id', $revision->post_author );
+					$result[] = array(
+						'id'       => $revision->ID,
+						'date'     => $revision->post_date,
+						'modified' => $revision->post_modified,
+						'author'   => $author ? $author->display_name : 'Unknown',
+						'title'    => $revision->post_title,
+					);
+				}
+
+				return array(
+					'success'   => true,
+					'revisions' => $result,
+					'total'     => count( $result ),
+				);
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'edit_posts' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => true,
+					'destructive' => false,
+					'idempotent'  => true,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// REVISIONS - Get
+	// =========================================================================
+	wp_register_ability(
+		'content/get-revision',
+		array(
+			'label'               => 'Get Revision',
+			'description'         => 'Retrieves a specific revision with full content. Useful for comparing or restoring.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'required'             => array( 'id' ),
+				'properties'           => array(
+					'id' => array(
+						'type'        => 'integer',
+						'description' => 'Revision ID to retrieve.',
+					),
+				),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success'   => array( 'type' => 'boolean' ),
+					'id'        => array( 'type' => 'integer' ),
+					'parent_id' => array( 'type' => 'integer' ),
+					'date'      => array( 'type' => 'string' ),
+					'author'    => array( 'type' => 'string' ),
+					'title'     => array( 'type' => 'string' ),
+					'content'   => array( 'type' => 'string' ),
+				),
+			),
+			'execute_callback'    => function ( $input = array() ): array {
+				$input = is_array( $input ) ? $input : array();
+
+				if ( empty( $input['id'] ) ) {
+					return array( 'success' => false, 'message' => 'Revision ID is required' );
+				}
+
+				$revision = get_post( $input['id'] );
+				if ( ! $revision || 'revision' !== $revision->post_type ) {
+					return array( 'success' => false, 'message' => 'Revision not found' );
+				}
+
+				$author = get_user_by( 'id', $revision->post_author );
+
+				return array(
+					'success'   => true,
+					'id'        => $revision->ID,
+					'parent_id' => $revision->post_parent,
+					'date'      => $revision->post_date,
+					'modified'  => $revision->post_modified,
+					'author'    => $author ? $author->display_name : 'Unknown',
+					'title'     => $revision->post_title,
+					'content'   => $revision->post_content,
+				);
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'edit_posts' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => true,
+					'destructive' => false,
+					'idempotent'  => true,
 				),
 			),
 		)
@@ -1922,6 +2086,12 @@ function mcp_register_content_abilities(): void {
 				}
 
 				// Include required WordPress files for plugin installation.
+				// Define stub for get_current_screen() if not available (REST API context).
+				if ( ! function_exists( 'get_current_screen' ) ) {
+					function get_current_screen() {
+						return null;
+					}
+				}
 				require_once ABSPATH . 'wp-admin/includes/file.php';
 				require_once ABSPATH . 'wp-admin/includes/plugin-install.php';
 				require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
@@ -4365,6 +4535,379 @@ function mcp_register_content_abilities(): void {
 				'annotations' => array(
 					'readonly'    => true,
 					'destructive' => false,
+					'idempotent'  => true,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// COMMENTS - List
+	// =========================================================================
+	wp_register_ability(
+		'comments/list',
+		array(
+			'label'               => 'List Comments',
+			'description'         => 'Retrieves comments with optional filtering by status, post, or author.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'properties'           => array(
+					'status'  => array(
+						'type'        => 'string',
+						'enum'        => array( 'approve', 'hold', 'spam', 'trash', 'all' ),
+						'default'     => 'all',
+						'description' => 'Filter by comment status. "approve" = approved, "hold" = pending moderation.',
+					),
+					'post_id' => array(
+						'type'        => 'integer',
+						'description' => 'Filter by post ID.',
+					),
+					'per_page' => array(
+						'type'        => 'integer',
+						'default'     => 20,
+						'minimum'     => 1,
+						'maximum'     => 100,
+						'description' => 'Number of comments to return.',
+					),
+					'orderby' => array(
+						'type'        => 'string',
+						'enum'        => array( 'comment_date', 'comment_ID' ),
+						'default'     => 'comment_date',
+						'description' => 'Field to order by.',
+					),
+					'order'   => array(
+						'type'        => 'string',
+						'enum'        => array( 'ASC', 'DESC' ),
+						'default'     => 'DESC',
+						'description' => 'Sort order.',
+					),
+				),
+				'additionalProperties' => false,
+			),
+			'execute_callback'    => function ( array $params ): array {
+				$args = array(
+					'number'  => $params['per_page'] ?? 20,
+					'orderby' => $params['orderby'] ?? 'comment_date',
+					'order'   => $params['order'] ?? 'DESC',
+				);
+
+				if ( ! empty( $params['status'] ) && 'all' !== $params['status'] ) {
+					$args['status'] = $params['status'];
+				}
+
+				if ( ! empty( $params['post_id'] ) ) {
+					$args['post_id'] = $params['post_id'];
+				}
+
+				$comments = get_comments( $args );
+				$data     = array();
+
+				foreach ( $comments as $comment ) {
+					$data[] = array(
+						'id'           => (int) $comment->comment_ID,
+						'post_id'      => (int) $comment->comment_post_ID,
+						'post_title'   => get_the_title( $comment->comment_post_ID ),
+						'author'       => $comment->comment_author,
+						'author_email' => $comment->comment_author_email,
+						'content'      => $comment->comment_content,
+						'status'       => wp_get_comment_status( $comment ),
+						'date'         => $comment->comment_date,
+						'parent'       => (int) $comment->comment_parent,
+					);
+				}
+
+				return array(
+					'success'  => true,
+					'comments' => $data,
+					'total'    => count( $data ),
+				);
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'moderate_comments' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => true,
+					'destructive' => false,
+					'idempotent'  => true,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// COMMENTS - Get
+	// =========================================================================
+	wp_register_ability(
+		'comments/get',
+		array(
+			'label'               => 'Get Comment',
+			'description'         => 'Retrieves a single comment by ID with full details.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'properties'           => array(
+					'id' => array(
+						'type'        => 'integer',
+						'description' => 'The comment ID.',
+					),
+				),
+				'required'             => array( 'id' ),
+				'additionalProperties' => false,
+			),
+			'execute_callback'            => function ( array $params ): array {
+				$comment = get_comment( $params['id'] );
+
+				if ( ! $comment ) {
+					return array(
+						'success' => false,
+						'error'   => 'Comment not found.',
+					);
+				}
+
+				return array(
+					'success' => true,
+					'comment' => array(
+						'id'           => (int) $comment->comment_ID,
+						'post_id'      => (int) $comment->comment_post_ID,
+						'post_title'   => get_the_title( $comment->comment_post_ID ),
+						'author'       => $comment->comment_author,
+						'author_email' => $comment->comment_author_email,
+						'author_url'   => $comment->comment_author_url,
+						'author_ip'    => $comment->comment_author_IP,
+						'content'      => $comment->comment_content,
+						'status'       => wp_get_comment_status( $comment ),
+						'date'         => $comment->comment_date,
+						'parent'       => (int) $comment->comment_parent,
+						'user_id'      => (int) $comment->user_id,
+					),
+				);
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'moderate_comments' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => true,
+					'destructive' => false,
+					'idempotent'  => true,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// COMMENTS - Approve/Update Status
+	// =========================================================================
+	wp_register_ability(
+		'comments/update-status',
+		array(
+			'label'               => 'Update Comment Status',
+			'description'         => 'Approves, holds, spams, or trashes a comment.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'properties'           => array(
+					'id'     => array(
+						'type'        => 'integer',
+						'description' => 'The comment ID.',
+					),
+					'status' => array(
+						'type'        => 'string',
+						'enum'        => array( 'approve', 'hold', 'spam', 'trash' ),
+						'description' => 'New status: approve (publish), hold (pending), spam, or trash.',
+					),
+				),
+				'required'             => array( 'id', 'status' ),
+				'additionalProperties' => false,
+			),
+			'execute_callback'            => function ( array $params ): array {
+				$comment = get_comment( $params['id'] );
+
+				if ( ! $comment ) {
+					return array(
+						'success' => false,
+						'error'   => 'Comment not found.',
+					);
+				}
+
+				// Map status to WordPress values.
+				$status_map = array(
+					'approve' => 1,
+					'hold'    => 0,
+					'spam'    => 'spam',
+					'trash'   => 'trash',
+				);
+
+				$result = wp_set_comment_status( $params['id'], $status_map[ $params['status'] ] );
+
+				if ( ! $result ) {
+					return array(
+						'success' => false,
+						'error'   => 'Failed to update comment status.',
+					);
+				}
+
+				return array(
+					'success'    => true,
+					'comment_id' => $params['id'],
+					'new_status' => $params['status'],
+					'message'    => 'Comment status updated.',
+				);
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'moderate_comments' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => false,
+					'destructive' => false,
+					'idempotent'  => true,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// COMMENTS - Reply
+	// =========================================================================
+	wp_register_ability(
+		'comments/reply',
+		array(
+			'label'               => 'Reply to Comment',
+			'description'         => 'Posts a reply to an existing comment.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'properties'           => array(
+					'parent_id' => array(
+						'type'        => 'integer',
+						'description' => 'The parent comment ID to reply to.',
+					),
+					'content'   => array(
+						'type'        => 'string',
+						'description' => 'The reply content.',
+					),
+					'author'    => array(
+						'type'        => 'string',
+						'description' => 'Author name for the reply.',
+					),
+					'email'     => array(
+						'type'        => 'string',
+						'description' => 'Author email for the reply.',
+					),
+				),
+				'required'             => array( 'parent_id', 'content' ),
+				'additionalProperties' => false,
+			),
+			'execute_callback'            => function ( array $params ): array {
+				$parent = get_comment( $params['parent_id'] );
+
+				if ( ! $parent ) {
+					return array(
+						'success' => false,
+						'error'   => 'Parent comment not found.',
+					);
+				}
+
+				$user = wp_get_current_user();
+
+				$comment_data = array(
+					'comment_post_ID'      => $parent->comment_post_ID,
+					'comment_content'      => $params['content'],
+					'comment_parent'       => $params['parent_id'],
+					'comment_author'       => $params['author'] ?? $user->display_name,
+					'comment_author_email' => $params['email'] ?? $user->user_email,
+					'user_id'              => $user->ID,
+					'comment_approved'     => 1,
+				);
+
+				$comment_id = wp_insert_comment( $comment_data );
+
+				if ( ! $comment_id ) {
+					return array(
+						'success' => false,
+						'error'   => 'Failed to create reply.',
+					);
+				}
+
+				return array(
+					'success'    => true,
+					'comment_id' => $comment_id,
+					'message'    => 'Reply posted successfully.',
+				);
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'moderate_comments' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => false,
+					'destructive' => false,
+					'idempotent'  => false,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// COMMENTS - Delete
+	// =========================================================================
+	wp_register_ability(
+		'comments/delete',
+		array(
+			'label'               => 'Delete Comment',
+			'description'         => 'Permanently deletes a comment.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'properties'           => array(
+					'id'    => array(
+						'type'        => 'integer',
+						'description' => 'The comment ID to delete.',
+					),
+					'force' => array(
+						'type'        => 'boolean',
+						'default'     => false,
+						'description' => 'If true, permanently delete. If false, move to trash.',
+					),
+				),
+				'required'             => array( 'id' ),
+				'additionalProperties' => false,
+			),
+			'execute_callback'            => function ( array $params ): array {
+				$comment = get_comment( $params['id'] );
+
+				if ( ! $comment ) {
+					return array(
+						'success' => false,
+						'error'   => 'Comment not found.',
+					);
+				}
+
+				$force  = $params['force'] ?? false;
+				$result = wp_delete_comment( $params['id'], $force );
+
+				if ( ! $result ) {
+					return array(
+						'success' => false,
+						'error'   => 'Failed to delete comment.',
+					);
+				}
+
+				return array(
+					'success' => true,
+					'message' => $force ? 'Comment permanently deleted.' : 'Comment moved to trash.',
+				);
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'moderate_comments' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => false,
+					'destructive' => true,
 					'idempotent'  => true,
 				),
 			),
