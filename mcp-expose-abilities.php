@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.6
+ * Version: 3.0.7
  * Author: Devenia
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -57,7 +57,7 @@ function mcp_register_content_abilities(): void {
 		'content/list-posts',
 		array(
 			'label'               => 'List Posts',
-			'description'         => 'Retrieves a list of posts with optional filtering by status, category, author, and search term. Returns post ID, title, slug, status, date, modified date, and excerpt.',
+			'description'         => 'List posts. Params: status, per_page, page, orderby, order, search, category_id, author_id (all optional).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -199,7 +199,7 @@ function mcp_register_content_abilities(): void {
 		'content/get-post',
 		array(
 			'label'               => 'Get Post',
-			'description'         => 'Retrieves a single post by ID or slug, including full content, categories, tags, featured image, and meta.',
+			'description'         => 'Get single post. Params: id or slug (one required).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -300,7 +300,7 @@ function mcp_register_content_abilities(): void {
 		'content/create-post',
 		array(
 			'label'               => 'Create Post',
-			'description'         => 'Creates a new post with specified title, content, status, categories, and tags.',
+			'description'         => 'Create post. Params: title (required), content, excerpt, status, slug, category_ids, tag_ids, date, author_id.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -423,7 +423,7 @@ function mcp_register_content_abilities(): void {
 		'content/update-post',
 		array(
 			'label'               => 'Update Post',
-			'description'         => 'Updates an existing post. Only provided fields will be updated.',
+			'description'         => 'Update post. Params: id (required), title, content, excerpt, status, slug, category_ids, tag_ids, author_id.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -553,7 +553,7 @@ function mcp_register_content_abilities(): void {
 		'content/delete-post',
 		array(
 			'label'               => 'Delete Post',
-			'description'         => 'Deletes a post by ID. Can move to trash or permanently delete.',
+			'description'         => 'Delete post. Params: id (required), force (optional, true=permanent).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -622,7 +622,7 @@ function mcp_register_content_abilities(): void {
 		'content/list-pages',
 		array(
 			'label'               => 'List Pages',
-			'description'         => 'Retrieves a list of pages with optional filtering.',
+			'description'         => 'List pages. Params: status, per_page, page, orderby, order, search, parent_id (all optional).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -731,7 +731,7 @@ function mcp_register_content_abilities(): void {
 		'content/get-page',
 		array(
 			'label'               => 'Get Page',
-			'description'         => 'Retrieves a single page by ID or slug, including full content and meta.',
+			'description'         => 'Get single page. Params: id or slug (one required).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -828,7 +828,7 @@ function mcp_register_content_abilities(): void {
 		'content/create-page',
 		array(
 			'label'               => 'Create Page',
-			'description'         => 'Creates a new page with specified title, content, status, and parent.',
+			'description'         => 'Create page. Params: title (required), content, excerpt, status, slug, parent_id, menu_order, template.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -944,7 +944,7 @@ function mcp_register_content_abilities(): void {
 		'content/update-page',
 		array(
 			'label'               => 'Update Page',
-			'description'         => 'Updates an existing page. Only provided fields will be updated.',
+			'description'         => 'Update page. Params: id (required), title, content, excerpt, status, slug, parent_id, menu_order, template.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -1072,7 +1072,7 @@ function mcp_register_content_abilities(): void {
 		'content/delete-page',
 		array(
 			'label'               => 'Delete Page',
-			'description'         => 'Deletes a page by ID. Can move to trash or permanently delete.',
+			'description'         => 'Delete page. Params: id (required), force (optional, true=permanent).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -1139,7 +1139,7 @@ function mcp_register_content_abilities(): void {
 		'content/list-revisions',
 		array(
 			'label'               => 'List Revisions',
-			'description'         => 'Lists revisions for a post or page. Returns revision IDs, dates, and authors.',
+			'description'         => 'List revisions. Params: id (required), per_page.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -1219,7 +1219,7 @@ function mcp_register_content_abilities(): void {
 		'content/get-revision',
 		array(
 			'label'               => 'Get Revision',
-			'description'         => 'Retrieves a specific revision with full content. Useful for comparing or restoring.',
+			'description'         => 'Get revision. Params: id (required).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -1289,7 +1289,7 @@ function mcp_register_content_abilities(): void {
 		'content/patch-page',
 		array(
 			'label'               => 'Patch Page Content',
-			'description'         => 'Performs find-and-replace operations on page content. Supports plain text or regex patterns.',
+			'description'         => 'Patch page content. Params: id (required), find (required), replace (required), regex (optional).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -1415,7 +1415,7 @@ function mcp_register_content_abilities(): void {
 		'content/list-categories',
 		array(
 			'label'               => 'List Categories',
-			'description'         => 'Retrieves all post categories with their IDs, names, slugs, and post counts.',
+			'description'         => 'List categories. Params: hide_empty, parent (all optional).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -1484,7 +1484,7 @@ function mcp_register_content_abilities(): void {
 		'content/list-tags',
 		array(
 			'label'               => 'List Tags',
-			'description'         => 'Retrieves all post tags with their IDs, names, slugs, and post counts.',
+			'description'         => 'List tags. Params: hide_empty, search (all optional).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -1550,7 +1550,7 @@ function mcp_register_content_abilities(): void {
 		'content/create-tag',
 		array(
 			'label'               => 'Create Tag',
-			'description'         => 'Creates a new post tag. Returns the tag ID, name, and slug.',
+			'description'         => 'Create tag. Params: name (required), slug, description.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -1642,7 +1642,7 @@ function mcp_register_content_abilities(): void {
 		'content/list-media',
 		array(
 			'label'               => 'List Media',
-			'description'         => 'Retrieves media library items with optional filtering by type.',
+			'description'         => 'List media. Params: per_page, page, mime_type, search (all optional).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -1737,7 +1737,7 @@ function mcp_register_content_abilities(): void {
 		'content/list-users',
 		array(
 			'label'               => 'List Users',
-			'description'         => 'Retrieves a list of site users with their roles.',
+			'description'         => 'List users. Params: role, per_page, page, search (all optional).',
 			'category'            => 'user',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -1825,7 +1825,7 @@ function mcp_register_content_abilities(): void {
 		'content/patch-post',
 		array(
 			'label'               => 'Patch Post Content',
-			'description'         => 'Performs find-and-replace operations on post content. Supports plain text or regex patterns. More efficient than full content updates for small changes.',
+			'description'         => 'Patch post content. Params: id (required), find (required), replace (required), regex (optional).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -1964,7 +1964,7 @@ function mcp_register_content_abilities(): void {
 		'content/search',
 		array(
 			'label'               => 'Search Content',
-			'description'         => 'Searches across posts, pages, and media for the given term.',
+			'description'         => 'Search content. Params: query (required), type (optional: post/page/media), per_page.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -2234,7 +2234,7 @@ function mcp_register_content_abilities(): void {
 		'plugins/list',
 		array(
 			'label'               => 'List Plugins',
-			'description'         => 'Lists all installed plugins with their status, version, and other details.',
+			'description'         => 'List plugins. Params: status (all/active/inactive, optional).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -2310,7 +2310,7 @@ function mcp_register_content_abilities(): void {
 		'plugins/delete',
 		array(
 			'label'               => 'Delete Plugin',
-			'description'         => 'Deletes an inactive plugin from the WordPress installation.',
+			'description'         => 'Delete plugin. Params: plugin (required, e.g. "folder/file.php").',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -2379,7 +2379,7 @@ function mcp_register_content_abilities(): void {
 		'menus/list',
 		array(
 			'label'               => 'List Menus',
-			'description'         => 'Lists all registered navigation menus and their locations.',
+			'description'         => 'List menus. No params.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -2444,7 +2444,7 @@ function mcp_register_content_abilities(): void {
 		'menus/get-items',
 		array(
 			'label'               => 'Get Menu Items',
-			'description'         => 'Retrieves all items from a specific menu by ID or location.',
+			'description'         => 'Get menu items. Params: id or location (one required).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -2542,7 +2542,7 @@ function mcp_register_content_abilities(): void {
 		'menus/create',
 		array(
 			'label'               => 'Create Menu',
-			'description'         => 'Creates a new navigation menu.',
+			'description'         => 'Create menu. Params: name (required).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -2731,7 +2731,7 @@ function mcp_register_content_abilities(): void {
 		'menus/update-item',
 		array(
 			'label'               => 'Update Menu Item',
-			'description'         => 'Updates an existing menu item.',
+			'description'         => 'Update menu item. Params: menu_id, item_id (required), title, url, parent, position, target, classes.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -2845,7 +2845,7 @@ function mcp_register_content_abilities(): void {
 		'menus/delete-item',
 		array(
 			'label'               => 'Delete Menu Item',
-			'description'         => 'Deletes a menu item from a navigation menu.',
+			'description'         => 'Delete menu item. Params: item_id (required).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -2974,7 +2974,7 @@ function mcp_register_content_abilities(): void {
 		'widgets/list-sidebars',
 		array(
 			'label'               => 'List Widget Sidebars',
-			'description'         => 'Lists all registered widget sidebars/areas.',
+			'description'         => 'List sidebars. No params.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -3025,7 +3025,7 @@ function mcp_register_content_abilities(): void {
 		'widgets/get-sidebar',
 		array(
 			'label'               => 'Get Sidebar Widgets',
-			'description'         => 'Gets all widgets in a specific sidebar.',
+			'description'         => 'Get sidebar widgets. Params: sidebar_id (required).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -3104,7 +3104,7 @@ function mcp_register_content_abilities(): void {
 		'widgets/list-available',
 		array(
 			'label'               => 'List Available Widgets',
-			'description'         => 'Lists all widget types available for use.',
+			'description'         => 'List available widgets. No params.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -3155,7 +3155,7 @@ function mcp_register_content_abilities(): void {
 		'users/list',
 		array(
 			'label'               => 'List Users (Extended)',
-			'description'         => 'Lists all users with detailed information including roles and capabilities.',
+			'description'         => 'List users extended. Params: role, per_page, page, orderby, order (all optional).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -3257,7 +3257,7 @@ function mcp_register_content_abilities(): void {
 		'users/get',
 		array(
 			'label'               => 'Get User',
-			'description'         => 'Gets detailed information about a specific user.',
+			'description'         => 'Get user. Params: id, login, or email (one required).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -3339,7 +3339,7 @@ function mcp_register_content_abilities(): void {
 		'users/create',
 		array(
 			'label'               => 'Create User',
-			'description'         => 'Creates a new user account.',
+			'description'         => 'Create user. Params: username, email (required), password, first_name, last_name, display_name, role, url, description.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -3458,7 +3458,7 @@ function mcp_register_content_abilities(): void {
 		'users/update',
 		array(
 			'label'               => 'Update User',
-			'description'         => 'Updates an existing user. Only provided fields will be updated.',
+			'description'         => 'Update user. Params: id (required), email, password, first_name, last_name, display_name, nickname, role, url, description.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -3587,7 +3587,7 @@ function mcp_register_content_abilities(): void {
 		'users/delete',
 		array(
 			'label'               => 'Delete User',
-			'description'         => 'Deletes a user account. Can reassign content to another user.',
+			'description'         => 'Delete user. Params: id (required), reassign_to.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -3796,7 +3796,7 @@ function mcp_register_content_abilities(): void {
 		'media/get',
 		array(
 			'label'               => 'Get Media Item',
-			'description'         => 'Gets detailed information about a media item.',
+			'description'         => 'Get media. Params: id (required).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -3882,7 +3882,7 @@ function mcp_register_content_abilities(): void {
 		'media/update',
 		array(
 			'label'               => 'Update Media Item',
-			'description'         => 'Updates media metadata (title, caption, alt text, description).',
+			'description'         => 'Update media. Params: id (required), title, caption, alt_text, description.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -4046,7 +4046,7 @@ function mcp_register_content_abilities(): void {
 		'system/get-transient',
 		array(
 			'label'               => 'Get Transient',
-			'description'         => 'Retrieves a WordPress transient value by name.',
+			'description'         => 'Get transient. Params: name (required).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -4346,7 +4346,7 @@ function mcp_register_content_abilities(): void {
 		'options/get',
 		array(
 			'label'               => 'Get Option',
-			'description'         => 'Retrieves a WordPress option value by name. Supports both simple values and serialized arrays/objects.',
+			'description'         => 'Get option. Params: name (required).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -4415,7 +4415,7 @@ function mcp_register_content_abilities(): void {
 		'options/update',
 		array(
 			'label'               => 'Update Option',
-			'description'         => 'Updates a WordPress option value. Can update entire option or a specific key within a serialized array.',
+			'description'         => 'Update option. Params: name, value (required), key (optional for array options).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -4530,7 +4530,7 @@ function mcp_register_content_abilities(): void {
 		'options/list',
 		array(
 			'label'               => 'List Options',
-			'description'         => 'Lists WordPress options matching a search pattern. Useful for discovering option names.',
+			'description'         => 'List options. Params: search (required, SQL LIKE pattern), per_page.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -4626,7 +4626,7 @@ function mcp_register_content_abilities(): void {
 		'comments/list',
 		array(
 			'label'               => 'List Comments',
-			'description'         => 'Retrieves comments with optional filtering by status, post, or author.',
+			'description'         => 'List comments. Params: status, post_id, author_email, per_page, page, search (all optional).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -4721,7 +4721,7 @@ function mcp_register_content_abilities(): void {
 		'comments/get',
 		array(
 			'label'               => 'Get Comment',
-			'description'         => 'Retrieves a single comment by ID with full details.',
+			'description'         => 'Get comment. Params: id (required).',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -4951,7 +4951,7 @@ function mcp_register_content_abilities(): void {
 		'comments/create',
 		array(
 			'label'               => 'Create Comment',
-			'description'         => 'Creates a new top-level comment on a post.',
+			'description'         => 'Create comment. Params: post_id, content (required), author, email, user_id, parent_id.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
