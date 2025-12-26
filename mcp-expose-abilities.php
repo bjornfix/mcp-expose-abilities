@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.5
+ * Version: 3.0.6
  * Author: Devenia
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -4929,6 +4929,108 @@ function mcp_register_content_abilities(): void {
 					'success'    => true,
 					'comment_id' => $comment_id,
 					'message'    => 'Reply posted successfully.',
+				);
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'moderate_comments' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => false,
+					'destructive' => false,
+					'idempotent'  => false,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// COMMENTS - Create
+	// =========================================================================
+	wp_register_ability(
+		'comments/create',
+		array(
+			'label'               => 'Create Comment',
+			'description'         => 'Creates a new top-level comment on a post.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'properties'           => array(
+					'post_id'   => array(
+						'type'        => 'integer',
+						'description' => 'The post ID to comment on.',
+					),
+					'content'   => array(
+						'type'        => 'string',
+						'description' => 'The comment content.',
+					),
+					'author'    => array(
+						'type'        => 'string',
+						'description' => 'Author name for the comment.',
+					),
+					'email'     => array(
+						'type'        => 'string',
+						'description' => 'Author email for the comment.',
+					),
+					'user_id'   => array(
+						'type'        => 'integer',
+						'description' => 'WordPress user ID to associate with the comment. Defaults to authenticated user.',
+					),
+					'parent_id' => array(
+						'type'        => 'integer',
+						'default'     => 0,
+						'description' => 'Parent comment ID for threading (0 for top-level).',
+					),
+				),
+				'required'             => array( 'post_id', 'content' ),
+				'additionalProperties' => false,
+			),
+			'execute_callback'    => function ( array $params ): array {
+				$post = get_post( $params['post_id'] );
+
+				if ( ! $post ) {
+					return array(
+						'success' => false,
+						'error'   => 'Post not found.',
+					);
+				}
+
+				$user = wp_get_current_user();
+
+				// Use provided user_id or fall back to authenticated user.
+				$comment_user_id = $params['user_id'] ?? $user->ID;
+				$comment_user    = $comment_user_id !== $user->ID ? get_userdata( $comment_user_id ) : $user;
+
+				if ( ! $comment_user && isset( $params['user_id'] ) ) {
+					return array(
+						'success' => false,
+						'error'   => 'User ID ' . $params['user_id'] . ' not found.',
+					);
+				}
+
+				$comment_data = array(
+					'comment_post_ID'      => $params['post_id'],
+					'comment_content'      => $params['content'],
+					'comment_parent'       => $params['parent_id'] ?? 0,
+					'comment_author'       => $params['author'] ?? $comment_user->display_name,
+					'comment_author_email' => $params['email'] ?? $comment_user->user_email,
+					'user_id'              => $comment_user_id,
+					'comment_approved'     => 1,
+				);
+
+				$comment_id = wp_insert_comment( $comment_data );
+
+				if ( ! $comment_id ) {
+					return array(
+						'success' => false,
+						'error'   => 'Failed to create comment.',
+					);
+				}
+
+				return array(
+					'success'    => true,
+					'comment_id' => $comment_id,
+					'message'    => 'Comment created successfully.',
 				);
 			},
 			'permission_callback' => function (): bool {
