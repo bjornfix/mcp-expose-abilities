@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.4
+ * Version: 3.0.5
  * Author: Devenia
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -2298,6 +2298,75 @@ function mcp_register_content_abilities(): void {
 					'readonly'    => true,
 					'destructive' => false,
 					'idempotent'  => true,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// PLUGINS - Delete
+	// =========================================================================
+	wp_register_ability(
+		'plugins/delete',
+		array(
+			'label'               => 'Delete Plugin',
+			'description'         => 'Deletes an inactive plugin from the WordPress installation.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'properties'           => array(
+					'plugin' => array(
+						'type'        => 'string',
+						'description' => 'Plugin file path (e.g., "plugin-folder/plugin-file.php").',
+					),
+				),
+				'required'             => array( 'plugin' ),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success' => array( 'type' => 'boolean' ),
+					'message' => array( 'type' => 'string' ),
+				),
+			),
+			'execute_callback'    => function ( array $input ): array {
+				if ( empty( $input['plugin'] ) ) {
+					return array( 'success' => false, 'message' => 'Plugin parameter is required' );
+				}
+
+				$plugin_file = $input['plugin'];
+
+				// Check if plugin exists.
+				$all_plugins = get_plugins();
+				if ( ! isset( $all_plugins[ $plugin_file ] ) ) {
+					return array( 'success' => false, 'message' => 'Plugin not found: ' . $plugin_file );
+				}
+
+				// Check if plugin is active.
+				if ( is_plugin_active( $plugin_file ) ) {
+					return array( 'success' => false, 'message' => 'Cannot delete active plugin. Deactivate it first.' );
+				}
+
+				// Delete the plugin.
+				$deleted = delete_plugins( array( $plugin_file ) );
+				if ( is_wp_error( $deleted ) ) {
+					return array( 'success' => false, 'message' => 'Delete failed: ' . $deleted->get_error_message() );
+				}
+
+				return array(
+					'success' => true,
+					'message' => 'Plugin deleted successfully: ' . $plugin_file,
+				);
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'delete_plugins' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => false,
+					'destructive' => true,
+					'idempotent'  => false,
 				),
 			),
 		)
@@ -4806,6 +4875,10 @@ function mcp_register_content_abilities(): void {
 						'type'        => 'string',
 						'description' => 'Author email for the reply.',
 					),
+					'user_id'   => array(
+						'type'        => 'integer',
+						'description' => 'WordPress user ID to associate with the comment. Defaults to authenticated user.',
+					),
 				),
 				'required'             => array( 'parent_id', 'content' ),
 				'additionalProperties' => false,
@@ -4822,13 +4895,24 @@ function mcp_register_content_abilities(): void {
 
 				$user = wp_get_current_user();
 
+				// Use provided user_id or fall back to authenticated user.
+				$comment_user_id = $params['user_id'] ?? $user->ID;
+				$comment_user    = $comment_user_id !== $user->ID ? get_userdata( $comment_user_id ) : $user;
+
+				if ( ! $comment_user && isset( $params['user_id'] ) ) {
+					return array(
+						'success' => false,
+						'error'   => 'User ID ' . $params['user_id'] . ' not found.',
+					);
+				}
+
 				$comment_data = array(
 					'comment_post_ID'      => $parent->comment_post_ID,
 					'comment_content'      => $params['content'],
 					'comment_parent'       => $params['parent_id'],
-					'comment_author'       => $params['author'] ?? $user->display_name,
-					'comment_author_email' => $params['email'] ?? $user->user_email,
-					'user_id'              => $user->ID,
+					'comment_author'       => $params['author'] ?? $comment_user->display_name,
+					'comment_author_email' => $params['email'] ?? $comment_user->user_email,
+					'user_id'              => $comment_user_id,
 					'comment_approved'     => 1,
 				);
 
