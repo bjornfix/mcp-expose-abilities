@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.7
+ * Version: 3.0.8
  * Author: Devenia
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -2367,6 +2367,146 @@ function mcp_register_content_abilities(): void {
 					'readonly'    => false,
 					'destructive' => true,
 					'idempotent'  => false,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// PLUGINS - Activate
+	// =========================================================================
+	wp_register_ability(
+		'plugins/activate',
+		array(
+			'label'               => 'Activate Plugin',
+			'description'         => 'Activates an installed plugin. Params: plugin (required, e.g. "folder/file.php").',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'properties'           => array(
+					'plugin' => array(
+						'type'        => 'string',
+						'description' => 'Plugin file path (e.g., "plugin-folder/plugin-file.php").',
+					),
+				),
+				'required'             => array( 'plugin' ),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success' => array( 'type' => 'boolean' ),
+					'message' => array( 'type' => 'string' ),
+				),
+			),
+			'execute_callback'    => function ( array $input ): array {
+				if ( empty( $input['plugin'] ) ) {
+					return array( 'success' => false, 'message' => 'Plugin parameter is required' );
+				}
+
+				$plugin_file = $input['plugin'];
+
+				// Check if plugin exists.
+				$all_plugins = get_plugins();
+				if ( ! isset( $all_plugins[ $plugin_file ] ) ) {
+					return array( 'success' => false, 'message' => 'Plugin not found: ' . $plugin_file );
+				}
+
+				// Check if already active.
+				if ( is_plugin_active( $plugin_file ) ) {
+					return array( 'success' => true, 'message' => 'Plugin is already active: ' . $plugin_file );
+				}
+
+				// Activate the plugin.
+				$result = activate_plugin( $plugin_file );
+				if ( is_wp_error( $result ) ) {
+					return array( 'success' => false, 'message' => 'Activation failed: ' . $result->get_error_message() );
+				}
+
+				return array(
+					'success' => true,
+					'message' => 'Plugin activated successfully: ' . $plugin_file,
+				);
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'activate_plugins' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => false,
+					'destructive' => false,
+					'idempotent'  => true,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// PLUGINS - Deactivate
+	// =========================================================================
+	wp_register_ability(
+		'plugins/deactivate',
+		array(
+			'label'               => 'Deactivate Plugin',
+			'description'         => 'Deactivates an active plugin. Params: plugin (required, e.g. "folder/file.php").',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'properties'           => array(
+					'plugin' => array(
+						'type'        => 'string',
+						'description' => 'Plugin file path (e.g., "plugin-folder/plugin-file.php").',
+					),
+				),
+				'required'             => array( 'plugin' ),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success' => array( 'type' => 'boolean' ),
+					'message' => array( 'type' => 'string' ),
+				),
+			),
+			'execute_callback'    => function ( array $input ): array {
+				if ( empty( $input['plugin'] ) ) {
+					return array( 'success' => false, 'message' => 'Plugin parameter is required' );
+				}
+
+				$plugin_file = $input['plugin'];
+
+				// Check if plugin exists.
+				$all_plugins = get_plugins();
+				if ( ! isset( $all_plugins[ $plugin_file ] ) ) {
+					return array( 'success' => false, 'message' => 'Plugin not found: ' . $plugin_file );
+				}
+
+				// Check if already inactive.
+				if ( ! is_plugin_active( $plugin_file ) ) {
+					return array( 'success' => true, 'message' => 'Plugin is already inactive: ' . $plugin_file );
+				}
+
+				// Deactivate the plugin.
+				deactivate_plugins( $plugin_file );
+
+				// Verify deactivation.
+				if ( is_plugin_active( $plugin_file ) ) {
+					return array( 'success' => false, 'message' => 'Deactivation failed for: ' . $plugin_file );
+				}
+
+				return array(
+					'success' => true,
+					'message' => 'Plugin deactivated successfully: ' . $plugin_file,
+				);
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'activate_plugins' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => false,
+					'destructive' => false,
+					'idempotent'  => true,
 				),
 			),
 		)

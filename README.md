@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 6.9
-**Stable tag:** 3.0.7
+**Stable tag:** 3.0.8
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,14 +24,14 @@ Version 3.0 introduced a modular architecture. The core plugin provides WordPres
 
 | Plugin | Abilities | Description |
 |--------|-----------|-------------|
-| **MCP Expose Abilities** (core) | 47 | WordPress core: content, menus, users, media, widgets, plugins, options, system |
+| **MCP Expose Abilities** (core) | 49 | WordPress core: content, menus, users, media, widgets, plugins, options, system |
 | [MCP Abilities - Filesystem](https://github.com/bjornfix/mcp-abilities-filesystem) | 10 | File operations with security hardening |
 | [MCP Abilities - Elementor](https://github.com/bjornfix/mcp-abilities-elementor) | 6 | Elementor page builder integration |
 | [MCP Abilities - GeneratePress](https://github.com/bjornfix/mcp-abilities-generatepress) | 5 | GeneratePress theme + GenerateBlocks |
 | [MCP Abilities - Cloudflare](https://github.com/bjornfix/mcp-abilities-cloudflare) | 1 | Cloudflare cache management |
 | [MCP Abilities - Email](https://github.com/bjornfix/mcp-abilities-email) | 8 | Gmail API with service account |
 
-**Total ecosystem: 77 abilities**
+**Total ecosystem: 79 abilities**
 
 Install only what you need. Running GeneratePress? Install that add-on. Don't use Elementor? Skip it.
 
@@ -50,7 +50,7 @@ Install only what you need. Running GeneratePress? Install that add-on. Don't us
 4. Activate the plugin
 5. (Optional) Install add-on plugins for vendor-specific features
 
-## Core Plugin Abilities (47)
+## Core Plugin Abilities (49)
 
 ### Content Management (20)
 
@@ -116,12 +116,14 @@ Install only what you need. Running GeneratePress? Install that add-on. Don't us
 | `widgets/get-sidebar` | Get widgets in a sidebar |
 | `widgets/list-available` | List available widget types |
 
-### Plugin Management (3)
+### Plugin Management (5)
 
 | Ability | Description |
 |---------|-------------|
 | `plugins/upload` | Upload plugin from URL |
 | `plugins/list` | List installed plugins |
+| `plugins/activate` | Activate installed plugin |
+| `plugins/deactivate` | Deactivate active plugin |
 | `plugins/delete` | Delete inactive plugin |
 
 ### Comments (6)
