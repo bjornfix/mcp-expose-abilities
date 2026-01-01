@@ -301,6 +301,10 @@ Three-plugin stack plus optional add-ons:
 
 ## Changelog
 
+### 3.0.8
+- Added: `plugins/activate` ability to activate installed plugins
+- Added: `plugins/deactivate` ability to deactivate active plugins
+
 ### 3.0.7
 - Improved: All 47 ability descriptions now include parameter hints
 
