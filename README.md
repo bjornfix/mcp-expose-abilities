@@ -34,8 +34,9 @@ Version 3.0 introduced a modular architecture. The core plugin provides WordPres
 | [MCP Abilities - Wordfence](https://github.com/bjornfix/mcp-abilities-wordfence) | 8 | Wordfence security status + blocks |
 | [MCP Abilities - Brevo](https://github.com/bjornfix/mcp-abilities-brevo) | 12 | Brevo contacts, lists, campaigns |
 | [MCP Abilities - Advanced Ads](https://github.com/bjornfix/mcp-abilities-advads) | 9 | Advanced Ads management |
+| [MCP Abilities - Toolset](https://github.com/bjornfix/mcp-abilities-toolset) | 38 | Toolset post types, custom fields, taxonomies, relationships |
 
-**Total ecosystem: 163 abilities**
+**Total ecosystem: 201 abilities**
 
 Install only what you need. Running GeneratePress? Install that add-on. Don't use Elementor? Skip it.
 
@@ -416,5 +417,6 @@ GPL-2.0+
 ## Links
 
 - [Plugin Page](https://devenia.com/plugins/mcp-expose-abilities/)
+- [MCP Abilities - Toolset](https://github.com/bjornfix/mcp-abilities-toolset)
 - [Abilities API](https://github.com/WordPress/abilities-api) (WordPress core team)
 - [MCP Adapter](https://github.com/WordPress/mcp-adapter) (WordPress core team)
