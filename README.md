@@ -45,10 +45,13 @@ Install only what you need. Running GeneratePress? Install that add-on. Don't us
 - PHP 8.0+
 - [Abilities API](https://github.com/WordPress/abilities-api) plugin (WordPress core team)
 - [MCP Adapter](https://github.com/WordPress/mcp-adapter) plugin (WordPress core team)
+- Use the official Abilities API release ZIP (`abilities-api.zip`) so it installs as `wp-content/plugins/abilities-api/abilities-api.php`
 
 ## Installation
 
-1. Install and activate the required plugins (Abilities API and MCP Adapter)
+1. Install and activate the required plugins:
+   - Abilities API (official release ZIP): https://github.com/WordPress/abilities-api/releases/download/v0.4.0/abilities-api.zip
+   - MCP Adapter: https://github.com/WordPress/mcp-adapter
 2. Download the latest release from [Releases](https://github.com/bjornfix/mcp-expose-abilities/releases)
 3. Upload via WordPress Admin → Plugins → Add New → Upload Plugin
 4. Activate the plugin

@@ -18,7 +18,9 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 
 == Installation ==
 
-1. Install and activate the required plugins (Abilities API and MCP Adapter)
+1. Install and activate the required plugins:
+   - Abilities API (official release ZIP): https://github.com/WordPress/abilities-api/releases/download/v0.4.0/abilities-api.zip
+   - MCP Adapter: https://github.com/WordPress/mcp-adapter
 2. Download the latest release
 3. Upload via WordPress Admin → Plugins → Add New → Upload Plugin
 4. Activate the plugin
