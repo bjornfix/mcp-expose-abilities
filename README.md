@@ -24,19 +24,19 @@ Version 3.0 introduced a modular architecture. The core plugin provides WordPres
 
 | Plugin | Abilities | Description |
 |--------|-----------|-------------|
-| **MCP Expose Abilities** (core) | 51 | WordPress core: content, menus, users, media, widgets, plugins, options, system |
-| [MCP Abilities - Filesystem](https://github.com/bjornfix/mcp-abilities-filesystem) | 10 | File operations with security hardening |
-| [MCP Abilities - Elementor](https://github.com/bjornfix/mcp-abilities-elementor) | 36 | Elementor page builder integration |
-| [MCP Abilities - GeneratePress](https://github.com/bjornfix/mcp-abilities-generatepress) | 25 | GeneratePress theme + GenerateBlocks |
-| [MCP Abilities - Cloudflare](https://github.com/bjornfix/mcp-abilities-cloudflare) | 1 | Cloudflare cache management |
-| [MCP Abilities - Google Workspace](https://github.com/bjornfix/mcp-abilities-workspace) | 8 | Gmail API via Workspace service account |
-| [MCP Abilities - Rank Math](https://github.com/bjornfix/mcp-abilities-rankmath) | 3 | Rank Math SEO metadata access |
-| [MCP Abilities - Wordfence](https://github.com/bjornfix/mcp-abilities-wordfence) | 8 | Wordfence security status + blocks |
-| [MCP Abilities - Brevo](https://github.com/bjornfix/mcp-abilities-brevo) | 12 | Brevo contacts, lists, campaigns |
-| [MCP Abilities - Advanced Ads](https://github.com/bjornfix/mcp-abilities-advads) | 9 | Advanced Ads management |
+| **MCP Expose Abilities** (core) | 59 | WordPress core: content, menus, users, media, widgets, plugins, options, system |
+| [MCP Abilities - Filesystem](https://github.com/bjornfix/mcp-abilities-filesystem) | 11 | File operations with security hardening |
+| [MCP Abilities - Elementor](https://github.com/bjornfix/mcp-abilities-elementor) | 38 | Elementor page builder integration |
+| [MCP Abilities - GeneratePress](https://github.com/bjornfix/mcp-abilities-generatepress) | 26 | GeneratePress theme + GenerateBlocks |
+| [MCP Abilities - Cloudflare](https://github.com/bjornfix/mcp-abilities-cloudflare) | 4 | Cloudflare cache management |
+| [MCP Abilities - Google Workspace](https://github.com/bjornfix/mcp-abilities-workspace) | 16 | Gmail API via Workspace service account |
+| [MCP Abilities - Rank Math](https://github.com/bjornfix/mcp-abilities-rankmath) | 12 | Rank Math SEO metadata access |
+| [MCP Abilities - Wordfence](https://github.com/bjornfix/mcp-abilities-wordfence) | 11 | Wordfence security status + blocks |
+| [MCP Abilities - Brevo](https://github.com/bjornfix/mcp-abilities-brevo) | 22 | Brevo contacts, lists, campaigns |
+| [MCP Abilities - Advanced Ads](https://github.com/bjornfix/mcp-abilities-advads) | 17 | Advanced Ads management |
 | [MCP Abilities - Toolset](https://github.com/bjornfix/mcp-abilities-toolset) | 38 | Toolset post types, custom fields, taxonomies, relationships |
 
-**Total ecosystem: 201 abilities**
+**Total ecosystem: 254 abilities**
 
 Install only what you need. Running GeneratePress? Install that add-on. Don't use Elementor? Skip it.
 
