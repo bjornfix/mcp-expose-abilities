@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 6.9
-**Stable tag:** 3.0.17
+**Stable tag:** 3.0.23
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -58,9 +58,9 @@ Install only what you need. Running GeneratePress? Install that add-on. Don't us
 4. Activate the plugin
 5. (Optional) Install add-on plugins for vendor-specific features
 
-## Core Plugin Abilities (51)
+## Core Plugin Abilities (52)
 
-### Content Management (21)
+### Content Management (22)
 
 | Ability | Description |
 |---------|-------------|
@@ -78,6 +78,7 @@ Install only what you need. Running GeneratePress? Install that add-on. Don't us
 | `content/patch-page` | Find/replace in page content |
 | `content/list-categories` | List all categories |
 | `content/create-category` | Create new category |
+| `content/update-category` | Update existing category |
 | `content/list-tags` | List all tags |
 | `content/create-tag` | Create new tag |
 | `content/list-media` | List media items |
@@ -317,6 +318,11 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.23
+- Added: `content/update-category` ability
+- Fixed: Translator comment for placeholder string in post type validation
+- Fixed: Stable tag alignment with plugin version
 
 ### 3.0.17
 - Fixed: Use literal text domain in translation calls
