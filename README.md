@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 6.9
-**Stable tag:** 3.0.23
+**Stable tag:** 3.0.24
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,7 +24,7 @@ Version 3.0 introduced a modular architecture. The core plugin provides WordPres
 
 | Plugin | Abilities | Description |
 |--------|-----------|-------------|
-| **MCP Expose Abilities** (core) | 59 | WordPress core: content, menus, users, media, widgets, plugins, options, system |
+| **MCP Expose Abilities** (core) | 60 | WordPress core: content, menus, users, media, widgets, plugins, options, comments, taxonomy, system |
 | [MCP Abilities - Filesystem](https://github.com/bjornfix/mcp-abilities-filesystem) | 11 | File operations with security hardening |
 | [MCP Abilities - Elementor](https://github.com/bjornfix/mcp-abilities-elementor) | 38 | Elementor page builder integration |
 | [MCP Abilities - GeneratePress](https://github.com/bjornfix/mcp-abilities-generatepress) | 26 | GeneratePress theme + GenerateBlocks |
@@ -35,8 +35,9 @@ Version 3.0 introduced a modular architecture. The core plugin provides WordPres
 | [MCP Abilities - Brevo](https://github.com/bjornfix/mcp-abilities-brevo) | 22 | Brevo contacts, lists, campaigns |
 | [MCP Abilities - Advanced Ads](https://github.com/bjornfix/mcp-abilities-advads) | 17 | Advanced Ads management |
 | [MCP Abilities - Toolset](https://github.com/bjornfix/mcp-abilities-toolset) | 38 | Toolset post types, custom fields, taxonomies, relationships |
+| [MCP Abilities - SitePress](https://github.com/bjornfix/mcp-abilities-sitepress) | 3 | WPML translation mapping and QA checks |
 
-**Total ecosystem: 254 abilities**
+**Total ecosystem: 258 abilities**
 
 Install only what you need. Running GeneratePress? Install that add-on. Don't use Elementor? Skip it.
 
@@ -58,7 +59,7 @@ Install only what you need. Running GeneratePress? Install that add-on. Don't us
 4. Activate the plugin
 5. (Optional) Install add-on plugins for vendor-specific features
 
-## Core Plugin Abilities (52)
+## Core Plugin Abilities (60)
 
 ### Content Management (22)
 
@@ -164,9 +165,15 @@ Install only what you need. Running GeneratePress? Install that add-on. Don't us
 | `system/debug-log` | Read debug.log file |
 | `system/toggle-debug` | Toggle WP_DEBUG, WP_DEBUG_LOG, WP_DEBUG_DISPLAY |
 
+### Taxonomy Utilities (1)
+
+| Ability | Description |
+|---------|-------------|
+| `taxonomy/associate-with-post-type` | Associate a taxonomy with a post type and persist the mapping |
+
 ## Add-on Plugin Abilities
 
-### Filesystem (mcp-abilities-filesystem) - 10 abilities
+### Filesystem (mcp-abilities-filesystem) - 11 abilities
 
 | Ability | Description |
 |---------|-------------|
@@ -176,12 +183,13 @@ Install only what you need. Running GeneratePress? Install that add-on. Don't us
 | `filesystem/append-file` | Append to file |
 | `filesystem/list-directory` | List directory contents |
 | `filesystem/delete-file` | Delete file (creates backup) |
+| `filesystem/delete-directory` | Delete directory (optional recursive) |
 | `filesystem/file-info` | Get file metadata |
 | `filesystem/create-directory` | Create directory |
 | `filesystem/copy-file` | Copy file |
 | `filesystem/move-file` | Move/rename file |
 
-### Elementor (mcp-abilities-elementor) - 36 abilities
+### Elementor (mcp-abilities-elementor) - 38 abilities
 
 See the add-on readme for the full list. Common abilities:
 
@@ -194,7 +202,7 @@ See the add-on readme for the full list. Common abilities:
 | `elementor/list-templates` | List saved templates |
 | `elementor/clear-cache` | Clear CSS cache |
 
-### GeneratePress (mcp-abilities-generatepress) - 25 abilities
+### GeneratePress (mcp-abilities-generatepress) - 26 abilities
 
 See the add-on readme for the full list. Common abilities:
 
@@ -209,20 +217,31 @@ See the add-on readme for the full list. Common abilities:
 | `generateblocks/update-global-styles` | Update global styles |
 | `generateblocks/clear-cache` | Clear CSS cache |
 
-### Cloudflare (mcp-abilities-cloudflare) - 1 ability
+### Cloudflare (mcp-abilities-cloudflare) - 4 abilities
 
 | Ability | Description |
 |---------|-------------|
 | `cloudflare/clear-cache` | Clear Cloudflare cache (entire site or specific URLs) |
+| `cloudflare/get-zone` | Get resolved Cloudflare zone context |
+| `cloudflare/get-development-mode` | Read development mode status |
+| `cloudflare/set-development-mode` | Enable/disable development mode |
 
-### Google Workspace (mcp-abilities-workspace) - 8 abilities
+### Google Workspace (mcp-abilities-workspace) - 16 abilities
 
 | Ability | Description |
 |---------|-------------|
 | `gmail/configure` | Set up Gmail API service account credentials |
 | `gmail/status` | Check API connection status and configuration |
+| `gmail/list-labels` | List labels |
+| `gmail/get-label` | Get label by ID |
+| `gmail/create-label` | Create label |
+| `gmail/update-label` | Update label |
+| `gmail/delete-label` | Delete label |
 | `gmail/list` | List inbox messages with filtering |
+| `gmail/list-threads` | List threads |
 | `gmail/get` | Get full email content by ID |
+| `gmail/get-thread` | Get thread details |
+| `gmail/get-attachment` | Fetch attachment as base64 |
 | `gmail/send` | Send email with HTML, attachments, CC, BCC |
 | `gmail/modify` | Modify labels (archive, mark read/unread, etc.) |
 | `gmail/reply` | Reply to an existing email thread |
@@ -318,6 +337,11 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.24
+- Performance: debug log reader now tails file content instead of loading full files
+- Security: `options/get` blocks sensitive option names (tokens, keys, secrets)
+- Schema: output schemas added for comments and taxonomy-association abilities
 
 ### 3.0.23
 - Added: `content/update-category` ability

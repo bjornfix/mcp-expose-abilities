@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.23
+ * Version: 3.0.24
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -131,7 +131,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.23');
+define('MCP_VERSION', '3.0.24');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -274,6 +274,110 @@ define('MCP_SCHEMA_CONTENT', array(
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
+
+if ( ! defined( 'MCP_EXPOSE_MAX_PLUGIN_ZIP_BYTES' ) ) {
+	define( 'MCP_EXPOSE_MAX_PLUGIN_ZIP_BYTES', 64 * 1024 * 1024 );
+}
+
+if ( ! defined( 'MCP_EXPOSE_MAX_MEDIA_DOWNLOAD_BYTES' ) ) {
+	define( 'MCP_EXPOSE_MAX_MEDIA_DOWNLOAD_BYTES', 25 * 1024 * 1024 );
+}
+
+/**
+ * Check whether an IP is private/reserved.
+ *
+ * @param string $ip IP address.
+ * @return bool
+ */
+function mcp_expose_is_private_ip( string $ip ): bool {
+	return false === filter_var( $ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE );
+}
+
+/**
+ * Validate remote URL for download-based abilities.
+ *
+ * @param string $url Candidate URL.
+ * @return true|WP_Error
+ */
+function mcp_expose_validate_remote_download_url( string $url ) {
+	$url = trim( $url );
+	if ( '' === $url ) {
+		return new WP_Error( 'mcp_invalid_url', 'URL is required.' );
+	}
+
+	if ( ! wp_http_validate_url( $url ) ) {
+		return new WP_Error( 'mcp_invalid_url', 'Invalid download URL.' );
+	}
+
+	$parts  = wp_parse_url( $url );
+	$scheme = strtolower( (string) ( $parts['scheme'] ?? '' ) );
+	$host   = strtolower( (string) ( $parts['host'] ?? '' ) );
+
+	if ( ! in_array( $scheme, array( 'http', 'https' ), true ) ) {
+		return new WP_Error( 'mcp_invalid_url_scheme', 'Only http/https URLs are allowed.' );
+	}
+
+	if ( '' === $host ) {
+		return new WP_Error( 'mcp_invalid_url_host', 'URL host is required.' );
+	}
+
+	$blocked_hosts = array( 'localhost', '0.0.0.0', '127.0.0.1', '::1' );
+	if ( in_array( $host, $blocked_hosts, true ) || str_ends_with( $host, '.local' ) ) {
+		return new WP_Error( 'mcp_blocked_host', 'Local/internal hosts are not allowed.' );
+	}
+
+	if ( filter_var( $host, FILTER_VALIDATE_IP ) && mcp_expose_is_private_ip( $host ) ) {
+		return new WP_Error( 'mcp_blocked_ip', 'Private or reserved IP addresses are not allowed.' );
+	}
+
+	$resolved_ips = gethostbynamel( $host );
+	if ( is_array( $resolved_ips ) ) {
+		foreach ( $resolved_ips as $resolved_ip ) {
+			if ( mcp_expose_is_private_ip( (string) $resolved_ip ) ) {
+				return new WP_Error( 'mcp_blocked_dns', 'Resolved host points to private or reserved address space.' );
+			}
+		}
+	}
+
+	return true;
+}
+
+/**
+ * Validate remote file size (when Content-Length is available).
+ *
+ * @param string $url       Remote URL.
+ * @param int    $max_bytes Max accepted size.
+ * @return true|WP_Error
+ */
+function mcp_expose_validate_remote_download_size( string $url, int $max_bytes ) {
+	$response = wp_remote_head(
+		$url,
+		array(
+			'timeout'     => 15,
+			'redirection' => 5,
+		)
+	);
+
+	if ( is_wp_error( $response ) ) {
+		// Fall back to post-download size checks.
+		return true;
+	}
+
+	$length = wp_remote_retrieve_header( $response, 'content-length' );
+	if ( '' === $length || null === $length ) {
+		return true;
+	}
+
+	$length_int = (int) $length;
+	if ( $length_int > 0 && $length_int > $max_bytes ) {
+		return new WP_Error(
+			'mcp_download_too_large',
+			sprintf( 'Remote file exceeds limit (%d bytes > %d bytes).', $length_int, $max_bytes )
+		);
+	}
+
+	return true;
+}
 
 /**
  * Install a plugin from a local zip file path.
@@ -469,6 +573,108 @@ function mcp_expose_parse_pagination( array $input, int $default_per_page, int $
 		'per_page' => $per_page,
 		'page'     => $page,
 	);
+}
+
+/**
+ * Get the list of protected option names.
+ *
+ * @return array<string>
+ */
+function mcp_expose_protected_option_names(): array {
+	$protected = array(
+		'active_plugins',           // Can disable security plugins.
+		'siteurl',                  // Can break site access.
+		'home',                     // Can break site access.
+		'users_can_register',       // Security: user registration.
+		'default_role',             // Security: new user privileges.
+		'admin_email',              // Security: site recovery email.
+		'cron',                     // Can inject malicious scheduled tasks.
+		'auto_updater.lock',        // Can block security updates.
+		'rewrite_rules',            // Can break permalinks.
+		'recently_activated',       // Plugin state tracking.
+		'uninstall_plugins',        // Plugin cleanup callbacks.
+		'wp_user_roles',            // Security: role definitions.
+		'mcp_gmail_config',         // Stores service account keys.
+		'cloudflare_api_key',       // External API secret.
+		'sib_api_key_v3',           // External API secret.
+		'wordfence_apiKey',         // Security plugin API key.
+		'mailserver_pass',          // SMTP password.
+		'mailserver_login',         // SMTP login.
+	);
+
+	/**
+	 * Filter protected option names for MCP option abilities.
+	 *
+	 * @param array<string> $protected Protected option names.
+	 */
+	return apply_filters( 'mcp_expose_protected_options', $protected );
+}
+
+/**
+ * Determine whether an option name is sensitive and should be blocked.
+ *
+ * @param string $option_name Option name.
+ * @return bool
+ */
+function mcp_expose_is_sensitive_option_name( string $option_name ): bool {
+	$option_name = sanitize_key( $option_name );
+
+	if ( in_array( $option_name, mcp_expose_protected_option_names(), true ) ) {
+		return true;
+	}
+
+	$sensitive_patterns = array(
+		'/(?:^|_)(api_?key|token|secret|private_?key|password|client_?secret)(?:$|_)/i',
+		'/(?:^|_)auth(?:$|_)/i',
+	);
+
+	foreach ( $sensitive_patterns as $pattern ) {
+		if ( preg_match( $pattern, $option_name ) ) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/**
+ * Read the last N non-empty lines from a file.
+ *
+ * @param string $file_path File path.
+ * @param int    $num_lines Number of lines to return.
+ * @return array<int,string>
+ */
+function mcp_expose_read_tail_lines( string $file_path, int $num_lines ): array {
+	if ( $num_lines < 1 ) {
+		return array();
+	}
+
+	WP_Filesystem();
+	global $wp_filesystem;
+
+	if ( ! is_object( $wp_filesystem ) || ! method_exists( $wp_filesystem, 'get_contents_array' ) ) {
+		return array();
+	}
+
+	$lines = $wp_filesystem->get_contents_array( $file_path );
+	if ( ! is_array( $lines ) ) {
+		return array();
+	}
+
+	$filtered = array_values(
+		array_filter(
+			$lines,
+			static function ( $line ): bool {
+				return is_string( $line ) && trim( $line ) !== '';
+			}
+		)
+	);
+
+	if ( count( $filtered ) > $num_lines ) {
+		$filtered = array_slice( $filtered, -$num_lines );
+	}
+
+	return $filtered;
 }
 
 // ============================================================================
@@ -686,7 +892,7 @@ function mcp_register_content_abilities(): void {
 			'label'               => 'List Posts',
 			'description'         => 'List posts. Params: status, per_page, page, orderby, order, search, category_id, author_id (all optional).',
 			'category'            => 'site',
-			'input_schema'        => array(
+				'input_schema'        => array(
 				'type'                 => 'object',
 				'properties'           => array(
 					'status'      => array(
@@ -3101,16 +3307,16 @@ function mcp_register_content_abilities(): void {
 					return array( 'results' => array(), 'total' => 0 );
 				}
 
-				$query = new WP_Query( array(
-					's'                      => $input['query'],
-					'post_type'              => $input['post_types'] ?? array( 'post', 'page' ),
-					'post_status'            => 'publish',
-					'posts_per_page'         => $input['per_page'] ?? 10,
-					// Performance optimizations.
-					'no_found_rows'          => true,
-					'update_post_term_cache' => false,
-					'update_post_meta_cache' => false,
-				) );
+					$query = new WP_Query( array(
+						's'                      => $input['query'],
+						'post_type'              => $input['post_types'] ?? array( 'post', 'page' ),
+						'post_status'            => 'publish',
+						'posts_per_page'         => $input['per_page'] ?? 10,
+						// Keep found_rows enabled because the response exposes total count.
+						'no_found_rows'          => false,
+						'update_post_term_cache' => false,
+						'update_post_meta_cache' => false,
+					) );
 
 				$results = array();
 				foreach ( $query->posts as $post ) {
@@ -3180,22 +3386,40 @@ function mcp_register_content_abilities(): void {
 					'activated' => array( 'type' => 'boolean' ),
 				),
 			),
-			'execute_callback'    => function ( $input = array() ): array {
-				$input = is_array( $input ) ? $input : array();
+				'execute_callback'    => function ( $input = array() ): array {
+					$input = is_array( $input ) ? $input : array();
 
-				if ( empty( $input['url'] ) ) {
-					return array( 'success' => false, 'message' => esc_html__( 'Plugin URL is required', 'mcp-expose-abilities' ) );
-				}
+					if ( empty( $input['url'] ) ) {
+						return array( 'success' => false, 'message' => esc_html__( 'Plugin URL is required', 'mcp-expose-abilities' ) );
+					}
 
-				// Download the zip file.
-				$download_file = download_url( $input['url'] );
-				if ( is_wp_error( $download_file ) ) {
-					/* translators: %s: Error message */
-					return array( 'success' => false, 'message' => esc_html__( 'Download failed: ', 'mcp-expose-abilities' ) . esc_html( $download_file->get_error_message() ) );
-				}
+					$url_check = mcp_expose_validate_remote_download_url( (string) $input['url'] );
+					if ( is_wp_error( $url_check ) ) {
+						return array( 'success' => false, 'message' => $url_check->get_error_message() );
+					}
 
-				$result = mcp_expose_install_plugin_zip( $download_file, $input );
-				wp_delete_file( $download_file );
+					$size_check = mcp_expose_validate_remote_download_size( (string) $input['url'], MCP_EXPOSE_MAX_PLUGIN_ZIP_BYTES );
+					if ( is_wp_error( $size_check ) ) {
+						return array( 'success' => false, 'message' => $size_check->get_error_message() );
+					}
+
+					// Download the zip file.
+					$download_file = download_url( (string) $input['url'] );
+					if ( is_wp_error( $download_file ) ) {
+						/* translators: %s: Error message */
+						return array( 'success' => false, 'message' => esc_html__( 'Download failed: ', 'mcp-expose-abilities' ) . esc_html( $download_file->get_error_message() ) );
+					}
+					$download_size = is_file( $download_file ) ? filesize( $download_file ) : false;
+					if ( false !== $download_size && $download_size > MCP_EXPOSE_MAX_PLUGIN_ZIP_BYTES ) {
+						wp_delete_file( $download_file );
+						return array(
+							'success' => false,
+							'message' => sprintf( 'Plugin zip exceeds limit of %d bytes.', MCP_EXPOSE_MAX_PLUGIN_ZIP_BYTES ),
+						);
+					}
+
+					$result = mcp_expose_install_plugin_zip( $download_file, $input );
+					wp_delete_file( $download_file );
 
 				return $result;
 			},
@@ -3258,29 +3482,42 @@ function mcp_register_content_abilities(): void {
 					'activated' => array( 'type' => 'boolean' ),
 				),
 			),
-			'execute_callback'    => function ( $input = array() ): array {
-				$input = is_array( $input ) ? $input : array();
+				'execute_callback'    => function ( $input = array() ): array {
+					$input = is_array( $input ) ? $input : array();
 
-				if ( ! empty( $input['zip_path'] ) ) {
-					$zip_path = wp_normalize_path( $input['zip_path'] );
+					if ( ! empty( $input['zip_path'] ) ) {
+						$zip_path = wp_normalize_path( $input['zip_path'] );
 					if ( ! is_file( $zip_path ) || ! is_readable( $zip_path ) ) {
 						return array( 'success' => false, 'message' => esc_html__( 'zip_path must point to a readable .zip file', 'mcp-expose-abilities' ) );
 					}
-					if ( ! str_ends_with( $zip_path, '.zip' ) ) {
-						return array( 'success' => false, 'message' => esc_html__( 'zip_path must point to a .zip file', 'mcp-expose-abilities' ) );
-					}
+						if ( ! str_ends_with( $zip_path, '.zip' ) ) {
+							return array( 'success' => false, 'message' => esc_html__( 'zip_path must point to a .zip file', 'mcp-expose-abilities' ) );
+						}
+						$zip_size = is_file( $zip_path ) ? filesize( $zip_path ) : false;
+						if ( false !== $zip_size && $zip_size > MCP_EXPOSE_MAX_PLUGIN_ZIP_BYTES ) {
+							return array(
+								'success' => false,
+								'message' => sprintf( 'Plugin zip exceeds limit of %d bytes.', MCP_EXPOSE_MAX_PLUGIN_ZIP_BYTES ),
+							);
+						}
 
-					return mcp_expose_install_plugin_zip( $zip_path, $input );
-				}
+						return mcp_expose_install_plugin_zip( $zip_path, $input );
+					}
 
 				if ( empty( $input['content_base64'] ) ) {
 					return array( 'success' => false, 'message' => esc_html__( 'content_base64 or zip_path is required', 'mcp-expose-abilities' ) );
 				}
 
-				$decoded = base64_decode( $input['content_base64'], true );
-				if ( false === $decoded ) {
-					return array( 'success' => false, 'message' => esc_html__( 'Invalid base64 payload', 'mcp-expose-abilities' ) );
-				}
+					$decoded = base64_decode( $input['content_base64'], true );
+					if ( false === $decoded ) {
+						return array( 'success' => false, 'message' => esc_html__( 'Invalid base64 payload', 'mcp-expose-abilities' ) );
+					}
+					if ( strlen( $decoded ) > MCP_EXPOSE_MAX_PLUGIN_ZIP_BYTES ) {
+						return array(
+							'success' => false,
+							'message' => sprintf( 'Decoded plugin zip exceeds limit of %d bytes.', MCP_EXPOSE_MAX_PLUGIN_ZIP_BYTES ),
+						);
+					}
 
 				$filename = ! empty( $input['filename'] ) ? sanitize_file_name( $input['filename'] ) : 'plugin.zip';
 				if ( ! str_ends_with( $filename, '.zip' ) ) {
@@ -3344,8 +3581,8 @@ function mcp_register_content_abilities(): void {
 					'total'   => array( 'type' => 'integer' ),
 				),
 			),
-			'execute_callback'    => function ( $input = array() ): array {
-				$input = is_array( $input ) ? $input : array();
+				'execute_callback'    => function ( $input = array() ): array {
+					$input = is_array( $input ) ? $input : array();
 
 				$all_plugins    = get_plugins();
 				$active_plugins = get_option( 'active_plugins', array() );
@@ -4950,18 +5187,34 @@ function mcp_register_content_abilities(): void {
 			'execute_callback'    => function ( $input = array() ): array {
 				$input = is_array( $input ) ? $input : array();
 
-				if ( empty( $input['url'] ) ) {
-					return array( 'success' => false, 'message' => esc_html__( 'URL is required', 'mcp-expose-abilities' ) );
-				}
+					if ( empty( $input['url'] ) ) {
+						return array( 'success' => false, 'message' => esc_html__( 'URL is required', 'mcp-expose-abilities' ) );
+					}
+					$url_check = mcp_expose_validate_remote_download_url( (string) $input['url'] );
+					if ( is_wp_error( $url_check ) ) {
+						return array( 'success' => false, 'message' => $url_check->get_error_message() );
+					}
+					$size_check = mcp_expose_validate_remote_download_size( (string) $input['url'], MCP_EXPOSE_MAX_MEDIA_DOWNLOAD_BYTES );
+					if ( is_wp_error( $size_check ) ) {
+						return array( 'success' => false, 'message' => $size_check->get_error_message() );
+					}
 
-				$post_id = $input['post_id'] ?? 0;
+					$post_id = $input['post_id'] ?? 0;
 
-				// Download file to temp location.
-				$tmp = download_url( $input['url'] );
-				if ( is_wp_error( $tmp ) ) {
-					/* translators: %s: Error message */
-					return array( 'success' => false, 'message' => esc_html( $tmp->get_error_message() ) );
-				}
+					// Download file to temp location.
+					$tmp = download_url( (string) $input['url'] );
+					if ( is_wp_error( $tmp ) ) {
+						/* translators: %s: Error message */
+						return array( 'success' => false, 'message' => esc_html( $tmp->get_error_message() ) );
+					}
+					$tmp_size = is_file( $tmp ) ? filesize( $tmp ) : false;
+					if ( false !== $tmp_size && $tmp_size > MCP_EXPOSE_MAX_MEDIA_DOWNLOAD_BYTES ) {
+						wp_delete_file( $tmp );
+						return array(
+							'success' => false,
+							'message' => sprintf( 'Downloaded media exceeds limit of %d bytes.', MCP_EXPOSE_MAX_MEDIA_DOWNLOAD_BYTES ),
+						);
+					}
 
 				// Get filename from URL.
 				$filename = basename( wp_parse_url( $input['url'], PHP_URL_PATH ) );
@@ -5401,10 +5654,8 @@ function mcp_register_content_abilities(): void {
 				$num_lines = isset( $input['lines'] ) ? min( max( 1, (int) $input['lines'] ), 500 ) : 50;
 				$filter    = isset( $input['filter'] ) ? $input['filter'] : '';
 
-				// Read file from end
-				$file_content = file_get_contents( $log_file );
-				$all_lines    = explode( "\n", $file_content );
-				$all_lines    = array_filter( $all_lines, function( $line ) { return trim( $line ) !== ''; } );
+					$scan_lines = empty( $filter ) ? $num_lines : min( 5000, $num_lines * 20 );
+					$all_lines  = mcp_expose_read_tail_lines( $log_file, $scan_lines );
 
 				// Apply filter if specified
 				if ( ! empty( $filter ) ) {
@@ -5625,8 +5876,19 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'name' => '', 'value' => null, 'type' => 'null' );
 				}
 
-				$name  = sanitize_key( $input['name'] );
-				$value = get_option( $name, null );
+					$name = sanitize_key( $input['name'] );
+
+					if ( mcp_expose_is_sensitive_option_name( $name ) ) {
+						return array(
+							'success' => false,
+							'name'    => $name,
+							'value'   => null,
+							'type'    => 'null',
+							'message' => esc_html__( 'This option is protected and cannot be retrieved via MCP.', 'mcp-expose-abilities' ),
+						);
+					}
+
+					$value = get_option( $name, null );
 
 				if ( null === $value ) {
 					return array(
@@ -5704,28 +5966,12 @@ function mcp_register_content_abilities(): void {
 
 				$name = sanitize_key( $input['name'] );
 
-				// Protected options that cannot be modified via MCP for security.
-				$protected_options = array(
-					'active_plugins',           // Can disable security plugins.
-					'siteurl',                  // Can break site access.
-					'home',                     // Can break site access.
-					'users_can_register',       // Security: user registration.
-					'default_role',             // Security: new user privileges.
-					'admin_email',              // Security: site recovery email.
-					'cron',                     // Can inject malicious scheduled tasks.
-					'auto_updater.lock',        // Can block security updates.
-					'rewrite_rules',            // Can break permalinks.
-					'recently_activated',       // Plugin state tracking.
-					'uninstall_plugins',        // Plugin cleanup callbacks.
-					'wp_user_roles',            // Security: role definitions.
-				);
-
-				if ( in_array( $name, $protected_options, true ) ) {
-					return array(
-						'success' => false,
-						'name'    => $name,
-						/* translators: %s: Option name. */
-						'message' => esc_html( sprintf( __( "Option '%s' is protected and cannot be modified via MCP for security reasons.", 'mcp-expose-abilities' ), $name ) ),
+					if ( mcp_expose_is_sensitive_option_name( $name ) ) {
+						return array(
+							'success' => false,
+							'name'    => $name,
+							/* translators: %s: Option name. */
+							'message' => esc_html( sprintf( __( "Option '%s' is protected and cannot be modified via MCP for security reasons.", 'mcp-expose-abilities' ), $name ) ),
 					);
 				}
 				$new_value = $input['value'];
@@ -5912,9 +6158,17 @@ function mcp_register_content_abilities(): void {
 						'description' => 'Sort order.',
 					),
 				),
-				'additionalProperties' => false,
-			),
-			'execute_callback'    => function ( array $params ): array {
+					'additionalProperties' => false,
+				),
+				'output_schema'       => array(
+					'type'       => 'object',
+					'properties' => array(
+						'success'  => array( 'type' => 'boolean' ),
+						'comments' => array( 'type' => 'array' ),
+						'total'    => array( 'type' => 'integer' ),
+					),
+				),
+				'execute_callback'    => function ( array $params ): array {
 				$args = array(
 					'number'  => $params['per_page'] ?? 20,
 					'orderby' => $params['orderby'] ?? 'comment_date',
@@ -5974,7 +6228,7 @@ function mcp_register_content_abilities(): void {
 			'label'               => 'Get Comment',
 			'description'         => 'Get comment. Params: id (required).',
 			'category'            => 'site',
-			'input_schema'        => array(
+				'input_schema'        => array(
 				'type'                 => 'object',
 				'properties'           => array(
 					'id' => array(
@@ -5982,10 +6236,18 @@ function mcp_register_content_abilities(): void {
 						'description' => 'The comment ID.',
 					),
 				),
-				'required'             => array( 'id' ),
-				'additionalProperties' => false,
-			),
-			'execute_callback'            => function ( array $params ): array {
+					'required'             => array( 'id' ),
+					'additionalProperties' => false,
+				),
+				'output_schema'       => array(
+					'type'       => 'object',
+					'properties' => array(
+						'success' => array( 'type' => 'boolean' ),
+						'comment' => array( 'type' => 'object' ),
+						'error'   => array( 'type' => 'string' ),
+					),
+				),
+				'execute_callback'            => function ( array $params ): array {
 				$comment = get_comment( $params['id'] );
 
 				if ( ! $comment ) {
@@ -6042,7 +6304,7 @@ function mcp_register_content_abilities(): void {
 			'label'               => 'Update Comment Status',
 			'description'         => 'Approves, holds, spams, or trashes a comment.',
 			'category'            => 'site',
-			'input_schema'        => array(
+				'input_schema'        => array(
 				'type'                 => 'object',
 				'properties'           => array(
 					'id'     => array(
@@ -6055,10 +6317,20 @@ function mcp_register_content_abilities(): void {
 						'description' => 'New status: approve (publish), hold (pending), spam, or trash.',
 					),
 				),
-				'required'             => array( 'id', 'status' ),
-				'additionalProperties' => false,
-			),
-			'execute_callback'            => function ( array $params ): array {
+					'required'             => array( 'id', 'status' ),
+					'additionalProperties' => false,
+				),
+				'output_schema'       => array(
+					'type'       => 'object',
+					'properties' => array(
+						'success'    => array( 'type' => 'boolean' ),
+						'comment_id' => array( 'type' => 'integer' ),
+						'new_status' => array( 'type' => 'string' ),
+						'message'    => array( 'type' => 'string' ),
+						'error'      => array( 'type' => 'string' ),
+					),
+				),
+				'execute_callback'            => function ( array $params ): array {
 				$comment = get_comment( $params['id'] );
 
 				if ( ! $comment ) {
@@ -6121,7 +6393,7 @@ function mcp_register_content_abilities(): void {
 			'label'               => 'Reply to Comment',
 			'description'         => 'Posts a reply to an existing comment.',
 			'category'            => 'site',
-			'input_schema'        => array(
+				'input_schema'        => array(
 				'type'                 => 'object',
 				'properties'           => array(
 					'parent_id' => array(
@@ -6145,10 +6417,19 @@ function mcp_register_content_abilities(): void {
 						'description' => 'WordPress user ID to associate with the comment. Defaults to authenticated user.',
 					),
 				),
-				'required'             => array( 'parent_id', 'content' ),
-				'additionalProperties' => false,
-			),
-			'execute_callback'            => function ( array $params ): array {
+					'required'             => array( 'parent_id', 'content' ),
+					'additionalProperties' => false,
+				),
+				'output_schema'       => array(
+					'type'       => 'object',
+					'properties' => array(
+						'success'    => array( 'type' => 'boolean' ),
+						'comment_id' => array( 'type' => 'integer' ),
+						'message'    => array( 'type' => 'string' ),
+						'error'      => array( 'type' => 'string' ),
+					),
+				),
+				'execute_callback'            => function ( array $params ): array {
 				$parent = get_comment( $params['parent_id'] );
 
 				if ( ! $parent ) {
@@ -6232,7 +6513,7 @@ function mcp_register_content_abilities(): void {
 			'label'               => 'Create Comment',
 			'description'         => 'Create comment. Params: post_id, content (required), author, email, user_id, parent_id.',
 			'category'            => 'site',
-			'input_schema'        => array(
+				'input_schema'        => array(
 				'type'                 => 'object',
 				'properties'           => array(
 					'post_id'   => array(
@@ -6261,10 +6542,19 @@ function mcp_register_content_abilities(): void {
 						'description' => 'Parent comment ID for threading (0 for top-level).',
 					),
 				),
-				'required'             => array( 'post_id', 'content' ),
-				'additionalProperties' => false,
-			),
-			'execute_callback'    => function ( array $params ): array {
+					'required'             => array( 'post_id', 'content' ),
+					'additionalProperties' => false,
+				),
+				'output_schema'       => array(
+					'type'       => 'object',
+					'properties' => array(
+						'success'    => array( 'type' => 'boolean' ),
+						'comment_id' => array( 'type' => 'integer' ),
+						'message'    => array( 'type' => 'string' ),
+						'error'      => array( 'type' => 'string' ),
+					),
+				),
+				'execute_callback'    => function ( array $params ): array {
 				$post = get_post( $params['post_id'] );
 
 				if ( ! $post ) {
@@ -6352,7 +6642,7 @@ function mcp_register_content_abilities(): void {
 			'label'               => 'Associate Taxonomy with Post Type',
 			'description'         => 'Associates a taxonomy with a post type. Required when taxonomies from Toolset or other plugins are not automatically available for a post type.',
 			'category'            => 'site',
-			'input_schema'        => array(
+				'input_schema'        => array(
 				'type'                 => 'object',
 				'properties'           => array(
 					'taxonomy'  => array(
@@ -6364,10 +6654,18 @@ function mcp_register_content_abilities(): void {
 						'description' => 'The post type name to associate the taxonomy with.',
 					),
 				),
-				'required'             => array( 'taxonomy', 'post_type' ),
-				'additionalProperties' => false,
-			),
-			'execute_callback'            => function ( array $params ): array {
+					'required'             => array( 'taxonomy', 'post_type' ),
+					'additionalProperties' => false,
+				),
+				'output_schema'       => array(
+					'type'       => 'object',
+					'properties' => array(
+						'success' => array( 'type' => 'boolean' ),
+						'message' => array( 'type' => 'string' ),
+						'error'   => array( 'type' => 'string' ),
+					),
+				),
+				'execute_callback'            => function ( array $params ): array {
 				$taxonomy  = sanitize_key( $params['taxonomy'] );
 				$post_type = sanitize_key( $params['post_type'] );
 
@@ -6454,7 +6752,7 @@ function mcp_register_content_abilities(): void {
 			'label'               => 'Delete Comment',
 			'description'         => 'Permanently deletes a comment.',
 			'category'            => 'site',
-			'input_schema'        => array(
+				'input_schema'        => array(
 				'type'                 => 'object',
 				'properties'           => array(
 					'id'    => array(
@@ -6467,10 +6765,18 @@ function mcp_register_content_abilities(): void {
 						'description' => 'If true, permanently delete. If false, move to trash.',
 					),
 				),
-				'required'             => array( 'id' ),
-				'additionalProperties' => false,
-			),
-			'execute_callback'            => function ( array $params ): array {
+					'required'             => array( 'id' ),
+					'additionalProperties' => false,
+				),
+				'output_schema'       => array(
+					'type'       => 'object',
+					'properties' => array(
+						'success' => array( 'type' => 'boolean' ),
+						'message' => array( 'type' => 'string' ),
+						'error'   => array( 'type' => 'string' ),
+					),
+				),
+				'execute_callback'            => function ( array $params ): array {
 				$comment = get_comment( $params['id'] );
 
 				if ( ! $comment ) {

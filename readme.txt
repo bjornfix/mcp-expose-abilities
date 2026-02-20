@@ -3,7 +3,7 @@ Contributors: devenia
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 6.9
-Stable tag: 3.0.23
+Stable tag: 3.0.24
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -27,6 +27,11 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 5. (Optional) Install add-on plugins for vendor-specific features
 
 == Changelog ==
+
+= 3.0.24 =
+* Performance: system/debug-log now tails logs without reading whole file into memory
+* Security: options/get now blocks sensitive/protected option names
+* Schema: Added output schemas for comments and taxonomy association abilities
 
 = 3.0.23 =
 * Added: `content/update-category` ability
