@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.17
+ * Version: 3.0.23
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -77,6 +77,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 //   content/patch-page                  Line 2014  - Quick page edit
 //   content/list-categories             Line 2140  - List categories
 //   content/create-category             Line 2209  - Create category
+//   content/update-category             Line 2280  - Update category
 //   content/list-tags                   Line 2308  - List tags
 //   content/create-tag                  Line 2374  - Create tag
 //   content/list-media                  Line 2466  - List media attachments
@@ -130,7 +131,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.17');
+define('MCP_VERSION', '3.0.23');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -963,132 +964,247 @@ function mcp_register_content_abilities(): void {
 	// =========================================================================
 	// POSTS - Create
 	// =========================================================================
-	wp_register_ability(
-		'content/create-post',
-		array(
-			'label'               => 'Create Post',
-			'description'         => 'Create post. Params: title (required), content, excerpt, status, slug, category_ids, tag_ids, date, author_id.',
-			'category'            => 'site',
-			'input_schema'        => array(
-				'type'                 => 'object',
-				'required'             => array( 'title' ),
-				'properties'           => array(
-					'title'        => array(
-						'type'        => 'string',
-						'description' => 'Post title.',
-					),
-					'content'      => array(
-						'type'        => 'string',
-						'description' => 'Post content (supports Gutenberg blocks).',
-					),
-					'excerpt'      => array(
-						'type'        => 'string',
-						'description' => 'Post excerpt.',
-					),
-					'status'       => array(
-						'type'        => 'string',
-						'enum'        => array( 'publish', 'draft', 'pending', 'private', 'future' ),
-						'default'     => 'draft',
-						'description' => 'Post status.',
-					),
-					'slug'         => array(
-						'type'        => 'string',
-						'description' => 'Post slug (auto-generated from title if not provided).',
-					),
-					'category_ids' => array(
-						'type'        => 'array',
-						'items'       => array( 'type' => 'integer' ),
-						'description' => 'Array of category IDs.',
-					),
-					'tag_ids'      => array(
-						'type'        => 'array',
-						'items'       => array( 'type' => 'integer' ),
-						'description' => 'Array of tag IDs.',
-					),
-					'date'         => array(
-						'type'        => 'string',
-						'description' => 'Post date (Y-m-d H:i:s format). For scheduled posts.',
-					),
-					'author_id'    => array(
-						'type'        => 'integer',
-						'description' => 'Author user ID. Defaults to current user.',
-					),
-				),
-				'additionalProperties' => false,
-			),
-			'output_schema'       => array(
-				'type'       => 'object',
-				'properties' => array(
-					'success' => array( 'type' => 'boolean' ),
-					'id'      => array( 'type' => 'integer' ),
-					'link'    => array( 'type' => 'string' ),
-					'message' => array( 'type' => 'string' ),
-				),
-			),
-			'execute_callback'    => function ( $input = array() ): array {
-				$input = is_array( $input ) ? $input : array();
+	// Check for Toolset custom post types
+	$custom_types = get_post_types( array( '_builtin' => false ), 'objects' );
+	$type_choices = array( 'post', 'page' );
+	$type_enum    = array( 'post', 'page' );
+	foreach ( $custom_types as $type ) {
+		$type_choices[] = $type->name;
+		$type_enum[]    = $type->name;
+	}
 
-				if ( empty( $input['title'] ) ) {
-					return array( 'success' => false, 'message' => esc_html__( 'Title is required', 'mcp-expose-abilities' ) );
+	$all_taxonomies     = get_taxonomies( array( '_builtin' => false ), 'objects' );
+	$taxonomy_choices   = array();
+	$taxonomy_enum      = array();
+	$builtin_taxonomies = array( 'category', 'post_tag' );
+	foreach ( $all_taxonomies as $tax ) {
+		$taxonomy_choices[] = $tax->name;
+		$taxonomy_enum[]    = $tax->name;
+	}
+	foreach ( $builtin_taxonomies as $builtin ) {
+		$taxonomy_choices[] = $builtin;
+		$taxonomy_enum[]    = $builtin;
+	}
+
+	// Collect all taxonomies for this post type
+	$post_type_taxonomies = array();
+	foreach ( $type_choices as $pt ) {
+		$taxonomies = get_object_taxonomies( $pt, 'objects' );
+		$post_type_taxonomies[ $pt ] = array_keys( $taxonomies );
+	}
+
+	$ability = array(
+		'label'               => 'Create Post',
+		'description'         => 'Create post. For custom post types, use post_type param. Use tax_input for custom taxonomies.',
+		'category'            => 'site',
+		'input_schema'        => array(
+			'type'                 => 'object',
+			'required'             => array( 'title' ),
+			'properties'           => array(
+				'title'        => array(
+					'type'        => 'string',
+					'description' => 'Post title.',
+				),
+				'content'      => array(
+					'type'        => 'string',
+					'description' => 'Post content (supports Gutenberg blocks).',
+				),
+				'excerpt'      => array(
+					'type'        => 'string',
+					'description' => 'Post excerpt.',
+				),
+				'status'       => array(
+					'type'        => 'string',
+					'enum'        => array( 'publish', 'draft', 'pending', 'private', 'future' ),
+					'default'     => 'draft',
+					'description' => 'Post status.',
+				),
+				'post_type'    => array(
+					'type'        => 'string',
+					'default'     => 'post',
+					'description' => 'Post type. Options: ' . implode( ', ', $type_choices ),
+				),
+				'slug'         => array(
+					'type'        => 'string',
+					'description' => 'Post slug (auto-generated from title if not provided).',
+				),
+				'category_ids' => array(
+					'type'        => 'array',
+					'items'       => array( 'type' => 'integer' ),
+					'description' => 'Array of category IDs (for built-in category taxonomy).',
+				),
+				'tag_ids'      => array(
+					'type'        => 'array',
+					'items'       => array( 'type' => 'integer' ),
+					'description' => 'Array of tag IDs (for built-in post_tag taxonomy).',
+				),
+				'tax_input'    => array(
+					'type'        => 'object',
+					'description' => 'Taxonomy terms. Format: {"taxonomy_name": ["term_slug"]}. For custom taxonomies.',
+					'properties'  => array(),
+				),
+				'meta_input'   => array(
+					'type'        => 'object',
+					'description' => 'Post meta fields. Format: {"meta_key": "value"}.',
+				),
+				'date'         => array(
+					'type'        => 'string',
+					'description' => 'Post date (Y-m-d H:i:s format). For scheduled posts.',
+				),
+				'author_id'    => array(
+					'type'        => 'integer',
+					'description' => 'Author user ID. Defaults to current user.',
+				),
+			),
+			'additionalProperties' => false,
+		),
+		'output_schema'       => array(
+			'type'       => 'object',
+			'properties' => array(
+				'success' => array( 'type' => 'boolean' ),
+				'id'      => array( 'type' => 'integer' ),
+				'link'    => array( 'type' => 'string' ),
+				'message' => array( 'type' => 'string' ),
+			),
+		),
+		'execute_callback'    => function ( $input = array() ): array {
+			$input = is_array( $input ) ? $input : array();
+
+			if ( empty( $input['title'] ) ) {
+				return array( 'success' => false, 'message' => esc_html__( 'Title is required', 'mcp-expose-abilities' ) );
+			}
+
+			$post_type = ! empty( $input['post_type'] ) ? $input['post_type'] : 'post';
+
+			// Validate post type exists
+			if ( ! post_type_exists( $post_type ) ) {
+				/* translators: %s: Post type slug. */
+				return array( 'success' => false, 'message' => sprintf( esc_html__( 'Post type "%s" does not exist', 'mcp-expose-abilities' ), $post_type ) );
+			}
+
+			// Check capability for custom post type
+			$cap = 'publish_posts';
+			if ( 'post' === $post_type ) {
+				$cap = 'publish_posts';
+			} elseif ( 'page' === $post_type ) {
+				$cap = 'publish_pages';
+			} else {
+				// Check if post type has custom capability type
+				$pto                = get_post_type_object( $post_type );
+				$cap                = ! empty( $pto->cap->publish_posts ) ? $pto->cap->publish_posts : 'publish_posts';
+			}
+
+			if ( ! current_user_can( $cap ) ) {
+				return array( 'success' => false, 'message' => esc_html__( 'Permission denied to create this post type', 'mcp-expose-abilities' ) );
+			}
+
+			if ( ! empty( $input['author_id'] ) ) {
+				$author_id = intval( $input['author_id'] );
+				if ( $author_id !== get_current_user_id() && ! current_user_can( 'edit_others_posts' ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Permission denied to set a different author.', 'mcp-expose-abilities' ) );
 				}
+			}
 
-				if ( ! empty( $input['author_id'] ) ) {
-					$author_id = intval( $input['author_id'] );
-					if ( $author_id !== get_current_user_id() && ! current_user_can( 'edit_others_posts' ) ) {
-						return array( 'success' => false, 'message' => esc_html__( 'Permission denied to set a different author.', 'mcp-expose-abilities' ) );
+			$post_data = array(
+				'post_title'   => sanitize_text_field( $input['title'] ),
+				'post_content' => $input['content'] ?? '',
+				'post_excerpt' => $input['excerpt'] ?? '',
+				'post_status'  => $input['status'] ?? 'draft',
+				'post_type'    => $post_type,
+			);
+
+			if ( ! empty( $input['slug'] ) ) {
+				$post_data['post_name'] = sanitize_title( $input['slug'] );
+			}
+			if ( ! empty( $input['date'] ) ) {
+				$post_data['post_date'] = $input['date'];
+			}
+			if ( ! empty( $input['author_id'] ) ) {
+				$post_data['post_author'] = intval( $input['author_id'] );
+			}
+
+			$post_id = wp_insert_post( $post_data, true );
+
+			if ( is_wp_error( $post_id ) ) {
+				return array( 'success' => false, 'message' => esc_html( $post_id->get_error_message() ) );
+			}
+
+			// Set categories (for built-in category taxonomy)
+			if ( ! empty( $input['category_ids'] ) ) {
+				wp_set_post_categories( $post_id, array_map( 'intval', $input['category_ids'] ) );
+			}
+			// Set tags (for built-in post_tag taxonomy)
+			if ( ! empty( $input['tag_ids'] ) ) {
+				wp_set_post_tags( $post_id, array_map( 'intval', $input['tag_ids'] ) );
+			}
+
+			// Set custom taxonomy terms (for Toolset taxonomies)
+			if ( ! empty( $input['tax_input'] ) && is_array( $input['tax_input'] ) ) {
+				foreach ( $input['tax_input'] as $taxonomy => $terms ) {
+					if ( ! empty( $terms ) && is_array( $terms ) ) {
+						$taxonomy = sanitize_key( $taxonomy );
+						if ( taxonomy_exists( $taxonomy ) ) {
+							$term_ids = array();
+							foreach ( $terms as $term ) {
+								if ( is_numeric( $term ) ) {
+									$term_ids[] = intval( $term );
+								} else {
+									$t = get_term_by( 'slug', $term, $taxonomy );
+									if ( $t ) {
+										$term_ids[] = $t->term_id;
+									}
+								}
+							}
+							if ( ! empty( $term_ids ) ) {
+								wp_set_post_terms( $post_id, $term_ids, $taxonomy, false );
+							}
+						}
 					}
 				}
+			}
 
-				$post_data = array(
-					'post_title'   => sanitize_text_field( $input['title'] ),
-					'post_content' => $input['content'] ?? '',
-					'post_excerpt' => $input['excerpt'] ?? '',
-					'post_status'  => $input['status'] ?? 'draft',
-					'post_type'    => 'post',
-				);
+			// Set meta fields (for Toolset field groups)
+			if ( ! empty( $input['meta_input'] ) && is_array( $input['meta_input'] ) ) {
+				foreach ( $input['meta_input'] as $key => $value ) {
+					$key = sanitize_key( $key );
+					if ( ! empty( $key ) ) {
+						update_post_meta( $post_id, $key, $value );
+					}
+				}
+			}
 
-				if ( ! empty( $input['slug'] ) ) {
-					$post_data['post_name'] = sanitize_title( $input['slug'] );
-				}
-				if ( ! empty( $input['date'] ) ) {
-					$post_data['post_date'] = $input['date'];
-				}
-				if ( ! empty( $input['author_id'] ) ) {
-					$post_data['post_author'] = intval( $input['author_id'] );
-				}
-
-				$post_id = wp_insert_post( $post_data, true );
-
-				if ( is_wp_error( $post_id ) ) {
-					return array( 'success' => false, 'message' => esc_html( $post_id->get_error_message() ) );
-				}
-
-				if ( ! empty( $input['category_ids'] ) ) {
-					wp_set_post_categories( $post_id, array_map( 'intval', $input['category_ids'] ) );
-				}
-				if ( ! empty( $input['tag_ids'] ) ) {
-					wp_set_post_tags( $post_id, array_map( 'intval', $input['tag_ids'] ) );
-				}
-
-				return array(
-					'success' => true,
-					'id'      => $post_id,
-					'link'    => get_permalink( $post_id ),
-					'message' => esc_html__( 'Post created successfully', 'mcp-expose-abilities' ),
-				);
-			},
-			'permission_callback' => function (): bool {
-				return current_user_can( 'publish_posts' );
-			},
-			'meta'                => array(
-				'annotations' => array(
-					'readonly'    => false,
-					'destructive' => false,
-					'idempotent'  => false,
-				),
+			return array(
+				'success' => true,
+				'id'      => $post_id,
+				'link'    => get_permalink( $post_id ),
+				'message' => esc_html__( 'Post created successfully', 'mcp-expose-abilities' ),
+			);
+		},
+		'permission_callback' => function (): bool {
+			return current_user_can( 'publish_posts' );
+		},
+		'meta'                => array(
+			'annotations' => array(
+				'readonly'    => false,
+				'destructive' => false,
+				'idempotent'  => false,
 			),
-		)
+		),
 	);
+
+	// Fix tax_input schema properties dynamically
+	if ( ! empty( $taxonomy_choices ) ) {
+		$tax_input_props = array();
+		foreach ( array_slice( $taxonomy_choices, 0, 20 ) as $tax_name ) {
+			$tax_input_props[ $tax_name ] = array(
+				'type'  => 'array',
+				'items' => array( 'type' => 'string' ),
+			);
+		}
+		$ability['input_schema']['properties']['tax_input']['properties'] = $tax_input_props;
+	}
+
+	wp_register_ability( 'content/create-post', $ability );
 
 	// =========================================================================
 	// POSTS - Update
@@ -2293,6 +2409,144 @@ function mcp_register_content_abilities(): void {
 					'readonly'    => false,
 					'destructive' => false,
 					'idempotent'  => false,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// CATEGORIES - Update
+	// =========================================================================
+	wp_register_ability(
+		'content/update-category',
+		array(
+			'label'               => 'Update Category',
+			'description'         => 'Update category. Params: id (required), name, slug, description, parent.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'required'             => array( 'id' ),
+				'properties'           => array(
+					'id'          => array(
+						'type'        => 'integer',
+						'description' => 'Category ID to update.',
+					),
+					'name'        => array(
+						'type'        => 'string',
+						'description' => 'New category name.',
+					),
+					'slug'        => array(
+						'type'        => 'string',
+						'description' => 'New category slug.',
+					),
+					'description' => array(
+						'type'        => 'string',
+						'description' => 'New category description. Pass empty string to clear.',
+					),
+					'parent'      => array(
+						'type'        => 'integer',
+						'description' => 'New parent category ID. Use 0 for top-level.',
+					),
+				),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success'     => array( 'type' => 'boolean' ),
+					'id'          => array( 'type' => 'integer' ),
+					'name'        => array( 'type' => 'string' ),
+					'slug'        => array( 'type' => 'string' ),
+					'description' => array( 'type' => 'string' ),
+					'parent_id'   => array( 'type' => 'integer' ),
+					'message'     => array( 'type' => 'string' ),
+				),
+			),
+			'execute_callback'    => function ( $input = array() ): array {
+				$input = is_array( $input ) ? $input : array();
+				$term_id = (int) ( $input['id'] ?? 0 );
+
+				if ( $term_id <= 0 ) {
+					return array(
+						'success' => false,
+						'message' => esc_html__( 'Valid category ID is required.', 'mcp-expose-abilities' ),
+					);
+				}
+
+				$term = get_term( $term_id, 'category' );
+				if ( ! $term || is_wp_error( $term ) ) {
+					return array(
+						'success' => false,
+						'message' => esc_html__( 'Category not found.', 'mcp-expose-abilities' ),
+					);
+				}
+
+				$update_args = array();
+
+				if ( array_key_exists( 'name', $input ) ) {
+					$name = trim( (string) $input['name'] );
+					if ( '' === $name ) {
+						return array(
+							'success' => false,
+							'message' => esc_html__( 'Category name cannot be empty.', 'mcp-expose-abilities' ),
+						);
+					}
+					$update_args['name'] = sanitize_text_field( $name );
+				}
+
+				if ( array_key_exists( 'slug', $input ) ) {
+					$update_args['slug'] = sanitize_title( (string) $input['slug'] );
+				}
+
+				if ( array_key_exists( 'description', $input ) ) {
+					$update_args['description'] = sanitize_textarea_field( (string) $input['description'] );
+				}
+
+				if ( array_key_exists( 'parent', $input ) ) {
+					$update_args['parent'] = (int) $input['parent'];
+				}
+
+				if ( empty( $update_args ) ) {
+					return array(
+						'success' => false,
+						'message' => esc_html__( 'No fields provided for update.', 'mcp-expose-abilities' ),
+					);
+				}
+
+				$result = wp_update_term( $term_id, 'category', $update_args );
+				if ( is_wp_error( $result ) ) {
+					return array(
+						'success' => false,
+						'message' => esc_html( $result->get_error_message() ),
+					);
+				}
+
+				$updated = get_term( $term_id, 'category' );
+				if ( ! $updated || is_wp_error( $updated ) ) {
+					return array(
+						'success' => false,
+						'message' => esc_html__( 'Category update failed.', 'mcp-expose-abilities' ),
+					);
+				}
+
+				return array(
+					'success'     => true,
+					'id'          => $updated->term_id,
+					'name'        => $updated->name,
+					'slug'        => $updated->slug,
+					'description' => $updated->description,
+					'parent_id'   => (int) $updated->parent,
+					'message'     => esc_html__( 'Category updated successfully.', 'mcp-expose-abilities' ),
+				);
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'manage_categories' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => false,
+					'destructive' => false,
+					'idempotent'  => true,
 				),
 			),
 		)
@@ -6085,6 +6339,112 @@ function mcp_register_content_abilities(): void {
 		)
 	);
 
+
+	// =========================================================================
+	// TAXONOMIES - Associate with Post Type
+	// =========================================================================
+	// Associates a taxonomy with a post type. Some plugins register taxonomies
+	// that aren't automatically associated with all post types.
+	// =========================================================================
+	wp_register_ability(
+		'taxonomy/associate-with-post-type',
+		array(
+			'label'               => 'Associate Taxonomy with Post Type',
+			'description'         => 'Associates a taxonomy with a post type. Required when taxonomies from Toolset or other plugins are not automatically available for a post type.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'properties'           => array(
+					'taxonomy'  => array(
+						'type'        => 'string',
+						'description' => 'The taxonomy name to associate.',
+					),
+					'post_type' => array(
+						'type'        => 'string',
+						'description' => 'The post type name to associate the taxonomy with.',
+					),
+				),
+				'required'             => array( 'taxonomy', 'post_type' ),
+				'additionalProperties' => false,
+			),
+			'execute_callback'            => function ( array $params ): array {
+				$taxonomy  = sanitize_key( $params['taxonomy'] );
+				$post_type = sanitize_key( $params['post_type'] );
+
+				if ( ! taxonomy_exists( $taxonomy ) ) {
+					return array(
+						'success' => false,
+						'error'   => "Taxonomy '{$taxonomy}' does not exist.",
+					);
+				}
+
+				if ( ! post_type_exists( $post_type ) ) {
+					return array(
+						'success' => false,
+						'error'   => "Post type '{$post_type}' does not exist.",
+					);
+				}
+
+				// Store association persistently
+				$stored = get_option( 'mcp_taxonomy_associations', array() );
+				$new_assoc = array( 'taxonomy' => $taxonomy, 'post_type' => $post_type );
+
+				// Check if already stored
+				$already_exists = false;
+				foreach ( $stored as $existing ) {
+					if ( $existing['taxonomy'] === $taxonomy && $existing['post_type'] === $post_type ) {
+						$already_exists = true;
+						break;
+					}
+				}
+
+				if ( ! $already_exists ) {
+					$stored[] = $new_assoc;
+					update_option( 'mcp_taxonomy_associations', $stored );
+				}
+
+				// Apply association immediately
+				$result = register_taxonomy_for_object_type( $taxonomy, $post_type );
+
+				// Also update Toolset wpcf-custom-types if it exists for this post type
+				$wpcf_types = get_option( 'wpcf-custom-types', array() );
+				if ( isset( $wpcf_types[ $post_type ] ) ) {
+					$taxonomies = $wpcf_types[ $post_type ]['taxonomies'] ?? array();
+					if ( ! in_array( $taxonomy, $taxonomies, true ) ) {
+						$taxonomies[] = $taxonomy;
+						$wpcf_types[ $post_type ]['taxonomies'] = $taxonomies;
+						update_option( 'wpcf-custom-types', $wpcf_types );
+					}
+				}
+
+				if ( $result || $already_exists ) {
+					return array(
+						'success' => true,
+						'message' => $already_exists
+							? "Taxonomy '{$taxonomy}' was already associated with post type '{$post_type}'."
+							: "Taxonomy '{$taxonomy}' is now associated with post type '{$post_type}'.",
+					);
+				} else {
+					return array(
+						'success' => false,
+						'error'   => "Failed to associate taxonomy. The taxonomy may not support this post type.",
+					);
+				}
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'manage_options' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => false,
+					'destructive' => false,
+					'idempotent'  => true,
+				),
+			),
+		)
+	);
+
+
 	// =========================================================================
 	// COMMENTS - Delete
 	// =========================================================================
@@ -6156,5 +6516,35 @@ function mcp_register_content_abilities(): void {
 	);
 
 
+	// =========================================================================
+	// Apply stored taxonomy-post type associations on init
+	// =========================================================================
+	$stored = get_option( 'mcp_taxonomy_associations', array() );
+	if ( ! empty( $stored ) && is_array( $stored ) ) {
+		foreach ( $stored as $assoc ) {
+			if ( ! empty( $assoc['taxonomy'] ) && ! empty( $assoc['post_type'] ) ) {
+				register_taxonomy_for_object_type( $assoc['taxonomy'], $assoc['post_type'] );
+			}
+		}
+	}
+
 }
+
+
+/**
+ * Apply taxonomy associations on WordPress init.
+ * This ensures associations persist across requests.
+ */
+function mcp_apply_taxonomy_associations_init(): void {
+	$stored = get_option( 'mcp_taxonomy_associations', array() );
+	if ( ! empty( $stored ) && is_array( $stored ) ) {
+		foreach ( $stored as $assoc ) {
+			if ( ! empty( $assoc['taxonomy'] ) && ! empty( $assoc['post_type'] ) ) {
+				register_taxonomy_for_object_type( $assoc['taxonomy'], $assoc['post_type'] );
+			}
+		}
+	}
+}
+add_action( 'init', 'mcp_apply_taxonomy_associations_init', 20 );
+
 add_action( 'wp_abilities_api_init', 'mcp_register_content_abilities' );
