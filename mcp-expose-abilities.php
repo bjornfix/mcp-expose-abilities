@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.24
+ * Version: 3.0.25
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -131,7 +131,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.24');
+define('MCP_VERSION', '3.0.25');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -490,10 +490,29 @@ function mcp_expose_install_plugin_zip( string $zip_path, array $input ): array 
 
 	// Find the main plugin file if not already known.
 	if ( empty( $plugin_file ) ) {
+		// Refresh the plugins cache so newly moved plugin folders are discoverable
+		// in the same request (fixes first-time installs via upload-base64/upload).
+		if ( function_exists( 'wp_clean_plugins_cache' ) ) {
+			wp_clean_plugins_cache( true );
+		}
+
 		$all_plugins = get_plugins();
 		foreach ( $all_plugins as $file => $data ) {
 			if ( strpos( $file, $plugin_folder . '/' ) === 0 ) {
 				$plugin_file = $file;
+				break;
+			}
+		}
+
+		// Fallback: query just the target plugin folder in case the global list is stale.
+		if ( empty( $plugin_file ) ) {
+			$folder_plugins = get_plugins( '/' . $plugin_folder );
+			foreach ( $folder_plugins as $file => $data ) {
+				if ( strpos( $file, $plugin_folder . '/' ) === 0 ) {
+					$plugin_file = $file;
+					break;
+				}
+				$plugin_file = ( false === strpos( $file, '/' ) ) ? $plugin_folder . '/' . $file : $file;
 				break;
 			}
 		}
@@ -5108,6 +5127,16 @@ function mcp_register_content_abilities(): void {
 				// Don't allow deleting yourself.
 				if ( $input['id'] === get_current_user_id() ) {
 					return array( 'success' => false, 'message' => esc_html__( 'Cannot delete your own account', 'mcp-expose-abilities' ) );
+				}
+
+				// `wp_delete_user()` is defined in an admin include that may not be loaded
+				// for REST/MCP requests.
+				if ( ! function_exists( 'wp_delete_user' ) ) {
+					require_once ABSPATH . 'wp-admin/includes/user.php';
+				}
+
+				if ( ! function_exists( 'wp_delete_user' ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'User deletion function unavailable', 'mcp-expose-abilities' ) );
 				}
 
 				$reassign = ! empty( $input['reassign_to'] ) ? (int) $input['reassign_to'] : null;

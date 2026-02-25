@@ -3,7 +3,7 @@ Contributors: devenia
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 6.9
-Stable tag: 3.0.24
+Stable tag: 3.0.25
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -27,6 +27,9 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 5. (Optional) Install add-on plugins for vendor-specific features
 
 == Changelog ==
+
+= 3.0.25 =
+* Fixed: `users/delete` now loads `wp-admin/includes/user.php` before calling `wp_delete_user()` in REST/MCP contexts
 
 = 3.0.24 =
 * Performance: system/debug-log now tails logs without reading whole file into memory
