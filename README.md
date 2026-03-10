@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 6.9
-**Stable tag:** 3.0.26
+**Stable tag:** 3.0.27
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -339,6 +339,13 @@ Three-plugin stack plus optional add-ons:
 
 ## Changelog
 
+### 3.0.27
+- Fixed: `content/get-next-post` now applies the `after_id` floor correctly by allowing the query filter to run
+
+### 3.0.26
+- Added: `content/get-next-post` to find the next existing post after an ID, even when IDs have gaps
+- Improved: `content/list-posts` now accepts case-insensitive `order` values and friendly `orderby` aliases like `id` and `slug`
+- Improved: `content/get-post` now accepts `post_type` for slug lookups and returns clearer missing-post context
 ### 3.0.25
 - Fixed: `users/delete` now loads `wp-admin/includes/user.php` before calling `wp_delete_user()` in REST/MCP contexts
 
