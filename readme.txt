@@ -3,7 +3,7 @@ Contributors: devenia
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 6.9
-Stable tag: 3.0.27
+Stable tag: 3.0.28
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -27,6 +27,10 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 5. (Optional) Install add-on plugins for vendor-specific features
 
 == Changelog ==
+
+= 3.0.28 =
+* Added: `featured_image_id` support to `content/create-post`, `content/update-post`, `content/create-page`, and `content/update-page`
+* Improved: `content/get-post` and `content/get-page` now also return `featured_image_id` alongside the featured image URL
 
 = 3.0.27 =
 * Fixed: `content/get-next-post` now applies the `after_id` floor correctly by allowing the query filter to run

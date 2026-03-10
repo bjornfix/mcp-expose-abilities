@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.27
+ * Version: 3.0.28
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -1162,6 +1162,7 @@ function mcp_register_content_abilities(): void {
 					'categories'     => array( 'type' => 'array', 'items' => array( 'type' => 'object' ) ),
 					'tags'           => array( 'type' => 'array', 'items' => array( 'type' => 'object' ) ),
 					'featured_image' => array( 'type' => 'string' ),
+					'featured_image_id' => array( 'type' => array( 'integer', 'null' ) ),
 					'link'           => array( 'type' => 'string' ),
 					'message'        => array( 'type' => 'string' ),
 				),
@@ -1202,10 +1203,11 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'message' => esc_html__( 'Permission denied', 'mcp-expose-abilities' ) );
 				}
 
-				$categories = wp_get_post_categories( $post->ID, array( 'fields' => 'all' ) );
-				$tags       = wp_get_post_tags( $post->ID );
-				$author     = get_user_by( 'id', $post->post_author );
-				$thumbnail  = get_the_post_thumbnail_url( $post->ID, 'full' );
+				$categories   = wp_get_post_categories( $post->ID, array( 'fields' => 'all' ) );
+				$tags         = wp_get_post_tags( $post->ID );
+				$author       = get_user_by( 'id', $post->post_author );
+				$thumbnail    = get_the_post_thumbnail_url( $post->ID, 'full' );
+				$thumbnail_id = get_post_thumbnail_id( $post->ID );
 
 				return array(
 					'success'        => true,
@@ -1226,6 +1228,7 @@ function mcp_register_content_abilities(): void {
 						return array( 'id' => $tag->term_id, 'name' => $tag->name, 'slug' => $tag->slug );
 					}, $tags ),
 					'featured_image' => $thumbnail ?: '',
+					'featured_image_id' => $thumbnail_id ? (int) $thumbnail_id : null,
 					'link'           => get_permalink( $post->ID ),
 					'message'        => 'Post retrieved successfully',
 				);
@@ -1418,7 +1421,7 @@ function mcp_register_content_abilities(): void {
 
 	$ability = array(
 		'label'               => 'Create Post',
-		'description'         => 'Create post. For custom post types, use post_type param. Use tax_input for custom taxonomies.',
+		'description'         => 'Create post. For custom post types, use post_type param. Use tax_input for custom taxonomies. Supports featured_image_id.',
 		'category'            => 'site',
 		'input_schema'        => array(
 			'type'                 => 'object',
@@ -1477,6 +1480,10 @@ function mcp_register_content_abilities(): void {
 				'author_id'    => array(
 					'type'        => 'integer',
 					'description' => 'Author user ID. Defaults to current user.',
+				),
+				'featured_image_id' => array(
+					'type'        => 'integer',
+					'description' => 'Attachment ID to set as featured image. Use 0 to leave empty.',
 				),
 			),
 			'additionalProperties' => false,
@@ -1596,6 +1603,23 @@ function mcp_register_content_abilities(): void {
 				}
 			}
 
+			if ( array_key_exists( 'featured_image_id', $input ) ) {
+				$featured_image_id = (int) $input['featured_image_id'];
+
+				if ( $featured_image_id > 0 ) {
+					$attachment = get_post( $featured_image_id );
+					if ( ! $attachment || 'attachment' !== $attachment->post_type || ! wp_attachment_is_image( $featured_image_id ) ) {
+						wp_delete_post( $post_id, true );
+						return array( 'success' => false, 'message' => esc_html__( 'Invalid featured image attachment ID', 'mcp-expose-abilities' ) );
+					}
+
+					if ( ! set_post_thumbnail( $post_id, $featured_image_id ) ) {
+						wp_delete_post( $post_id, true );
+						return array( 'success' => false, 'message' => esc_html__( 'Failed to set featured image', 'mcp-expose-abilities' ) );
+					}
+				}
+			}
+
 			return array(
 				'success' => true,
 				'id'      => $post_id,
@@ -1636,7 +1660,7 @@ function mcp_register_content_abilities(): void {
 		'content/update-post',
 		array(
 			'label'               => 'Update Post',
-			'description'         => 'Update post. Params: id (required), title, content, excerpt, status, slug, category_ids, tag_ids, author_id.',
+			'description'         => 'Update post. Params: id (required), title, content, excerpt, status, slug, category_ids, tag_ids, author_id, featured_image_id.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -1680,6 +1704,10 @@ function mcp_register_content_abilities(): void {
 					'author_id'    => array(
 						'type'        => 'integer',
 						'description' => 'New author user ID.',
+					),
+					'featured_image_id' => array(
+						'type'        => 'integer',
+						'description' => 'Attachment ID to set as featured image. Use 0 to remove the current featured image.',
 					),
 				),
 				'additionalProperties' => false,
@@ -1745,6 +1773,21 @@ function mcp_register_content_abilities(): void {
 				}
 				if ( isset( $input['tag_ids'] ) ) {
 					wp_set_post_tags( $input['id'], array_map( 'intval', $input['tag_ids'] ) );
+				}
+				if ( array_key_exists( 'featured_image_id', $input ) ) {
+					$featured_image_id = (int) $input['featured_image_id'];
+					if ( $featured_image_id > 0 ) {
+						$attachment = get_post( $featured_image_id );
+						if ( ! $attachment || 'attachment' !== $attachment->post_type || ! wp_attachment_is_image( $featured_image_id ) ) {
+							return array( 'success' => false, 'message' => esc_html__( 'Invalid featured image attachment ID', 'mcp-expose-abilities' ) );
+						}
+
+						if ( ! set_post_thumbnail( $input['id'], $featured_image_id ) ) {
+							return array( 'success' => false, 'message' => esc_html__( 'Failed to set featured image', 'mcp-expose-abilities' ) );
+						}
+					} else {
+						delete_post_thumbnail( $input['id'] );
+					}
 				}
 
 				return array(
@@ -2012,6 +2055,7 @@ function mcp_register_content_abilities(): void {
 					'author_id'      => array( 'type' => 'integer' ),
 					'author_name'    => array( 'type' => 'string' ),
 					'featured_image' => array( 'type' => 'string' ),
+					'featured_image_id' => array( 'type' => array( 'integer', 'null' ) ),
 					'link'           => array( 'type' => 'string' ),
 					'message'        => array( 'type' => 'string' ),
 				),
@@ -2037,9 +2081,10 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'message' => esc_html__( 'Permission denied', 'mcp-expose-abilities' ) );
 				}
 
-				$author    = get_user_by( 'id', $page->post_author );
-				$thumbnail = get_the_post_thumbnail_url( $page->ID, 'full' );
-				$template  = get_page_template_slug( $page->ID );
+				$author       = get_user_by( 'id', $page->post_author );
+				$thumbnail    = get_the_post_thumbnail_url( $page->ID, 'full' );
+				$thumbnail_id = get_post_thumbnail_id( $page->ID );
+				$template     = get_page_template_slug( $page->ID );
 
 				return array(
 					'success'        => true,
@@ -2057,6 +2102,7 @@ function mcp_register_content_abilities(): void {
 					'author_id'      => (int) $page->post_author,
 					'author_name'    => $author ? $author->display_name : '',
 					'featured_image' => $thumbnail ?: '',
+					'featured_image_id' => $thumbnail_id ? (int) $thumbnail_id : null,
 					'link'           => get_permalink( $page->ID ),
 					'message'        => 'Page retrieved successfully',
 				);
@@ -2081,7 +2127,7 @@ function mcp_register_content_abilities(): void {
 		'content/create-page',
 		array(
 			'label'               => 'Create Page',
-			'description'         => 'Create page. Params: title (required), content, excerpt, status, slug, parent_id, menu_order, template.',
+			'description'         => 'Create page. Params: title (required), content, excerpt, status, slug, parent_id, menu_order, template, featured_image_id.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -2120,6 +2166,10 @@ function mcp_register_content_abilities(): void {
 					'template'   => array(
 						'type'        => 'string',
 						'description' => 'Page template slug.',
+					),
+					'featured_image_id' => array(
+						'type'        => 'integer',
+						'description' => 'Attachment ID to set as featured image. Use 0 to leave empty.',
 					),
 				),
 				'additionalProperties' => false,
@@ -2169,6 +2219,22 @@ function mcp_register_content_abilities(): void {
 				if ( ! empty( $input['template'] ) ) {
 					update_post_meta( $page_id, '_wp_page_template', $input['template'] );
 				}
+				if ( array_key_exists( 'featured_image_id', $input ) ) {
+					$featured_image_id = (int) $input['featured_image_id'];
+
+					if ( $featured_image_id > 0 ) {
+						$attachment = get_post( $featured_image_id );
+						if ( ! $attachment || 'attachment' !== $attachment->post_type || ! wp_attachment_is_image( $featured_image_id ) ) {
+							wp_delete_post( $page_id, true );
+							return array( 'success' => false, 'message' => esc_html__( 'Invalid featured image attachment ID', 'mcp-expose-abilities' ) );
+						}
+
+						if ( ! set_post_thumbnail( $page_id, $featured_image_id ) ) {
+							wp_delete_post( $page_id, true );
+							return array( 'success' => false, 'message' => esc_html__( 'Failed to set featured image', 'mcp-expose-abilities' ) );
+						}
+					}
+				}
 
 				return array(
 					'success' => true,
@@ -2197,7 +2263,7 @@ function mcp_register_content_abilities(): void {
 		'content/update-page',
 		array(
 			'label'               => 'Update Page',
-			'description'         => 'Update page. Params: id (required), title, content, excerpt, status, slug, parent_id, menu_order, template.',
+			'description'         => 'Update page. Params: id (required), title, content, excerpt, status, slug, parent_id, menu_order, template, featured_image_id.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -2239,6 +2305,10 @@ function mcp_register_content_abilities(): void {
 					'template'   => array(
 						'type'        => 'string',
 						'description' => 'New page template slug.',
+					),
+					'featured_image_id' => array(
+						'type'        => 'integer',
+						'description' => 'Attachment ID to set as featured image. Use 0 to remove the current featured image.',
 					),
 				),
 				'additionalProperties' => false,
@@ -2304,6 +2374,21 @@ function mcp_register_content_abilities(): void {
 
 				if ( isset( $input['template'] ) ) {
 					update_post_meta( $input['id'], '_wp_page_template', $input['template'] );
+				}
+				if ( array_key_exists( 'featured_image_id', $input ) ) {
+					$featured_image_id = (int) $input['featured_image_id'];
+					if ( $featured_image_id > 0 ) {
+						$attachment = get_post( $featured_image_id );
+						if ( ! $attachment || 'attachment' !== $attachment->post_type || ! wp_attachment_is_image( $featured_image_id ) ) {
+							return array( 'success' => false, 'message' => esc_html__( 'Invalid featured image attachment ID', 'mcp-expose-abilities' ) );
+						}
+
+						if ( ! set_post_thumbnail( $input['id'], $featured_image_id ) ) {
+							return array( 'success' => false, 'message' => esc_html__( 'Failed to set featured image', 'mcp-expose-abilities' ) );
+						}
+					} else {
+						delete_post_thumbnail( $input['id'] );
+					}
 				}
 
 				return array(

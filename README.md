@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 6.9
-**Stable tag:** 3.0.27
+**Stable tag:** 3.0.28
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -68,14 +68,14 @@ Install only what you need. Running GeneratePress? Install that add-on. Don't us
 | `content/list-posts` | List posts with filtering by status, category, author, search |
 | `content/get-post` | Get single post by ID or slug |
 | `content/get-next-post` | Find the next existing post after an ID, even when IDs have gaps |
-| `content/create-post` | Create new post |
-| `content/update-post` | Update existing post |
+| `content/create-post` | Create new post, including `featured_image_id` |
+| `content/update-post` | Update existing post, including `featured_image_id` |
 | `content/delete-post` | Delete post (trash or permanent) |
 | `content/patch-post` | Find/replace in post content |
 | `content/list-pages` | List pages with filtering |
 | `content/get-page` | Get single page by ID or slug |
-| `content/create-page` | Create new page |
-| `content/update-page` | Update existing page |
+| `content/create-page` | Create new page, including `featured_image_id` |
+| `content/update-page` | Update existing page, including `featured_image_id` |
 | `content/delete-page` | Delete page |
 | `content/patch-page` | Find/replace in page content |
 | `content/list-categories` | List all categories |
@@ -338,6 +338,10 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.28
+- Added `featured_image_id` support to post/page create and update abilities
+- Added `featured_image_id` to `content/get-post` and `content/get-page`
 
 ### 3.0.27
 - Fixed: `content/get-next-post` now applies the `after_id` floor correctly by allowing the query filter to run
