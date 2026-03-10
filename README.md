@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 6.9
-**Stable tag:** 3.0.25
+**Stable tag:** 3.0.26
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,7 +24,7 @@ Version 3.0 introduced a modular architecture. The core plugin provides WordPres
 
 | Plugin | Abilities | Description |
 |--------|-----------|-------------|
-| **MCP Expose Abilities** (core) | 60 | WordPress core: content, menus, users, media, widgets, plugins, options, comments, taxonomy, system |
+| **MCP Expose Abilities** (core) | 61 | WordPress core: content, menus, users, media, widgets, plugins, options, comments, taxonomy, system |
 | [MCP Abilities - Filesystem](https://github.com/bjornfix/mcp-abilities-filesystem) | 11 | File operations with security hardening |
 | [MCP Abilities - Elementor](https://github.com/bjornfix/mcp-abilities-elementor) | 38 | Elementor page builder integration |
 | [MCP Abilities - GeneratePress](https://github.com/bjornfix/mcp-abilities-generatepress) | 26 | GeneratePress theme + GenerateBlocks |
@@ -59,14 +59,15 @@ Install only what you need. Running GeneratePress? Install that add-on. Don't us
 4. Activate the plugin
 5. (Optional) Install add-on plugins for vendor-specific features
 
-## Core Plugin Abilities (60)
+## Core Plugin Abilities (61)
 
-### Content Management (22)
+### Content Management (23)
 
 | Ability | Description |
 |---------|-------------|
 | `content/list-posts` | List posts with filtering by status, category, author, search |
 | `content/get-post` | Get single post by ID or slug |
+| `content/get-next-post` | Find the next existing post after an ID, even when IDs have gaps |
 | `content/create-post` | Create new post |
 | `content/update-post` | Update existing post |
 | `content/delete-post` | Delete post (trash or permanent) |

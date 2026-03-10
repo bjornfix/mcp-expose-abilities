@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.25
+ * Version: 3.0.26
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -131,7 +131,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.25');
+define('MCP_VERSION', '3.0.26');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -595,6 +595,46 @@ function mcp_expose_parse_pagination( array $input, int $default_per_page, int $
 }
 
 /**
+ * Normalize orderby aliases to WordPress-supported values.
+ *
+ * @param string|null $orderby Raw orderby input.
+ * @param string      $default Default value when input is empty/invalid.
+ * @return string
+ */
+function mcp_expose_normalize_orderby( ?string $orderby, string $default = 'date' ): string {
+	$value = is_string( $orderby ) ? trim( $orderby ) : '';
+	if ( '' === $value ) {
+		return $default;
+	}
+
+	$map = array(
+		'date'       => 'date',
+		'modified'   => 'modified',
+		'title'      => 'title',
+		'id'         => 'ID',
+		'ID'         => 'ID',
+		'name'       => 'name',
+		'slug'       => 'name',
+		'post_name'  => 'name',
+		'menu_order' => 'menu_order',
+	);
+
+	return $map[ $value ] ?? $map[ strtolower( $value ) ] ?? $default;
+}
+
+/**
+ * Normalize sort order to ASC or DESC.
+ *
+ * @param string|null $order Raw order input.
+ * @param string      $default Default sort order.
+ * @return string
+ */
+function mcp_expose_normalize_order( ?string $order, string $default = 'DESC' ): string {
+	$value = strtoupper( trim( (string) $order ) );
+	return in_array( $value, array( 'ASC', 'DESC' ), true ) ? $value : strtoupper( $default );
+}
+
+/**
  * Get the list of protected option names.
  *
  * @return array<string>
@@ -909,7 +949,7 @@ function mcp_register_content_abilities(): void {
 		'content/list-posts',
 		array(
 			'label'               => 'List Posts',
-			'description'         => 'List posts. Params: status, per_page, page, orderby, order, search, category_id, author_id (all optional).',
+			'description'         => 'List posts. Params: status, per_page, page, orderby, order, search, category_id, author_id, post_type (all optional). Accepts case-insensitive order and common orderby aliases like id and slug.',
 			'category'            => 'site',
 				'input_schema'        => array(
 				'type'                 => 'object',
@@ -945,15 +985,15 @@ function mcp_register_content_abilities(): void {
 					),
 					'orderby'     => array(
 						'type'        => 'string',
-						'enum'        => array( 'date', 'modified', 'title', 'ID' ),
+						'enum'        => array( 'date', 'modified', 'title', 'ID', 'id', 'name', 'slug', 'post_name' ),
 						'default'     => 'date',
-						'description' => 'Field to order by.',
+						'description' => 'Field to order by. Aliases: id -> ID, slug/post_name -> name.',
 					),
 					'order'       => array(
 						'type'        => 'string',
-						'enum'        => array( 'ASC', 'DESC' ),
+						'enum'        => array( 'ASC', 'DESC', 'asc', 'desc' ),
 						'default'     => 'DESC',
-						'description' => 'Sort order.',
+						'description' => 'Sort order (case-insensitive).',
 					),
 					'search'      => array(
 						'type'        => 'string',
@@ -1011,8 +1051,8 @@ function mcp_register_content_abilities(): void {
 					'post_status'            => $input['status'] ?? 'publish',
 					'posts_per_page'         => $pagination['per_page'],
 					'paged'                  => $pagination['page'],
-					'orderby'                => $input['orderby'] ?? 'date',
-					'order'                  => $input['order'] ?? 'DESC',
+					'orderby'                => mcp_expose_normalize_orderby( $input['orderby'] ?? null, 'date' ),
+					'order'                  => mcp_expose_normalize_order( $input['order'] ?? null, 'DESC' ),
 					// Performance optimizations.
 					'no_found_rows'          => ! $include_totals,
 					'update_post_term_cache' => false,
@@ -1084,7 +1124,7 @@ function mcp_register_content_abilities(): void {
 		'content/get-post',
 		array(
 			'label'               => 'Get Post',
-			'description'         => 'Get single post. Params: id or slug (one required).',
+			'description'         => 'Get single post. Params: id or slug (one required). Optional post_type helps slug lookups and custom post types.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -1096,6 +1136,11 @@ function mcp_register_content_abilities(): void {
 					'slug' => array(
 						'type'        => 'string',
 						'description' => 'Post slug to retrieve (used if ID not provided).',
+					),
+					'post_type' => array(
+						'type'        => 'string',
+						'default'     => 'post',
+						'description' => 'Post type used for slug lookups (default: post).',
 					),
 				),
 				'additionalProperties' => false,
@@ -1128,9 +1173,13 @@ function mcp_register_content_abilities(): void {
 				if ( ! empty( $input['id'] ) ) {
 					$post = get_post( $input['id'] );
 				} elseif ( ! empty( $input['slug'] ) ) {
+					$post_type = sanitize_key( $input['post_type'] ?? 'post' );
+					if ( ! post_type_exists( $post_type ) ) {
+						return array( 'success' => false, 'message' => esc_html__( 'Invalid post_type: ', 'mcp-expose-abilities' ) . esc_html( $post_type ) );
+					}
 					$posts = get_posts( array(
 						'name'        => $input['slug'],
-						'post_type'   => 'post',
+						'post_type'   => $post_type,
 						'post_status' => 'any',
 						'numberposts' => 1,
 					) );
@@ -1138,7 +1187,15 @@ function mcp_register_content_abilities(): void {
 				}
 
 				if ( ! $post ) {
-					return array( 'success' => false, 'message' => esc_html__( 'Post not found', 'mcp-expose-abilities' ) );
+					$response = array( 'success' => false, 'message' => esc_html__( 'Post not found', 'mcp-expose-abilities' ) );
+					if ( ! empty( $input['id'] ) ) {
+						$response['requested_id'] = (int) $input['id'];
+					}
+					if ( ! empty( $input['slug'] ) ) {
+						$response['requested_slug'] = (string) $input['slug'];
+						$response['post_type']      = sanitize_key( $input['post_type'] ?? 'post' );
+					}
+					return $response;
 				}
 
 				if ( ! current_user_can( 'read_post', $post->ID ) ) {
@@ -1171,6 +1228,146 @@ function mcp_register_content_abilities(): void {
 					'featured_image' => $thumbnail ?: '',
 					'link'           => get_permalink( $post->ID ),
 					'message'        => 'Post retrieved successfully',
+				);
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'edit_posts' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => true,
+					'destructive' => false,
+					'idempotent'  => true,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// POSTS - Get Next Existing Post
+	// =========================================================================
+	wp_register_ability(
+		'content/get-next-post',
+		array(
+			'label'               => 'Get Next Post',
+			'description'         => 'Find the next existing post after a given ID. Useful when IDs have gaps. Optional filters: status, post_type, category_id, author_id.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'required'             => array( 'after_id' ),
+				'properties'           => array(
+					'after_id'    => array(
+						'type'        => 'integer',
+						'minimum'     => 0,
+						'description' => 'Return the first post with an ID greater than this value.',
+					),
+					'status'      => array(
+						'type'        => 'string',
+						'enum'        => array( 'publish', 'draft', 'pending', 'private', 'future', 'any' ),
+						'default'     => 'publish',
+						'description' => 'Filter by post status.',
+					),
+					'post_type'   => array(
+						'type'        => 'string',
+						'default'     => 'post',
+						'description' => 'Post type to search (default: post).',
+					),
+					'category_id' => array(
+						'type'        => 'integer',
+						'description' => 'Optional category filter.',
+					),
+					'author_id'   => array(
+						'type'        => 'integer',
+						'description' => 'Optional author filter.',
+					),
+				),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success'  => array( 'type' => 'boolean' ),
+					'found'    => array( 'type' => 'boolean' ),
+					'id'       => array( 'type' => array( 'integer', 'null' ) ),
+					'title'    => array( 'type' => array( 'string', 'null' ) ),
+					'slug'     => array( 'type' => array( 'string', 'null' ) ),
+					'status'   => array( 'type' => array( 'string', 'null' ) ),
+					'date'     => array( 'type' => array( 'string', 'null' ) ),
+					'modified' => array( 'type' => array( 'string', 'null' ) ),
+					'link'     => array( 'type' => array( 'string', 'null' ) ),
+					'message'  => array( 'type' => 'string' ),
+				),
+			),
+			'execute_callback'    => function ( $input = array() ): array {
+				$input = is_array( $input ) ? $input : array();
+
+				if ( ! array_key_exists( 'after_id', $input ) ) {
+					return MCP_Helper::error( __( 'after_id is required', 'mcp-expose-abilities' ) );
+				}
+
+				$post_type = sanitize_key( $input['post_type'] ?? 'post' );
+				if ( ! post_type_exists( $post_type ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Invalid post_type: ', 'mcp-expose-abilities' ) . esc_html( $post_type ) );
+				}
+
+				$args = array(
+					'post_type'              => $post_type,
+					'post_status'            => $input['status'] ?? 'publish',
+					'posts_per_page'         => 1,
+					'orderby'                => 'ID',
+					'order'                  => 'ASC',
+					'no_found_rows'          => true,
+					'update_post_term_cache' => false,
+					'update_post_meta_cache' => false,
+				);
+
+				if ( 'any' === $args['post_status'] ) {
+					$args['post_status'] = array( 'publish', 'draft', 'pending', 'private', 'future' );
+				}
+
+				if ( ! empty( $input['category_id'] ) ) {
+					$args['cat'] = (int) $input['category_id'];
+				}
+
+				if ( ! empty( $input['author_id'] ) ) {
+					$args['author'] = (int) $input['author_id'];
+				}
+
+				add_filter(
+					'posts_where',
+					$filter = static function ( string $where ) use ( $input ): string {
+						global $wpdb;
+						return $where . $wpdb->prepare( " AND {$wpdb->posts}.ID > %d", (int) $input['after_id'] );
+					}
+				);
+
+				$posts = get_posts( $args );
+				remove_filter( 'posts_where', $filter );
+
+				if ( empty( $posts ) ) {
+					return array(
+						'success'  => true,
+						'found'    => false,
+						'id'       => null,
+						'title'    => null,
+						'slug'     => null,
+						'status'   => null,
+						'date'     => null,
+						'modified' => null,
+						'link'     => null,
+						'message'  => esc_html__( 'No next post found', 'mcp-expose-abilities' ),
+					);
+				}
+
+				$post = $posts[0];
+
+				return array_merge(
+					array(
+						'success' => true,
+						'found'   => true,
+						'message' => esc_html__( 'Next post found', 'mcp-expose-abilities' ),
+					),
+					MCP_Helper::format_post( $post )
 				);
 			},
 			'permission_callback' => function (): bool {
