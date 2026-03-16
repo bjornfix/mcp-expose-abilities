@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.31
+ * Version: 3.0.32
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -204,7 +204,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.31');
+define('MCP_VERSION', '3.0.32');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -367,6 +367,51 @@ function mcp_expose_is_private_ip( string $ip ): bool {
 }
 
 /**
+ * Validate that a local file is a readable ZIP archive before install.
+ *
+ * @param string $zip_path Path to the local zip file.
+ * @return true|WP_Error
+ */
+function mcp_expose_validate_local_plugin_zip( string $zip_path ) {
+	if ( '' === $zip_path || ! is_file( $zip_path ) || ! is_readable( $zip_path ) ) {
+		return new WP_Error( 'mcp_invalid_plugin_zip', 'Plugin zip file is missing or unreadable.' );
+	}
+
+	$size = filesize( $zip_path );
+	if ( false === $size || 0 === (int) $size ) {
+		return new WP_Error( 'mcp_invalid_plugin_zip', 'Plugin zip file is empty.' );
+	}
+
+	$handle = fopen( $zip_path, 'rb' );
+	if ( false === $handle ) {
+		return new WP_Error( 'mcp_invalid_plugin_zip', 'Unable to open plugin zip file for validation.' );
+	}
+
+	$signature = fread( $handle, 4 );
+	fclose( $handle );
+
+	if ( false === $signature || strlen( $signature ) < 4 ) {
+		return new WP_Error( 'mcp_invalid_plugin_zip', 'Plugin zip file is too short to be a valid ZIP archive.' );
+	}
+
+	$valid_signatures = array( "PK\x03\x04", "PK\x05\x06", "PK\x07\x08" );
+	if ( ! in_array( $signature, $valid_signatures, true ) ) {
+		return new WP_Error( 'mcp_invalid_plugin_zip', 'Plugin file is not a valid ZIP archive.' );
+	}
+
+	if ( class_exists( 'ZipArchive' ) ) {
+		$zip         = new ZipArchive();
+		$open_result = $zip->open( $zip_path, ZipArchive::CHECKCONS );
+		if ( true !== $open_result ) {
+			return new WP_Error( 'mcp_invalid_plugin_zip', 'Plugin file is not a valid ZIP archive.' );
+		}
+		$zip->close();
+	}
+
+	return true;
+}
+
+/**
  * Validate remote URL for download-based abilities.
  *
  * @param string $url Candidate URL.
@@ -463,6 +508,11 @@ function mcp_expose_validate_remote_download_size( string $url, int $max_bytes )
 function mcp_expose_install_plugin_zip( string $zip_path, array $input ): array {
 	if ( empty( $zip_path ) || ! file_exists( $zip_path ) ) {
 		return array( 'success' => false, 'message' => esc_html__( 'Plugin zip file not found', 'mcp-expose-abilities' ) );
+	}
+
+	$zip_check = mcp_expose_validate_local_plugin_zip( $zip_path );
+	if ( is_wp_error( $zip_check ) ) {
+		return array( 'success' => false, 'message' => esc_html( $zip_check->get_error_message() ) );
 	}
 
 	// Define stub for get_current_screen() if not available (REST API context).
