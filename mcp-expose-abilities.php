@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.30
+ * Version: 3.0.31
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -68,6 +68,30 @@ function mcp_expose_normalize_assigned_template( int $post_id, string $post_type
 	delete_post_meta( $post_id, '_wp_page_template' );
 
 	return true;
+}
+
+/**
+ * Idempotently assign a featured image.
+ *
+ * @param int $post_id           Post ID.
+ * @param int $featured_image_id Attachment ID.
+ * @return true|WP_Error
+ */
+function mcp_expose_set_featured_image( int $post_id, int $featured_image_id ) {
+	$attachment = get_post( $featured_image_id );
+	if ( ! $attachment || 'attachment' !== $attachment->post_type || ! wp_attachment_is_image( $featured_image_id ) ) {
+		return new WP_Error( 'mcp_invalid_featured_image', __( 'Invalid featured image attachment ID', 'mcp-expose-abilities' ) );
+	}
+
+	if ( (int) get_post_thumbnail_id( $post_id ) === $featured_image_id ) {
+		return true;
+	}
+
+	if ( set_post_thumbnail( $post_id, $featured_image_id ) ) {
+		return true;
+	}
+
+	return new WP_Error( 'mcp_set_featured_image_failed', __( 'Failed to set featured image', 'mcp-expose-abilities' ) );
 }
 
 // ============================================================================
@@ -180,7 +204,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.30');
+define('MCP_VERSION', '3.0.31');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -1689,15 +1713,10 @@ function mcp_register_content_abilities(): void {
 				$featured_image_id = (int) $input['featured_image_id'];
 
 				if ( $featured_image_id > 0 ) {
-					$attachment = get_post( $featured_image_id );
-					if ( ! $attachment || 'attachment' !== $attachment->post_type || ! wp_attachment_is_image( $featured_image_id ) ) {
+					$thumbnail_result = mcp_expose_set_featured_image( $post_id, $featured_image_id );
+					if ( is_wp_error( $thumbnail_result ) ) {
 						wp_delete_post( $post_id, true );
-						return array( 'success' => false, 'message' => esc_html__( 'Invalid featured image attachment ID', 'mcp-expose-abilities' ) );
-					}
-
-					if ( ! set_post_thumbnail( $post_id, $featured_image_id ) ) {
-						wp_delete_post( $post_id, true );
-						return array( 'success' => false, 'message' => esc_html__( 'Failed to set featured image', 'mcp-expose-abilities' ) );
+						return array( 'success' => false, 'message' => esc_html( $thumbnail_result->get_error_message() ) );
 					}
 				}
 			}
@@ -1861,13 +1880,9 @@ function mcp_register_content_abilities(): void {
 				if ( array_key_exists( 'featured_image_id', $input ) ) {
 					$featured_image_id = (int) $input['featured_image_id'];
 					if ( $featured_image_id > 0 ) {
-						$attachment = get_post( $featured_image_id );
-						if ( ! $attachment || 'attachment' !== $attachment->post_type || ! wp_attachment_is_image( $featured_image_id ) ) {
-							return array( 'success' => false, 'message' => esc_html__( 'Invalid featured image attachment ID', 'mcp-expose-abilities' ) );
-						}
-
-						if ( ! set_post_thumbnail( $input['id'], $featured_image_id ) ) {
-							return array( 'success' => false, 'message' => esc_html__( 'Failed to set featured image', 'mcp-expose-abilities' ) );
+						$thumbnail_result = mcp_expose_set_featured_image( (int) $input['id'], $featured_image_id );
+						if ( is_wp_error( $thumbnail_result ) ) {
+							return array( 'success' => false, 'message' => esc_html( $thumbnail_result->get_error_message() ) );
 						}
 					} else {
 						delete_post_thumbnail( $input['id'] );
@@ -2316,15 +2331,10 @@ function mcp_register_content_abilities(): void {
 					$featured_image_id = (int) $input['featured_image_id'];
 
 					if ( $featured_image_id > 0 ) {
-						$attachment = get_post( $featured_image_id );
-						if ( ! $attachment || 'attachment' !== $attachment->post_type || ! wp_attachment_is_image( $featured_image_id ) ) {
+						$thumbnail_result = mcp_expose_set_featured_image( $page_id, $featured_image_id );
+						if ( is_wp_error( $thumbnail_result ) ) {
 							wp_delete_post( $page_id, true );
-							return array( 'success' => false, 'message' => esc_html__( 'Invalid featured image attachment ID', 'mcp-expose-abilities' ) );
-						}
-
-						if ( ! set_post_thumbnail( $page_id, $featured_image_id ) ) {
-							wp_delete_post( $page_id, true );
-							return array( 'success' => false, 'message' => esc_html__( 'Failed to set featured image', 'mcp-expose-abilities' ) );
+							return array( 'success' => false, 'message' => esc_html( $thumbnail_result->get_error_message() ) );
 						}
 					}
 				}
@@ -2483,13 +2493,9 @@ function mcp_register_content_abilities(): void {
 				if ( array_key_exists( 'featured_image_id', $input ) ) {
 					$featured_image_id = (int) $input['featured_image_id'];
 					if ( $featured_image_id > 0 ) {
-						$attachment = get_post( $featured_image_id );
-						if ( ! $attachment || 'attachment' !== $attachment->post_type || ! wp_attachment_is_image( $featured_image_id ) ) {
-							return array( 'success' => false, 'message' => esc_html__( 'Invalid featured image attachment ID', 'mcp-expose-abilities' ) );
-						}
-
-						if ( ! set_post_thumbnail( $input['id'], $featured_image_id ) ) {
-							return array( 'success' => false, 'message' => esc_html__( 'Failed to set featured image', 'mcp-expose-abilities' ) );
+						$thumbnail_result = mcp_expose_set_featured_image( (int) $input['id'], $featured_image_id );
+						if ( is_wp_error( $thumbnail_result ) ) {
+							return array( 'success' => false, 'message' => esc_html( $thumbnail_result->get_error_message() ) );
 						}
 					} else {
 						delete_post_thumbnail( $input['id'] );
