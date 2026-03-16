@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.29
+ * Version: 3.0.30
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -180,7 +180,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.29');
+define('MCP_VERSION', '3.0.30');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -527,14 +527,47 @@ function mcp_expose_install_plugin_zip( string $zip_path, array $input ): array 
 		}
 	}
 
-	// Move plugin to plugins directory.
-	$move_result = $wp_filesystem ? $wp_filesystem->move( $source_dir, $target_dir ) : false;
+	// Move plugin to plugins directory. Some filesystem transports fail on move/rename
+	// even when the unpacked directory is readable, so fall back to copy_dir().
+	$install_result = false;
+	$install_error  = null;
+
+	if ( $wp_filesystem ) {
+		$install_result = $wp_filesystem->move( $source_dir, $target_dir );
+	}
+
+	if ( ! $install_result ) {
+		if ( ! function_exists( 'copy_dir' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+		}
+
+		$copy_result = copy_dir( $source_dir, $target_dir );
+		if ( is_wp_error( $copy_result ) ) {
+			$install_error = $copy_result;
+		} else {
+			$install_result = true;
+		}
+	}
+
 	if ( $wp_filesystem ) {
 		$wp_filesystem->delete( $temp_dir, true );
 	}
 
-	if ( ! $move_result ) {
-		return array( 'success' => false, 'message' => esc_html__( 'Failed to move plugin to plugins directory', 'mcp-expose-abilities' ) );
+	if ( ! $install_result ) {
+		$method = '';
+		if ( $wp_filesystem && isset( $wp_filesystem->method ) ) {
+			$method = (string) $wp_filesystem->method;
+		}
+
+		$message = esc_html__( 'Failed to install plugin into plugins directory', 'mcp-expose-abilities' );
+		if ( $install_error instanceof WP_Error ) {
+			$message .= ': ' . $install_error->get_error_message();
+		}
+		if ( '' !== $method ) {
+			$message .= ' [' . $method . ']';
+		}
+
+		return array( 'success' => false, 'message' => $message );
 	}
 
 	// Find the main plugin file if not already known.

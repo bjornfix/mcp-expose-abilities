@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 6.9
-**Stable tag:** 3.0.29
+**Stable tag:** 3.0.30
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -338,6 +338,10 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.30
+- Fixed: `plugins/upload` and `plugins/upload-base64` now fall back to `copy_dir()` when filesystem `move()` fails after unzip
+- Improved: plugin install failures now include the underlying filesystem context
 
 ### 3.0.29
 - Fixed: `content/update-post` now clears stale invalid assigned page-template metadata before unrelated post updates
