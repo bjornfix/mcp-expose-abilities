@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.32
+ * Version: 3.0.33
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -204,7 +204,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.32');
+define('MCP_VERSION', '3.0.33');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -382,13 +382,18 @@ function mcp_expose_validate_local_plugin_zip( string $zip_path ) {
 		return new WP_Error( 'mcp_invalid_plugin_zip', 'Plugin zip file is empty.' );
 	}
 
-	$handle = fopen( $zip_path, 'rb' );
-	if ( false === $handle ) {
-		return new WP_Error( 'mcp_invalid_plugin_zip', 'Unable to open plugin zip file for validation.' );
+	WP_Filesystem();
+	global $wp_filesystem;
+	if ( ! $wp_filesystem ) {
+		return new WP_Error( 'mcp_invalid_plugin_zip', 'Unable to initialize filesystem access for ZIP validation.' );
 	}
 
-	$signature = fread( $handle, 4 );
-	fclose( $handle );
+	$contents = $wp_filesystem->get_contents( $zip_path );
+	if ( false === $contents || '' === $contents ) {
+		return new WP_Error( 'mcp_invalid_plugin_zip', 'Unable to read plugin zip file for validation.' );
+	}
+
+	$signature = substr( $contents, 0, 4 );
 
 	if ( false === $signature || strlen( $signature ) < 4 ) {
 		return new WP_Error( 'mcp_invalid_plugin_zip', 'Plugin zip file is too short to be a valid ZIP archive.' );
