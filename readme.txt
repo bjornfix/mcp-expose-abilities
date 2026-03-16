@@ -28,7 +28,7 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 
 == Changelog ==
 
- = 3.0.33 =
+= 3.0.33 =
 * Fixed: plugin upload paths now validate local ZIP signatures before unzip so corrupted payloads fail with a direct ZIP-validation error
 * Improved: pairs with proxy-side HTTP JSON limit hardening so larger `plugins/upload-base64` requests are not rejected or truncated at the MCP proxy layer
 
