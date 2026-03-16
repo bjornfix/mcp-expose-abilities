@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 6.9
-**Stable tag:** 3.0.28
+**Stable tag:** 3.0.29
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -338,6 +338,11 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.29
+- Fixed: `content/update-post` now clears stale invalid assigned page-template metadata before unrelated post updates
+- Fixed: `content/update-page` now clears stale invalid assigned templates on update and validates explicit `template` input
+- Fixed: `content/create-page` now validates explicit page-template slugs before saving them
 
 ### 3.0.28
 - Added `featured_image_id` support to post/page create and update abilities

@@ -3,7 +3,7 @@ Contributors: devenia
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 6.9
-Stable tag: 3.0.28
+Stable tag: 3.0.29
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -27,6 +27,11 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 5. (Optional) Install add-on plugins for vendor-specific features
 
 == Changelog ==
+
+= 3.0.29 =
+* Fixed: `content/update-post` now clears stale invalid assigned page-template metadata before running unrelated post updates
+* Fixed: `content/update-page` now clears stale invalid assigned templates on update and validates explicit `template` input
+* Fixed: `content/create-page` now validates explicit page-template slugs before saving them
 
 = 3.0.28 =
 * Added: `featured_image_id` support to `content/create-post`, `content/update-post`, `content/create-page`, and `content/update-page`

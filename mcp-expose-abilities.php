@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.28
+ * Version: 3.0.29
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -19,6 +19,55 @@ declare( strict_types=1 );
 // Prevent direct access.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
+}
+
+/**
+ * Return valid template slugs for a post type.
+ *
+ * @param string $post_type Post type slug.
+ * @return string[]
+ */
+function mcp_expose_get_valid_template_slugs( string $post_type ): array {
+	$templates = wp_get_theme()->get_page_templates( null, $post_type );
+	$slugs     = array_keys( $templates );
+	$slugs[]   = '';
+	$slugs[]   = 'default';
+
+	return array_values( array_unique( $slugs ) );
+}
+
+/**
+ * Check whether a template slug is valid for a post type.
+ *
+ * @param string $template_slug Template slug.
+ * @param string $post_type     Post type slug.
+ * @return bool
+ */
+function mcp_expose_is_valid_template_slug( string $template_slug, string $post_type ): bool {
+	return in_array( $template_slug, mcp_expose_get_valid_template_slugs( $post_type ), true );
+}
+
+/**
+ * Clear a stale invalid assigned page template to unblock content updates.
+ *
+ * @param int    $post_id   Post ID.
+ * @param string $post_type Post type slug.
+ * @return bool True when invalid template meta was removed.
+ */
+function mcp_expose_normalize_assigned_template( int $post_id, string $post_type ): bool {
+	$template_slug = (string) get_post_meta( $post_id, '_wp_page_template', true );
+
+	if ( '' === $template_slug || 'default' === $template_slug ) {
+		return false;
+	}
+
+	if ( mcp_expose_is_valid_template_slug( $template_slug, $post_type ) ) {
+		return false;
+	}
+
+	delete_post_meta( $post_id, '_wp_page_template' );
+
+	return true;
 }
 
 // ============================================================================
@@ -131,7 +180,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.27');
+define('MCP_VERSION', '3.0.29');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -1737,6 +1786,8 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'message' => esc_html__( 'Permission denied to edit this post.', 'mcp-expose-abilities' ) );
 				}
 
+				mcp_expose_normalize_assigned_template( (int) $post->ID, $post->post_type );
+
 				$post_data = array( 'ID' => $input['id'] );
 
 				if ( isset( $input['title'] ) ) {
@@ -2216,8 +2267,17 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'message' => esc_html( $page_id->get_error_message() ) );
 				}
 
-				if ( ! empty( $input['template'] ) ) {
-					update_post_meta( $page_id, '_wp_page_template', $input['template'] );
+				if ( isset( $input['template'] ) ) {
+					$template_slug = (string) $input['template'];
+
+					if ( '' !== $template_slug && 'default' !== $template_slug ) {
+						if ( ! mcp_expose_is_valid_template_slug( $template_slug, 'page' ) ) {
+							wp_delete_post( $page_id, true );
+							return array( 'success' => false, 'message' => esc_html__( 'Invalid page template.', 'mcp-expose-abilities' ) );
+						}
+
+						update_post_meta( $page_id, '_wp_page_template', $template_slug );
+					}
 				}
 				if ( array_key_exists( 'featured_image_id', $input ) ) {
 					$featured_image_id = (int) $input['featured_image_id'];
@@ -2342,6 +2402,10 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'message' => esc_html__( 'Permission denied to edit this page.', 'mcp-expose-abilities' ) );
 				}
 
+				if ( ! array_key_exists( 'template', $input ) ) {
+					mcp_expose_normalize_assigned_template( (int) $page->ID, $page->post_type );
+				}
+
 				$page_data = array( 'ID' => $input['id'] );
 
 				if ( isset( $input['title'] ) ) {
@@ -2373,7 +2437,15 @@ function mcp_register_content_abilities(): void {
 				}
 
 				if ( isset( $input['template'] ) ) {
-					update_post_meta( $input['id'], '_wp_page_template', $input['template'] );
+					$template_slug = (string) $input['template'];
+
+					if ( '' === $template_slug || 'default' === $template_slug ) {
+						delete_post_meta( $input['id'], '_wp_page_template' );
+					} elseif ( ! mcp_expose_is_valid_template_slug( $template_slug, $page->post_type ) ) {
+						return array( 'success' => false, 'message' => esc_html__( 'Invalid page template.', 'mcp-expose-abilities' ) );
+					} else {
+						update_post_meta( $input['id'], '_wp_page_template', $template_slug );
+					}
 				}
 				if ( array_key_exists( 'featured_image_id', $input ) ) {
 					$featured_image_id = (int) $input['featured_image_id'];
