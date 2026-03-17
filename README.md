@@ -18,6 +18,17 @@ This plugin exposes WordPress functionality through MCP (Model Context Protocol)
 
 **Example:** "Fix the phone numbers in these 25 articles to be clickable tel: links." - Done in 30 seconds, all 25 articles.
 
+## Documentation
+
+For setup and troubleshooting beyond the quick start, use the wiki:
+
+- [Getting Started](https://github.com/bjornfix/mcp-expose-abilities/wiki/Getting-Started)
+- [Install Order and Dependencies](https://github.com/bjornfix/mcp-expose-abilities/wiki/Install-Order-and-Dependencies)
+- [First Working MCP Connection](https://github.com/bjornfix/mcp-expose-abilities/wiki/First-Working-MCP-Connection)
+- [Which Add-On Do I Need?](https://github.com/bjornfix/mcp-expose-abilities/wiki/Which-Add-On-Do-I-Need%3F)
+- [Troubleshooting](https://github.com/bjornfix/mcp-expose-abilities/wiki/Troubleshooting)
+- [Examples](https://github.com/bjornfix/mcp-expose-abilities/wiki/Examples)
+
 ## Start Here
 
 If you are new to the stack, use this order:
