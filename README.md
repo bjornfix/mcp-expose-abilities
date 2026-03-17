@@ -119,16 +119,16 @@ Install only what you need. Running GeneratePress? Install that add-on. Don't us
 
 Install add-ons only when your site actually uses that product:
 
-- Elementor site: install `mcp-abilities-elementor`
-- GeneratePress / GenerateBlocks site: install `mcp-abilities-generatepress`
-- Cloudflare-managed site: install `mcp-abilities-cloudflare`
-- Gmail / Workspace automation: install `mcp-abilities-workspace`
-- Rank Math site: install `mcp-abilities-rankmath`
-- Wordfence site: install `mcp-abilities-wordfence`
-- Brevo site: install `mcp-abilities-brevo`
-- Toolset site: install `mcp-abilities-toolset`
-- WPML site: install `mcp-abilities-sitepress`
-- Formidable Forms site: install `mcp-abilities-formidable`
+- Elementor site: install [`mcp-abilities-elementor`](https://github.com/bjornfix/mcp-abilities-elementor)
+- GeneratePress / GenerateBlocks site: install [`mcp-abilities-generatepress`](https://github.com/bjornfix/mcp-abilities-generatepress)
+- Cloudflare-managed site: install [`mcp-abilities-cloudflare`](https://github.com/bjornfix/mcp-abilities-cloudflare)
+- Gmail / Workspace automation: install [`mcp-abilities-workspace`](https://github.com/bjornfix/mcp-abilities-workspace)
+- Rank Math site: install [`mcp-abilities-rankmath`](https://github.com/bjornfix/mcp-abilities-rankmath)
+- Wordfence site: install [`mcp-abilities-wordfence`](https://github.com/bjornfix/mcp-abilities-wordfence)
+- Brevo site: install [`mcp-abilities-brevo`](https://github.com/bjornfix/mcp-abilities-brevo)
+- Toolset site: install [`mcp-abilities-toolset`](https://github.com/bjornfix/mcp-abilities-toolset)
+- WPML site: install [`mcp-abilities-sitepress`](https://github.com/bjornfix/mcp-abilities-sitepress)
+- Formidable Forms site: install [`mcp-abilities-formidable`](https://github.com/bjornfix/mcp-abilities-formidable)
 
 Do not install every add-on by default. Most sites only need one or two.
 
