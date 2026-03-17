@@ -18,6 +18,20 @@ This plugin exposes WordPress functionality through MCP (Model Context Protocol)
 
 **Example:** "Fix the phone numbers in these 25 articles to be clickable tel: links." - Done in 30 seconds, all 25 articles.
 
+## The Real Workflow
+
+In practice, the human should not have to memorize the whole ecosystem.
+
+The normal pattern is:
+
+1. point Codex, Claude, or another MCP-capable agent to this repository
+2. let the agent read the README and wiki
+3. let the agent work out the required stack and relevant add-ons
+4. give the agent a clear task with boundaries
+
+The human's job is mostly to describe the goal.
+The agent's job is to figure out the mechanics.
+
 ## Documentation
 
 For setup and troubleshooting beyond the quick start, use the wiki:
@@ -28,6 +42,10 @@ For setup and troubleshooting beyond the quick start, use the wiki:
 - [Which Add-On Do I Need?](https://github.com/bjornfix/mcp-expose-abilities/wiki/Which-Add-On-Do-I-Need%3F)
 - [Troubleshooting](https://github.com/bjornfix/mcp-expose-abilities/wiki/Troubleshooting)
 - [Examples](https://github.com/bjornfix/mcp-expose-abilities/wiki/Examples)
+
+If you are using an AI agent, the simplest instruction is often just:
+
+- `Read https://github.com/bjornfix/mcp-expose-abilities and figure out the stack before making changes.`
 
 ## Start Here
 
