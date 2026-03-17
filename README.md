@@ -106,16 +106,6 @@ If you are using an AI agent, the simplest instruction is often just:
 
 - `Read https://github.com/bjornfix/mcp-expose-abilities and figure out the stack before making changes.`
 
-## Star and Share
-
-If this ecosystem saves you time, makes WordPress work less repetitive, or gives your team a better way to handle boring maintenance, please:
-
-- star the repo
-- share it with agencies, companies, and organizations using WordPress
-- point people to the wiki so they can see what the stack can actually do
-
-We want this to spread because it is good for the WordPress ecosystem as a whole when more of the repetitive work actually gets done.
-
 ## Start Here
 
 If you are new to the stack, use this order:
@@ -538,6 +528,17 @@ Three-plugin stack plus optional add-ons:
 
 ## Changelog
 
+### 3.0.34
+- Docs: added a clearer GitHub onboarding path with `Start Here`, setup order, first-success checks, and add-on selection guidance
+- Docs: added explicit WordPress and PHP compatibility notes
+- Docs: corrected ecosystem add-on and ability counts, including the Formidable add-on and the current Elementor and Rank Math totals
+- Docs: replaced the stale hardcoded Abilities API ZIP URL with the generic latest-release link
+- Docs: fixed the GitHub release badge so it follows the actual latest release
+
+### 3.0.33
+- Fixed: plugin upload paths now validate local ZIP signatures before unzip so corrupted payloads fail with a direct ZIP-validation error
+- Improved: pairs with proxy-side HTTP JSON limit hardening so larger `plugins/upload-base64` requests are not rejected or truncated at the MCP proxy layer
+
 ### 3.0.31
 - Fixed: featured-image create/update paths are now idempotent when the requested image is already assigned
 
@@ -676,3 +677,15 @@ GPL-2.0+
 - [MCP Abilities - Toolset](https://github.com/bjornfix/mcp-abilities-toolset)
 - [Abilities API](https://github.com/WordPress/abilities-api) (WordPress core team)
 - [MCP Adapter](https://github.com/WordPress/mcp-adapter) (WordPress core team)
+
+## Star and Share
+
+If this ecosystem saves you time, gives your team a saner way to handle WordPress work, or helps you finally get through the repetitive maintenance nobody wants to do, please:
+
+- star the repo
+- share it with people running WordPress sites
+- point them to the wiki so they can see what the ecosystem can actually do
+
+Why do it?
+
+Because this is good for the WordPress ecosystem as a whole. The more people use agent-friendly open WordPress tooling, the more of the boring but important work actually gets done instead of sitting in a backlog forever.
