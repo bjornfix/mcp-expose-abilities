@@ -16,10 +16,17 @@ This plugin exposes WordPress functionality through MCP (Model Context Protocol)
 
 Core WordPress abilities for content, menus, users, media, widgets, plugins, options, and system management.
 
+= Compatibility =
+
+* Requires WordPress 6.9 or newer
+* Tested up to WordPress 6.9
+* Requires PHP 8.0 or newer
+* Maintained against the WordPress 6.9 release line together with the supported add-on plugins
+
 == Installation ==
 
 1. Install and activate the required plugins:
-   - Abilities API (official release ZIP): https://github.com/WordPress/abilities-api/releases/download/v0.4.0/abilities-api.zip
+   - Abilities API (official release ZIP): https://github.com/WordPress/abilities-api/releases/latest
    - MCP Adapter: https://github.com/WordPress/mcp-adapter
 2. Download the latest release
 3. Upload via WordPress Admin → Plugins → Add New → Upload Plugin
