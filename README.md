@@ -32,10 +32,43 @@ The normal pattern is:
 The human's job is mostly to describe the goal.
 The agent's job is to figure out the mechanics.
 
+## Why This Feels Different
+
+Most WordPress AI demos still leave you doing the boring part yourself.
+
+This ecosystem is different because the agent can actually do the work inside WordPress:
+
+- fix repetitive content issues across many pages
+- update menus, media, plugins, comments, and options
+- work with real builder and plugin ecosystems like Elementor, GeneratePress, Rank Math, and Wordfence
+- handle the kind of site maintenance people usually postpone because it is repetitive and dull
+
+That changes the experience from:
+
+- `Here is what you should do in wp-admin`
+
+to:
+
+- `Tell the agent what needs doing, and let it carry out the work`
+
+## Who It Is For
+
+This is a good fit for:
+
+- agencies managing many WordPress sites
+- companies with repetitive content and operations work
+- organizations that want AI to do real maintenance, not just generate text
+- technical teams that are tired of copy-paste workflows between chat and wp-admin
+
+It is especially useful when work gets postponed simply because the manual version is boring.
+
 ## Documentation
 
 For setup and troubleshooting beyond the quick start, use the wiki:
 
+- [Why Teams Use It](https://github.com/bjornfix/mcp-expose-abilities/wiki/Why-Teams-Use-It)
+- [Use Cases](https://github.com/bjornfix/mcp-expose-abilities/wiki/Use-Cases)
+- [Who It Is For](https://github.com/bjornfix/mcp-expose-abilities/wiki/Who-It-Is-For)
 - [Getting Started](https://github.com/bjornfix/mcp-expose-abilities/wiki/Getting-Started)
 - [Install Order and Dependencies](https://github.com/bjornfix/mcp-expose-abilities/wiki/Install-Order-and-Dependencies)
 - [First Working MCP Connection](https://github.com/bjornfix/mcp-expose-abilities/wiki/First-Working-MCP-Connection)
