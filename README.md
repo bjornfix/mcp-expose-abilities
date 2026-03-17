@@ -74,18 +74,19 @@ Version 3.0 introduced a modular architecture. The core plugin provides WordPres
 |--------|-----------|-------------|
 | **MCP Expose Abilities** (core) | 61 | WordPress core: content, menus, users, media, widgets, plugins, options, comments, taxonomy, system |
 | [MCP Abilities - Filesystem](https://github.com/bjornfix/mcp-abilities-filesystem) | 11 | File operations with security hardening |
-| [MCP Abilities - Elementor](https://github.com/bjornfix/mcp-abilities-elementor) | 38 | Elementor page builder integration |
+| [MCP Abilities - Elementor](https://github.com/bjornfix/mcp-abilities-elementor) | 40 | Elementor page builder integration |
 | [MCP Abilities - GeneratePress](https://github.com/bjornfix/mcp-abilities-generatepress) | 26 | GeneratePress theme + GenerateBlocks |
 | [MCP Abilities - Cloudflare](https://github.com/bjornfix/mcp-abilities-cloudflare) | 4 | Cloudflare cache management |
 | [MCP Abilities - Google Workspace](https://github.com/bjornfix/mcp-abilities-workspace) | 16 | Gmail API via Workspace service account |
-| [MCP Abilities - Rank Math](https://github.com/bjornfix/mcp-abilities-rankmath) | 12 | Rank Math SEO metadata access |
+| [MCP Abilities - Rank Math](https://github.com/bjornfix/mcp-abilities-rankmath) | 23 | Rank Math SEO metadata access |
 | [MCP Abilities - Wordfence](https://github.com/bjornfix/mcp-abilities-wordfence) | 11 | Wordfence security status + blocks |
 | [MCP Abilities - Brevo](https://github.com/bjornfix/mcp-abilities-brevo) | 22 | Brevo contacts, lists, campaigns |
 | [MCP Abilities - Advanced Ads](https://github.com/bjornfix/mcp-abilities-advads) | 17 | Advanced Ads management |
 | [MCP Abilities - Toolset](https://github.com/bjornfix/mcp-abilities-toolset) | 38 | Toolset post types, custom fields, taxonomies, relationships |
 | [MCP Abilities - SitePress](https://github.com/bjornfix/mcp-abilities-sitepress) | 10 | WPML translation mapping, language-switcher recovery, and QA checks |
+| [MCP Abilities - Formidable](https://github.com/bjornfix/mcp-abilities-formidable) | 6 | Formidable Forms settings, usage tracing, styles, and CSS cache controls |
 
-**Total ecosystem: 266 abilities**
+**Total ecosystem: 285 abilities**
 
 Install only what you need. Running GeneratePress? Install that add-on. Don't use Elementor? Skip it.
 
@@ -127,6 +128,7 @@ Install add-ons only when your site actually uses that product:
 - Brevo site: install `mcp-abilities-brevo`
 - Toolset site: install `mcp-abilities-toolset`
 - WPML site: install `mcp-abilities-sitepress`
+- Formidable Forms site: install `mcp-abilities-formidable`
 
 Do not install every add-on by default. Most sites only need one or two.
 
@@ -148,7 +150,7 @@ When something does not work, check in this order:
 ### 3.0.34
 
 - Docs: added explicit WordPress and PHP compatibility notes.
-- Docs: corrected the SitePress add-on count and total ecosystem ability count.
+- Docs: corrected ecosystem add-on and ability counts, including the Formidable add-on.
 - Docs: replaced the stale hardcoded Abilities API ZIP URL with the generic latest-release link.
 
 ### 3.0.33
@@ -287,7 +289,7 @@ When something does not work, check in this order:
 | `filesystem/copy-file` | Copy file |
 | `filesystem/move-file` | Move/rename file |
 
-### Elementor (mcp-abilities-elementor) - 38 abilities
+### Elementor (mcp-abilities-elementor) - 40 abilities
 
 See the add-on readme for the full list. Common abilities:
 
