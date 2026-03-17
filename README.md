@@ -80,6 +80,16 @@ If you are using an AI agent, the simplest instruction is often just:
 
 - `Read https://github.com/bjornfix/mcp-expose-abilities and figure out the stack before making changes.`
 
+## Star and Share
+
+If this ecosystem saves you time, makes WordPress work less repetitive, or gives your team a better way to handle boring maintenance, please:
+
+- star the repo
+- share it with agencies, companies, and organizations using WordPress
+- point people to the wiki so they can see what the stack can actually do
+
+We want this to spread because it is good for the WordPress ecosystem as a whole when more of the repetitive work actually gets done.
+
 ## Start Here
 
 If you are new to the stack, use this order:
