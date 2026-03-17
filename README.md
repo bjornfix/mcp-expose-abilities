@@ -82,6 +82,10 @@ This is a good fit for:
 
 It is especially useful when work gets postponed simply because the manual version is boring.
 
+If you want the more specific buyer case, start here:
+
+- [Who Benefits Most](https://github.com/bjornfix/mcp-expose-abilities/wiki/Who-Benefits-Most)
+
 ## Documentation
 
 For setup and troubleshooting beyond the quick start, use the wiki:
