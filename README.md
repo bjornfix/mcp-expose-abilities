@@ -89,6 +89,7 @@ For setup and troubleshooting beyond the quick start, use the wiki:
 - [Why Teams Use It](https://github.com/bjornfix/mcp-expose-abilities/wiki/Why-Teams-Use-It)
 - [Use Cases](https://github.com/bjornfix/mcp-expose-abilities/wiki/Use-Cases)
 - [Who It Is For](https://github.com/bjornfix/mcp-expose-abilities/wiki/Who-It-Is-For)
+- [Alternatives](https://github.com/bjornfix/mcp-expose-abilities/wiki/Alternatives)
 - [Getting Started](https://github.com/bjornfix/mcp-expose-abilities/wiki/Getting-Started)
 - [Install Order and Dependencies](https://github.com/bjornfix/mcp-expose-abilities/wiki/Install-Order-and-Dependencies)
 - [First Working MCP Connection](https://github.com/bjornfix/mcp-expose-abilities/wiki/First-Working-MCP-Connection)
