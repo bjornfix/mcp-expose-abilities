@@ -36,9 +36,11 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 == Changelog ==
 
 = 3.0.34 =
+* Docs: added a clearer GitHub onboarding path with setup order, first-success checks, and add-on selection guidance
 * Docs: added explicit WordPress and PHP compatibility notes
-* Docs: corrected the SitePress add-on count and total ecosystem ability count
+* Docs: corrected ecosystem add-on and ability counts, including Formidable plus the current Elementor and Rank Math totals
 * Docs: replaced the stale hardcoded Abilities API ZIP URL with the generic latest-release link
+* Docs: fixed the GitHub release badge so it follows the actual latest release
 
 = 3.0.33 =
 * Fixed: plugin upload paths now validate local ZIP signatures before unzip so corrupted payloads fail with a direct ZIP-validation error

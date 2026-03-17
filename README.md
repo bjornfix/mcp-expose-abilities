@@ -149,9 +149,11 @@ When something does not work, check in this order:
 
 ### 3.0.34
 
+- Docs: added a clearer GitHub onboarding path with `Start Here`, setup order, first-success checks, and add-on selection guidance.
 - Docs: added explicit WordPress and PHP compatibility notes.
-- Docs: corrected ecosystem add-on and ability counts, including the Formidable add-on.
+- Docs: corrected ecosystem add-on and ability counts, including the Formidable add-on and the current Elementor and Rank Math totals.
 - Docs: replaced the stale hardcoded Abilities API ZIP URL with the generic latest-release link.
+- Docs: fixed the GitHub release badge so it follows the actual latest release.
 
 ### 3.0.33
 
