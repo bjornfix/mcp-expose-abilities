@@ -18,6 +18,54 @@ This plugin exposes WordPress functionality through MCP (Model Context Protocol)
 
 **Example:** "Fix the phone numbers in these 25 articles to be clickable tel: links." - Done in 30 seconds, all 25 articles.
 
+## Start Here
+
+If you are new to the stack, use this order:
+
+1. Install **Abilities API**
+2. Install **MCP Adapter**
+3. Install **MCP Expose Abilities** (this plugin)
+4. Confirm you can list and execute core abilities
+5. Add only the vendor-specific plugins you actually need
+
+If you skip step 4 and start installing add-ons immediately, troubleshooting gets harder than it needs to be.
+
+## What You Actually Need
+
+For a minimal working setup, you only need:
+
+- WordPress 6.9+
+- PHP 8.0+
+- [Abilities API](https://github.com/WordPress/abilities-api)
+- [MCP Adapter](https://github.com/WordPress/mcp-adapter)
+- **MCP Expose Abilities** (this plugin)
+
+Everything else in the ecosystem is optional.
+
+## 5-Minute Setup
+
+1. Install and activate the required plugins:
+   - Abilities API: https://github.com/WordPress/abilities-api/releases/latest
+   - MCP Adapter: https://github.com/WordPress/mcp-adapter
+   - MCP Expose Abilities: download the latest release from this repo
+2. Verify the Abilities API plugin is installed as `wp-content/plugins/abilities-api/abilities-api.php`
+3. Activate all three plugins in WordPress
+4. Confirm the MCP adapter route is reachable on your site
+5. Run a simple read-only ability first, such as listing posts or reading a page
+
+## First Success Check
+
+Before adding Elementor, Cloudflare, Gmail, or anything else, confirm the core stack works.
+
+Good first tests:
+
+- list posts
+- get a page by ID
+- list menus
+- list installed plugins
+
+If those work, the stack is wired correctly. If they do not, fix the core stack before adding add-ons.
+
 ## Modular Architecture
 
 Version 3.0 introduced a modular architecture. The core plugin provides WordPress-native abilities, while vendor-specific features are available as separate add-on plugins:
@@ -65,6 +113,35 @@ Install only what you need. Running GeneratePress? Install that add-on. Don't us
 3. Upload via WordPress Admin → Plugins → Add New → Upload Plugin
 4. Activate the plugin
 5. (Optional) Install add-on plugins for vendor-specific features
+
+## Which Add-On Should I Install?
+
+Install add-ons only when your site actually uses that product:
+
+- Elementor site: install `mcp-abilities-elementor`
+- GeneratePress / GenerateBlocks site: install `mcp-abilities-generatepress`
+- Cloudflare-managed site: install `mcp-abilities-cloudflare`
+- Gmail / Workspace automation: install `mcp-abilities-workspace`
+- Rank Math site: install `mcp-abilities-rankmath`
+- Wordfence site: install `mcp-abilities-wordfence`
+- Brevo site: install `mcp-abilities-brevo`
+- Toolset site: install `mcp-abilities-toolset`
+- WPML site: install `mcp-abilities-sitepress`
+
+Do not install every add-on by default. Most sites only need one or two.
+
+## Common Failure Pattern
+
+The most common onboarding mistake is treating this like one plugin instead of a stack.
+
+When something does not work, check in this order:
+
+1. Is Abilities API active?
+2. Is MCP Adapter active?
+3. Is MCP Expose Abilities active?
+4. Does the core plugin work without any add-ons?
+5. Is the vendor plugin itself installed and active?
+6. Only then debug the specific add-on
 
 ## Recent Changes
 
