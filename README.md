@@ -51,6 +51,26 @@ to:
 
 - `Tell the agent what needs doing, and let it carry out the work`
 
+## Before vs After
+
+### Before
+
+- ask the AI what to do
+- copy the answer into WordPress by hand
+- click through wp-admin for the repetitive bits
+- lose momentum because the task is boring
+- postpone the cleanup, maintenance, or optimization work again
+
+### After
+
+- tell the agent what needs doing
+- let it inspect the site directly
+- let it make the targeted change
+- verify the result
+- move on to the next useful improvement instead of getting stuck in admin drudgery
+
+That difference is the whole point of this ecosystem.
+
 ## Who It Is For
 
 This is a good fit for:
