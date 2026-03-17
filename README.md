@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 6.9
-**Stable tag:** 3.0.33
+**Stable tag:** 3.0.34
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -67,6 +67,12 @@ Install only what you need. Running GeneratePress? Install that add-on. Don't us
 5. (Optional) Install add-on plugins for vendor-specific features
 
 ## Recent Changes
+
+### 3.0.34
+
+- Docs: added explicit WordPress and PHP compatibility notes.
+- Docs: corrected the SitePress add-on count and total ecosystem ability count.
+- Docs: replaced the stale hardcoded Abilities API ZIP URL with the generic latest-release link.
 
 ### 3.0.33
 
