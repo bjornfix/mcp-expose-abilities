@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.35
+ * Version: 3.0.36
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -4503,21 +4503,22 @@ function mcp_register_content_abilities(): void {
 
 				$results = array();
 					foreach ( $api->plugins as $plugin ) {
-						$slug        = sanitize_key( (string) ( $plugin->slug ?? '' ) );
+						$plugin      = is_array( $plugin ) ? $plugin : (array) $plugin;
+						$slug        = sanitize_key( (string) ( $plugin['slug'] ?? '' ) );
 						$plugin_file = mcp_expose_find_plugin_file_by_slug( $slug );
 						$results[]   = array(
 						'slug'              => $slug,
-						'name'              => wp_strip_all_tags( (string) ( $plugin->name ?? '' ) ),
-						'version'           => (string) ( $plugin->version ?? '' ),
-						'author'            => wp_strip_all_tags( (string) ( $plugin->author ?? '' ) ),
-						'short_description' => wp_strip_all_tags( (string) ( $plugin->short_description ?? '' ) ),
-						'rating'            => isset( $plugin->rating ) ? (int) $plugin->rating : 0,
-						'active_installs'   => isset( $plugin->active_installs ) ? (int) $plugin->active_installs : 0,
-						'downloaded'        => isset( $plugin->downloaded ) ? (int) $plugin->downloaded : 0,
-						'last_updated'      => (string) ( $plugin->last_updated ?? '' ),
-						'tested'            => (string) ( $plugin->tested ?? '' ),
-						'requires'          => (string) ( $plugin->requires ?? '' ),
-						'requires_php'      => (string) ( $plugin->requires_php ?? '' ),
+						'name'              => wp_strip_all_tags( (string) ( $plugin['name'] ?? '' ) ),
+						'version'           => (string) ( $plugin['version'] ?? '' ),
+						'author'            => wp_strip_all_tags( (string) ( $plugin['author'] ?? '' ) ),
+						'short_description' => wp_strip_all_tags( (string) ( $plugin['short_description'] ?? '' ) ),
+						'rating'            => isset( $plugin['rating'] ) ? (int) $plugin['rating'] : 0,
+						'active_installs'   => isset( $plugin['active_installs'] ) ? (int) $plugin['active_installs'] : 0,
+						'downloaded'        => isset( $plugin['downloaded'] ) ? (int) $plugin['downloaded'] : 0,
+						'last_updated'      => (string) ( $plugin['last_updated'] ?? '' ),
+						'tested'            => (string) ( $plugin['tested'] ?? '' ),
+						'requires'          => (string) ( $plugin['requires'] ?? '' ),
+						'requires_php'      => (string) ( $plugin['requires_php'] ?? '' ),
 						'installed'         => '' !== $plugin_file,
 						'active'            => '' !== $plugin_file ? is_plugin_active( $plugin_file ) : false,
 							'plugin'            => $plugin_file,
@@ -4707,8 +4708,8 @@ function mcp_register_content_abilities(): void {
 			'description'         => 'List available updates for installed plugins.',
 			'category'            => 'site',
 			'input_schema'        => array(
-				'type'                 => 'object',
-				'properties'           => array(),
+				'type'                 => array( 'object', 'null' ),
+				'properties'           => (object) array(),
 				'additionalProperties' => false,
 			),
 			'output_schema'       => array(

@@ -3,7 +3,7 @@ Contributors: devenia
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 6.9
-Stable tag: 3.0.35
+Stable tag: 3.0.36
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -34,6 +34,10 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 5. (Optional) Install add-on plugins for vendor-specific features
 
 == Changelog ==
+
+= 3.0.36 =
+* Fixed: `plugins/search-directory` now handles WordPress.org directory rows correctly when plugin data is returned as arrays instead of objects
+* Fixed: `plugins/list-updates` now accepts no-argument execution through the MCP proxy like the other null-safe list abilities
 
 = 3.0.35 =
 * Added: `plugins/search-directory` to search the official WordPress.org plugin directory from MCP

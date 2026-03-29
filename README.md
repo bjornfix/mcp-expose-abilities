@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 6.9
-**Stable tag:** 3.0.35
+**Stable tag:** 3.0.36
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -234,6 +234,11 @@ When something does not work, check in this order:
 6. Only then debug the specific add-on
 
 ## Recent Changes
+
+### 3.0.36
+
+- Fixed `plugins/search-directory` so WordPress.org search results are populated correctly when the API returns array-shaped plugin rows.
+- Fixed `plugins/list-updates` so it accepts no-argument execution through the MCP proxy like the older null-safe list abilities.
 
 ### 3.0.35
 
@@ -539,6 +544,10 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.36
+- Fixed: `plugins/search-directory` now handles WordPress.org directory rows correctly when plugin data is returned as arrays instead of objects
+- Fixed: `plugins/list-updates` now accepts no-argument execution through the MCP proxy like the other null-safe list abilities
 
 ### 3.0.35
 - Added: `plugins/search-directory` to search the official WordPress.org plugin directory from MCP
