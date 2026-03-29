@@ -188,8 +188,14 @@ if ( ! function_exists( 'plugins_api' ) ) {
 if ( ! class_exists( 'Plugin_Upgrader', false ) ) {
 	require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
 }
+if ( ! class_exists( 'WP_Ajax_Upgrader_Skin', false ) ) {
+	require_once ABSPATH . 'wp-admin/includes/class-wp-ajax-upgrader-skin.php';
+}
 if ( ! function_exists( 'activate_plugin' ) ) {
 	require_once ABSPATH . 'wp-admin/includes/plugin.php';
+}
+if ( ! function_exists( 'wp_update_plugins' ) ) {
+	require_once ABSPATH . 'wp-includes/update.php';
 }
 if ( ! function_exists( 'wp_generate_attachment_metadata' ) ) {
 	require_once ABSPATH . 'wp-admin/includes/media.php';
@@ -706,6 +712,387 @@ function mcp_expose_install_plugin_zip( string $zip_path, array $input ): array 
 			: esc_html__( 'Plugin installed successfully', 'mcp-expose-abilities' ),
 		'plugin'    => $plugin_file,
 		'activated' => $activated,
+	);
+}
+
+/**
+ * Find an installed plugin file by WordPress.org slug.
+ *
+ * @param string $slug Plugin slug.
+ * @return string Plugin file or empty string when not found.
+ */
+function mcp_expose_find_plugin_file_by_slug( string $slug ): string {
+	$slug = sanitize_key( $slug );
+	if ( '' === $slug ) {
+		return '';
+	}
+
+	$all_plugins = get_plugins();
+	foreach ( $all_plugins as $file => $data ) {
+		$directory   = wp_normalize_path( dirname( $file ) );
+		$base_name   = sanitize_key( wp_basename( $file, '.php' ) );
+		$text_domain = sanitize_key( (string) ( $data['TextDomain'] ?? '' ) );
+
+		if ( $directory === $slug || ( '.' === $directory && $base_name === $slug ) || $text_domain === $slug ) {
+			return $file;
+		}
+	}
+
+	return '';
+}
+
+/**
+ * Resolve the best available upgrader error message.
+ *
+ * @param WP_Ajax_Upgrader_Skin $skin Upgrader skin.
+ * @param mixed                 $result Upgrader result.
+ * @param string                $fallback Default message.
+ * @return string
+ */
+function mcp_expose_get_upgrader_error_message( WP_Ajax_Upgrader_Skin $skin, $result, string $fallback ): string {
+	global $wp_filesystem;
+
+	if ( is_wp_error( $result ) ) {
+		return $result->get_error_message();
+	}
+
+	if ( is_wp_error( $skin->result ) ) {
+		return $skin->result->get_error_message();
+	}
+
+	$errors = $skin->get_errors();
+	if ( $errors instanceof WP_Error && $errors->has_errors() ) {
+		return $errors->get_error_message();
+	}
+
+	if ( null === $result && $wp_filesystem instanceof WP_Filesystem_Base && is_wp_error( $wp_filesystem->errors ) && $wp_filesystem->errors->has_errors() ) {
+		return $wp_filesystem->errors->get_error_message();
+	}
+
+	return $fallback;
+}
+
+/**
+ * Fetch WordPress.org plugin information for a slug.
+ *
+ * @param string $slug Plugin slug.
+ * @return object|WP_Error
+ */
+function mcp_expose_get_plugin_directory_info( string $slug ) {
+	$slug = sanitize_key( $slug );
+	if ( '' === $slug ) {
+		return new WP_Error( 'mcp_invalid_plugin_slug', __( 'Plugin slug is required.', 'mcp-expose-abilities' ) );
+	}
+
+	return plugins_api(
+		'plugin_information',
+		array(
+			'slug'   => $slug,
+			'fields' => array(
+				'sections'            => false,
+				'tags'                => false,
+				'versions'            => false,
+				'banners'             => false,
+				'reviews'             => false,
+				'ratings'             => false,
+				'downloaded'          => true,
+				'active_installs'     => true,
+				'short_description'   => true,
+				'last_updated'        => true,
+				'added'               => true,
+				'homepage'            => true,
+				'icons'               => true,
+				'language_packs'      => false,
+				'donate_link'         => false,
+				'contributors'        => false,
+				'compatibility'       => false,
+				'tested'              => true,
+				'requires'            => true,
+				'requires_php'        => true,
+			),
+		)
+	);
+}
+
+/**
+ * Install a plugin from the official WordPress.org directory.
+ *
+ * @param string $slug  Plugin slug.
+ * @param array  $input Ability input.
+ * @return array Result payload.
+ */
+function mcp_expose_install_directory_plugin( string $slug, array $input ): array {
+	$slug = sanitize_key( $slug );
+	if ( '' === $slug ) {
+		return array( 'success' => false, 'message' => esc_html__( 'Plugin slug is required', 'mcp-expose-abilities' ) );
+	}
+
+	$api = mcp_expose_get_plugin_directory_info( $slug );
+	if ( is_wp_error( $api ) ) {
+		return array( 'success' => false, 'message' => esc_html( $api->get_error_message() ) );
+	}
+
+	$existing_plugin = mcp_expose_find_plugin_file_by_slug( $slug );
+	$activate        = ! empty( $input['activate'] );
+	$overwrite       = ! empty( $input['overwrite'] );
+
+	if ( ! empty( $existing_plugin ) && ! $overwrite ) {
+		if ( $activate && ! is_plugin_active( $existing_plugin ) ) {
+			$activate_result = activate_plugin( $existing_plugin );
+			if ( is_wp_error( $activate_result ) ) {
+				return array(
+					'success'   => false,
+					'message'   => esc_html__( 'Plugin is already installed, but activation failed: ', 'mcp-expose-abilities' ) . esc_html( $activate_result->get_error_message() ),
+					'plugin'    => $existing_plugin,
+					'slug'      => $slug,
+					'activated' => false,
+					'installed' => false,
+				);
+			}
+
+			return array(
+				'success'   => true,
+				'message'   => esc_html__( 'Plugin is already installed and has been activated', 'mcp-expose-abilities' ),
+				'plugin'    => $existing_plugin,
+				'slug'      => $slug,
+				'activated' => true,
+				'installed' => false,
+			);
+		}
+
+		return array(
+			'success'   => true,
+			'message'   => esc_html__( 'Plugin is already installed', 'mcp-expose-abilities' ),
+			'plugin'    => $existing_plugin,
+			'slug'      => $slug,
+			'activated' => is_plugin_active( $existing_plugin ),
+			'installed' => false,
+		);
+	}
+
+	$skin     = new WP_Ajax_Upgrader_Skin();
+	$upgrader = new Plugin_Upgrader( $skin );
+	$args     = array();
+
+	if ( $overwrite ) {
+		$args['overwrite_package'] = true;
+	}
+
+	$result = $upgrader->install( $api->download_link, $args );
+	if ( true !== $result ) {
+		return array(
+			'success' => false,
+			'message' => esc_html( mcp_expose_get_upgrader_error_message( $skin, $result, __( 'Plugin installation failed.', 'mcp-expose-abilities' ) ) ),
+			'slug'    => $slug,
+		);
+	}
+
+	$plugin_file = $upgrader->plugin_info();
+	if ( empty( $plugin_file ) ) {
+		wp_clean_plugins_cache( true );
+		$plugin_file = mcp_expose_find_plugin_file_by_slug( $slug );
+	}
+
+	if ( empty( $plugin_file ) ) {
+		return array(
+			'success' => false,
+			'message' => esc_html__( 'Plugin installed but the installed plugin file could not be determined.', 'mcp-expose-abilities' ),
+			'slug'    => $slug,
+		);
+	}
+
+	$activated = false;
+	if ( $activate ) {
+		$activate_result = activate_plugin( $plugin_file );
+		if ( is_wp_error( $activate_result ) ) {
+			return array(
+				'success'   => true,
+				'message'   => esc_html__( 'Plugin installed but activation failed: ', 'mcp-expose-abilities' ) . esc_html( $activate_result->get_error_message() ),
+				'plugin'    => $plugin_file,
+				'slug'      => $slug,
+				'activated' => false,
+				'installed' => true,
+			);
+		}
+		$activated = true;
+	}
+
+	$all_plugins = get_plugins();
+	$version     = isset( $all_plugins[ $plugin_file ]['Version'] ) ? (string) $all_plugins[ $plugin_file ]['Version'] : '';
+
+	return array(
+		'success'   => true,
+		'message'   => $activated
+			? esc_html__( 'Plugin installed from the WordPress.org directory and activated', 'mcp-expose-abilities' )
+			: esc_html__( 'Plugin installed from the WordPress.org directory', 'mcp-expose-abilities' ),
+		'plugin'    => $plugin_file,
+		'slug'      => $slug,
+		'version'   => $version,
+		'activated' => $activated,
+		'installed' => true,
+	);
+}
+
+/**
+ * List available plugin updates.
+ *
+ * @return array<int, array<string, mixed>>
+ */
+function mcp_expose_get_plugin_updates(): array {
+	wp_clean_plugins_cache( true );
+	wp_update_plugins();
+
+	$updates     = get_site_transient( 'update_plugins' );
+	$all_plugins = get_plugins();
+	if ( ! is_object( $updates ) || empty( $updates->response ) || ! is_array( $updates->response ) ) {
+		return array();
+	}
+
+	$items = array();
+	foreach ( $updates->response as $plugin_file => $update ) {
+		$current_version = isset( $all_plugins[ $plugin_file ]['Version'] ) ? (string) $all_plugins[ $plugin_file ]['Version'] : '';
+		$items[]         = array(
+			'plugin'          => $plugin_file,
+			'slug'            => sanitize_key( (string) ( $update->slug ?? '' ) ),
+			'name'            => isset( $all_plugins[ $plugin_file ]['Name'] ) ? (string) $all_plugins[ $plugin_file ]['Name'] : $plugin_file,
+			'current_version' => $current_version,
+			'new_version'     => isset( $update->new_version ) ? (string) $update->new_version : '',
+			'package'         => isset( $update->package ) ? (string) $update->package : '',
+			'url'             => isset( $update->url ) ? (string) $update->url : '',
+			'active'          => is_plugin_active( $plugin_file ),
+		);
+	}
+
+	return $items;
+}
+
+/**
+ * Update a single installed plugin.
+ *
+ * @param string $plugin_file Plugin file path.
+ * @return array Result payload.
+ */
+function mcp_expose_update_plugin( string $plugin_file ): array {
+	$all_plugins = get_plugins();
+	if ( ! isset( $all_plugins[ $plugin_file ] ) ) {
+		return array( 'success' => false, 'message' => esc_html__( 'Plugin not found: ', 'mcp-expose-abilities' ) . esc_html( $plugin_file ) );
+	}
+
+	$update_item = null;
+	foreach ( mcp_expose_get_plugin_updates() as $item ) {
+		if ( $item['plugin'] === $plugin_file ) {
+			$update_item = $item;
+			break;
+		}
+	}
+
+	if ( empty( $update_item ) ) {
+		return array(
+			'success'         => true,
+			'message'         => esc_html__( 'Plugin is already up to date', 'mcp-expose-abilities' ),
+			'plugin'          => $plugin_file,
+			'current_version' => (string) $all_plugins[ $plugin_file ]['Version'],
+			'updated'         => false,
+		);
+	}
+
+	$skin     = new WP_Ajax_Upgrader_Skin();
+	$upgrader = new Plugin_Upgrader( $skin );
+	$result   = $upgrader->upgrade( $plugin_file );
+
+	if ( true !== $result ) {
+		return array(
+			'success' => false,
+			'message' => esc_html( mcp_expose_get_upgrader_error_message( $skin, $result, __( 'Plugin update failed.', 'mcp-expose-abilities' ) ) ),
+			'plugin'  => $plugin_file,
+		);
+	}
+
+	wp_clean_plugins_cache( true );
+	$all_plugins = get_plugins();
+	$new_version = isset( $all_plugins[ $plugin_file ]['Version'] ) ? (string) $all_plugins[ $plugin_file ]['Version'] : '';
+
+	return array(
+		'success'         => true,
+		'message'         => esc_html__( 'Plugin updated successfully', 'mcp-expose-abilities' ),
+		'plugin'          => $plugin_file,
+		'previous_version'=> (string) $update_item['current_version'],
+		'current_version' => $new_version,
+		'updated'         => true,
+	);
+}
+
+/**
+ * Switch active plugins by activating one plugin and deactivating others.
+ *
+ * @param string   $activate_plugin Plugin file to activate.
+ * @param string[] $deactivate_plugins Plugin files to deactivate.
+ * @return array Result payload.
+ */
+function mcp_expose_switch_plugins( string $activate_plugin, array $deactivate_plugins ): array {
+	$all_plugins = get_plugins();
+	if ( empty( $activate_plugin ) ) {
+		return array( 'success' => false, 'message' => esc_html__( 'activate_plugin is required', 'mcp-expose-abilities' ) );
+	}
+
+	if ( ! isset( $all_plugins[ $activate_plugin ] ) ) {
+		return array( 'success' => false, 'message' => esc_html__( 'Plugin not found: ', 'mcp-expose-abilities' ) . esc_html( $activate_plugin ) );
+	}
+
+	$deactivate_plugins = array_values(
+		array_unique(
+			array_filter(
+				array_map( 'strval', $deactivate_plugins )
+			)
+		)
+	);
+
+	if ( in_array( $activate_plugin, $deactivate_plugins, true ) ) {
+		return array( 'success' => false, 'message' => esc_html__( 'activate_plugin cannot also appear in deactivate_plugins', 'mcp-expose-abilities' ) );
+	}
+
+	foreach ( $deactivate_plugins as $plugin_file ) {
+		if ( ! isset( $all_plugins[ $plugin_file ] ) ) {
+			return array( 'success' => false, 'message' => esc_html__( 'Plugin not found: ', 'mcp-expose-abilities' ) . esc_html( $plugin_file ) );
+		}
+	}
+
+	$was_active = array();
+	foreach ( $deactivate_plugins as $plugin_file ) {
+		$was_active[ $plugin_file ] = is_plugin_active( $plugin_file );
+	}
+
+	foreach ( $deactivate_plugins as $plugin_file ) {
+		if ( $was_active[ $plugin_file ] ) {
+			deactivate_plugins( $plugin_file );
+		}
+	}
+
+	$activate_result = null;
+	if ( ! is_plugin_active( $activate_plugin ) ) {
+		$activate_result = activate_plugin( $activate_plugin );
+		if ( is_wp_error( $activate_result ) ) {
+			foreach ( $deactivate_plugins as $plugin_file ) {
+				if ( ! empty( $was_active[ $plugin_file ] ) ) {
+					$rollback_result = activate_plugin( $plugin_file );
+					if ( is_wp_error( $rollback_result ) ) {
+						break;
+					}
+				}
+			}
+
+			return array(
+				'success' => false,
+				'message' => esc_html__( 'Switch failed while activating target plugin: ', 'mcp-expose-abilities' ) . esc_html( $activate_result->get_error_message() ),
+			);
+		}
+	}
+
+	return array(
+		'success'             => true,
+		'message'             => esc_html__( 'Plugin switch completed successfully', 'mcp-expose-abilities' ),
+		'activated_plugin'    => $activate_plugin,
+		'deactivated_plugins' => $deactivate_plugins,
 	);
 }
 
@@ -4019,6 +4406,221 @@ function mcp_register_content_abilities(): void {
 				),
 			),
 		)
+		);
+
+	// =========================================================================
+	// PLUGINS - Search WordPress.org Directory
+	// =========================================================================
+	wp_register_ability(
+		'plugins/search-directory',
+		array(
+			'label'               => 'Search WordPress.org Plugin Directory',
+			'description'         => 'Search the official WordPress.org plugin directory by keyword.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'required'             => array( 'search' ),
+				'properties'           => array(
+					'search'   => array(
+						'type'        => 'string',
+						'description' => 'Keyword search for the WordPress.org plugin directory.',
+					),
+					'page'     => array(
+						'type'        => 'integer',
+						'default'     => 1,
+						'description' => 'Page number of results.',
+					),
+					'per_page' => array(
+						'type'        => 'integer',
+						'default'     => 10,
+						'description' => 'Results per page (max 20).',
+					),
+				),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success'  => array( 'type' => 'boolean' ),
+					'message'  => array( 'type' => 'string' ),
+					'plugins'  => array( 'type' => 'array' ),
+					'total'    => array( 'type' => 'integer' ),
+					'pages'    => array( 'type' => 'integer' ),
+					'page'     => array( 'type' => 'integer' ),
+					'per_page' => array( 'type' => 'integer' ),
+				),
+			),
+			'execute_callback'    => function ( $input = array() ): array {
+				$input = is_array( $input ) ? $input : array();
+				$term  = isset( $input['search'] ) ? sanitize_text_field( (string) $input['search'] ) : '';
+				if ( '' === $term ) {
+					return array(
+						'success'  => false,
+						'message'  => esc_html__( 'search is required', 'mcp-expose-abilities' ),
+						'plugins'  => array(),
+						'total'    => 0,
+						'pages'    => 0,
+						'page'     => 1,
+						'per_page' => 10,
+					);
+				}
+
+				$pagination = mcp_expose_parse_pagination( $input, 10, 20 );
+				$api        = plugins_api(
+					'query_plugins',
+					array(
+						'search'   => $term,
+						'page'     => $pagination['page'],
+						'per_page' => $pagination['per_page'],
+						'fields'   => array(
+							'sections'          => false,
+							'banners'           => false,
+							'reviews'           => false,
+							'ratings'           => true,
+							'downloaded'        => true,
+							'active_installs'   => true,
+							'short_description' => true,
+							'last_updated'      => true,
+							'tested'            => true,
+							'requires'          => true,
+							'requires_php'      => true,
+							'icons'             => true,
+						),
+					)
+				);
+
+				if ( is_wp_error( $api ) ) {
+					return array(
+						'success'  => false,
+						'message'  => esc_html( $api->get_error_message() ),
+						'plugins'  => array(),
+						'total'    => 0,
+						'pages'    => 0,
+						'page'     => $pagination['page'],
+						'per_page' => $pagination['per_page'],
+					);
+				}
+
+				$results = array();
+					foreach ( $api->plugins as $plugin ) {
+						$slug        = sanitize_key( (string) ( $plugin->slug ?? '' ) );
+						$plugin_file = mcp_expose_find_plugin_file_by_slug( $slug );
+						$results[]   = array(
+						'slug'              => $slug,
+						'name'              => wp_strip_all_tags( (string) ( $plugin->name ?? '' ) ),
+						'version'           => (string) ( $plugin->version ?? '' ),
+						'author'            => wp_strip_all_tags( (string) ( $plugin->author ?? '' ) ),
+						'short_description' => wp_strip_all_tags( (string) ( $plugin->short_description ?? '' ) ),
+						'rating'            => isset( $plugin->rating ) ? (int) $plugin->rating : 0,
+						'active_installs'   => isset( $plugin->active_installs ) ? (int) $plugin->active_installs : 0,
+						'downloaded'        => isset( $plugin->downloaded ) ? (int) $plugin->downloaded : 0,
+						'last_updated'      => (string) ( $plugin->last_updated ?? '' ),
+						'tested'            => (string) ( $plugin->tested ?? '' ),
+						'requires'          => (string) ( $plugin->requires ?? '' ),
+						'requires_php'      => (string) ( $plugin->requires_php ?? '' ),
+						'installed'         => '' !== $plugin_file,
+						'active'            => '' !== $plugin_file ? is_plugin_active( $plugin_file ) : false,
+							'plugin'            => $plugin_file,
+						);
+					}
+
+					$total_results = count( $results );
+					$total_pages   = 1;
+					if ( isset( $api->info ) ) {
+						if ( is_object( $api->info ) ) {
+							$total_results = isset( $api->info->results ) ? (int) $api->info->results : $total_results;
+							$total_pages   = isset( $api->info->pages ) ? (int) $api->info->pages : $total_pages;
+						} elseif ( is_array( $api->info ) ) {
+							$total_results = isset( $api->info['results'] ) ? (int) $api->info['results'] : $total_results;
+							$total_pages   = isset( $api->info['pages'] ) ? (int) $api->info['pages'] : $total_pages;
+						}
+					}
+
+					return array(
+						'success'  => true,
+						'message'  => '',
+						'plugins'  => $results,
+						'total'    => $total_results,
+						'pages'    => $total_pages,
+						'page'     => $pagination['page'],
+						'per_page' => $pagination['per_page'],
+					);
+				},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'install_plugins' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => true,
+					'destructive' => false,
+					'idempotent'  => true,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// PLUGINS - Install From WordPress.org Directory
+	// =========================================================================
+	wp_register_ability(
+		'plugins/install-directory',
+		array(
+			'label'               => 'Install Plugin From WordPress.org Directory',
+			'description'         => 'Install a plugin from the official WordPress.org plugin directory by slug. Can optionally activate after install.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'required'             => array( 'slug' ),
+				'properties'           => array(
+					'slug'      => array(
+						'type'        => 'string',
+						'description' => 'WordPress.org plugin slug.',
+					),
+					'activate'  => array(
+						'type'        => 'boolean',
+						'default'     => true,
+						'description' => 'Activate the plugin after installation.',
+					),
+					'overwrite' => array(
+						'type'        => 'boolean',
+						'default'     => false,
+						'description' => 'Reinstall the plugin if it is already installed.',
+					),
+				),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success'   => array( 'type' => 'boolean' ),
+					'message'   => array( 'type' => 'string' ),
+					'plugin'    => array( 'type' => 'string' ),
+					'slug'      => array( 'type' => 'string' ),
+					'version'   => array( 'type' => 'string' ),
+					'activated' => array( 'type' => 'boolean' ),
+					'installed' => array( 'type' => 'boolean' ),
+				),
+			),
+			'execute_callback'    => function ( $input = array() ): array {
+				$input = is_array( $input ) ? $input : array();
+				$slug  = isset( $input['slug'] ) ? sanitize_key( (string) $input['slug'] ) : '';
+				if ( '' === $slug ) {
+					return array( 'success' => false, 'message' => esc_html__( 'slug is required', 'mcp-expose-abilities' ) );
+				}
+
+				return mcp_expose_install_directory_plugin( $slug, $input );
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'install_plugins' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => false,
+					'destructive' => false,
+					'idempotent'  => true,
+				),
+			),
+		)
 	);
 
 	// =========================================================================
@@ -4088,6 +4690,163 @@ function mcp_register_content_abilities(): void {
 			'meta'                => array(
 				'annotations' => array(
 					'readonly'    => true,
+					'destructive' => false,
+					'idempotent'  => true,
+				),
+			),
+		)
+		);
+
+	// =========================================================================
+	// PLUGINS - List Available Updates
+	// =========================================================================
+	wp_register_ability(
+		'plugins/list-updates',
+		array(
+			'label'               => 'List Plugin Updates',
+			'description'         => 'List available updates for installed plugins.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'properties'           => array(),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success' => array( 'type' => 'boolean' ),
+					'message' => array( 'type' => 'string' ),
+					'updates' => array( 'type' => 'array' ),
+					'total'   => array( 'type' => 'integer' ),
+				),
+			),
+			'execute_callback'    => function ( $input = array() ): array {
+				$updates = mcp_expose_get_plugin_updates();
+				return array(
+					'success' => true,
+					'message' => '',
+					'updates' => $updates,
+					'total'   => count( $updates ),
+				);
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'update_plugins' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => true,
+					'destructive' => false,
+					'idempotent'  => true,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// PLUGINS - Update
+	// =========================================================================
+	wp_register_ability(
+		'plugins/update',
+		array(
+			'label'               => 'Update Plugin',
+			'description'         => 'Update an installed plugin to the latest available version.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'properties'           => array(
+					'plugin' => array(
+						'type'        => 'string',
+						'description' => 'Plugin file path (e.g., "plugin-folder/plugin-file.php").',
+					),
+				),
+				'required'             => array( 'plugin' ),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success'          => array( 'type' => 'boolean' ),
+					'message'          => array( 'type' => 'string' ),
+					'plugin'           => array( 'type' => 'string' ),
+					'previous_version' => array( 'type' => 'string' ),
+					'current_version'  => array( 'type' => 'string' ),
+					'updated'          => array( 'type' => 'boolean' ),
+				),
+			),
+			'execute_callback'    => function ( array $input ): array {
+				if ( empty( $input['plugin'] ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Plugin parameter is required', 'mcp-expose-abilities' ) );
+				}
+
+				return mcp_expose_update_plugin( (string) $input['plugin'] );
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'update_plugins' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => false,
+					'destructive' => false,
+					'idempotent'  => true,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// PLUGINS - Switch
+	// =========================================================================
+	wp_register_ability(
+		'plugins/switch',
+		array(
+			'label'               => 'Switch Plugins',
+			'description'         => 'Activate one installed plugin and optionally deactivate one or more other installed plugins in the same request.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'properties'           => array(
+					'activate_plugin'    => array(
+						'type'        => 'string',
+						'description' => 'Plugin file path to activate.',
+					),
+					'deactivate_plugins' => array(
+						'type'        => 'array',
+						'description' => 'Optional list of plugin file paths to deactivate first.',
+						'items'       => array(
+							'type' => 'string',
+						),
+					),
+				),
+				'required'             => array( 'activate_plugin' ),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success'             => array( 'type' => 'boolean' ),
+					'message'             => array( 'type' => 'string' ),
+					'activated_plugin'    => array( 'type' => 'string' ),
+					'deactivated_plugins' => array( 'type' => 'array' ),
+				),
+			),
+			'execute_callback'    => function ( array $input ): array {
+				if ( empty( $input['activate_plugin'] ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'activate_plugin is required', 'mcp-expose-abilities' ) );
+				}
+
+				$deactivate_plugins = array();
+				if ( ! empty( $input['deactivate_plugins'] ) && is_array( $input['deactivate_plugins'] ) ) {
+					$deactivate_plugins = $input['deactivate_plugins'];
+				}
+
+				return mcp_expose_switch_plugins( (string) $input['activate_plugin'], $deactivate_plugins );
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'activate_plugins' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => false,
 					'destructive' => false,
 					'idempotent'  => true,
 				),

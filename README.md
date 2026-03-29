@@ -160,7 +160,7 @@ Version 3.0 introduced a modular architecture. The core plugin provides WordPres
 
 | Plugin | Abilities | Description |
 |--------|-----------|-------------|
-| **MCP Expose Abilities** (core) | 61 | WordPress core: content, menus, users, media, widgets, plugins, options, comments, taxonomy, system |
+| **MCP Expose Abilities** (core) | 66 | WordPress core: content, menus, users, media, widgets, plugins, options, comments, taxonomy, system |
 | [MCP Abilities - Filesystem](https://github.com/bjornfix/mcp-abilities-filesystem) | 11 | File operations with security hardening |
 | [MCP Abilities - Elementor](https://github.com/bjornfix/mcp-abilities-elementor) | 40 | Elementor page builder integration |
 | [MCP Abilities - GeneratePress](https://github.com/bjornfix/mcp-abilities-generatepress) | 26 | GeneratePress theme + GenerateBlocks |
@@ -248,7 +248,7 @@ When something does not work, check in this order:
 - Validates local plugin ZIP signatures before unzip so corrupted `plugins/upload` or `plugins/upload-base64` payloads fail with a direct ZIP-validation error.
 - Intended to pair with the MCP proxy HTTP transport fix that raises the default JSON body limit for large base64 plugin uploads.
 
-## Core Plugin Abilities (61)
+## Core Plugin Abilities (66)
 
 ### Content Management (23)
 
@@ -317,15 +317,20 @@ When something does not work, check in this order:
 | `widgets/get-sidebar` | Get widgets in a sidebar |
 | `widgets/list-available` | List available widget types |
 
-### Plugin Management (6)
+### Plugin Management (11)
 
 | Ability | Description |
 |---------|-------------|
 | `plugins/upload` | Upload plugin from URL |
 | `plugins/upload-base64` | Upload plugin from local file (base64 or zip path) |
+| `plugins/search-directory` | Search the official WordPress.org plugin directory |
+| `plugins/install-directory` | Install plugin from the official WordPress.org plugin directory by slug |
 | `plugins/list` | List installed plugins |
+| `plugins/list-updates` | List available plugin updates |
+| `plugins/update` | Update an installed plugin |
 | `plugins/activate` | Activate installed plugin |
 | `plugins/deactivate` | Deactivate active plugin |
+| `plugins/switch` | Activate one plugin and deactivate one or more others |
 | `plugins/delete` | Delete inactive plugin |
 
 ### Comments (6)
