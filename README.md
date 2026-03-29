@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 6.9
-**Stable tag:** 3.0.36
+**Stable tag:** 3.0.37
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,7 +24,7 @@ In practice, the human should not have to memorize the whole ecosystem.
 
 The normal pattern is:
 
-1. point Codex, Claude, or another MCP-capable agent to this repository
+1. point Codex or another MCP-capable agent to this repository
 2. let the agent read the README and wiki
 3. let the agent work out the required stack and relevant add-ons
 4. give the agent a clear task with boundaries
@@ -234,6 +234,10 @@ When something does not work, check in this order:
 6. Only then debug the specific add-on
 
 ## Recent Changes
+
+### 3.0.37
+
+- Docs: removed the stray `Claude` mention from the README workflow wording.
 
 ### 3.0.36
 
@@ -544,6 +548,9 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.37
+- Docs: removed the stray `Claude` mention from the GitHub README workflow wording
 
 ### 3.0.36
 - Fixed: `plugins/search-directory` now handles WordPress.org directory rows correctly when plugin data is returned as arrays instead of objects
