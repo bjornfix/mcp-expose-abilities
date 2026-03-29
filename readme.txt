@@ -3,7 +3,7 @@ Contributors: devenia
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 6.9
-Stable tag: 3.0.34
+Stable tag: 3.0.35
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -34,6 +34,12 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 5. (Optional) Install add-on plugins for vendor-specific features
 
 == Changelog ==
+
+= 3.0.35 =
+* Added: `plugins/search-directory` to search the official WordPress.org plugin directory from MCP
+* Added: `plugins/install-directory` to install plugins from the official WordPress.org directory by slug
+* Added: `plugins/list-updates` and `plugins/update` for WordPress-native plugin update discovery and execution
+* Added: `plugins/switch` to toggle between installed plugins with rollback if the target activation fails
 
 = 3.0.34 =
 * Docs: added a clearer GitHub onboarding path with setup order, first-success checks, and add-on selection guidance

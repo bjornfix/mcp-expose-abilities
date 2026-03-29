@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 6.9
-**Stable tag:** 3.0.34
+**Stable tag:** 3.0.35
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -160,7 +160,7 @@ Version 3.0 introduced a modular architecture. The core plugin provides WordPres
 
 | Plugin | Abilities | Description |
 |--------|-----------|-------------|
-| **MCP Expose Abilities** (core) | 61 | WordPress core: content, menus, users, media, widgets, plugins, options, comments, taxonomy, system |
+| **MCP Expose Abilities** (core) | 66 | WordPress core: content, menus, users, media, widgets, plugins, options, comments, taxonomy, system |
 | [MCP Abilities - Filesystem](https://github.com/bjornfix/mcp-abilities-filesystem) | 11 | File operations with security hardening |
 | [MCP Abilities - Elementor](https://github.com/bjornfix/mcp-abilities-elementor) | 40 | Elementor page builder integration |
 | [MCP Abilities - GeneratePress](https://github.com/bjornfix/mcp-abilities-generatepress) | 26 | GeneratePress theme + GenerateBlocks |
@@ -235,6 +235,13 @@ When something does not work, check in this order:
 
 ## Recent Changes
 
+### 3.0.35
+
+- Added `plugins/search-directory` to search the official WordPress.org plugin directory from MCP.
+- Added `plugins/install-directory` to install WordPress.org plugins by slug.
+- Added `plugins/list-updates` and `plugins/update` for WordPress-native plugin update discovery and execution.
+- Added `plugins/switch` to toggle between installed plugins with rollback if the target activation fails.
+
 ### 3.0.34
 
 - Docs: added a clearer GitHub onboarding path with `Start Here`, setup order, first-success checks, and add-on selection guidance.
@@ -248,7 +255,7 @@ When something does not work, check in this order:
 - Validates local plugin ZIP signatures before unzip so corrupted `plugins/upload` or `plugins/upload-base64` payloads fail with a direct ZIP-validation error.
 - Intended to pair with the MCP proxy HTTP transport fix that raises the default JSON body limit for large base64 plugin uploads.
 
-## Core Plugin Abilities (61)
+## Core Plugin Abilities (66)
 
 ### Content Management (23)
 
@@ -317,15 +324,20 @@ When something does not work, check in this order:
 | `widgets/get-sidebar` | Get widgets in a sidebar |
 | `widgets/list-available` | List available widget types |
 
-### Plugin Management (6)
+### Plugin Management (11)
 
 | Ability | Description |
 |---------|-------------|
 | `plugins/upload` | Upload plugin from URL |
 | `plugins/upload-base64` | Upload plugin from local file (base64 or zip path) |
+| `plugins/search-directory` | Search the official WordPress.org plugin directory |
+| `plugins/install-directory` | Install plugin from the official WordPress.org plugin directory by slug |
 | `plugins/list` | List installed plugins |
+| `plugins/list-updates` | List available plugin updates |
+| `plugins/update` | Update an installed plugin |
 | `plugins/activate` | Activate installed plugin |
 | `plugins/deactivate` | Deactivate active plugin |
+| `plugins/switch` | Activate one plugin and deactivate one or more others |
 | `plugins/delete` | Delete inactive plugin |
 
 ### Comments (6)
@@ -527,6 +539,12 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.35
+- Added: `plugins/search-directory` to search the official WordPress.org plugin directory from MCP
+- Added: `plugins/install-directory` to install plugins from the official WordPress.org directory by slug
+- Added: `plugins/list-updates` and `plugins/update` for WordPress-native plugin update discovery and execution
+- Added: `plugins/switch` to toggle between installed plugins with rollback if the target activation fails
 
 ### 3.0.34
 - Docs: added a clearer GitHub onboarding path with `Start Here`, setup order, first-success checks, and add-on selection guidance
