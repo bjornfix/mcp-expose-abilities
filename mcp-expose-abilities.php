@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.37
+ * Version: 3.0.38
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -2203,7 +2203,7 @@ function mcp_register_content_abilities(): void {
 		'content/update-post',
 		array(
 			'label'               => 'Update Post',
-			'description'         => 'Update post. Params: id (required), title, content, excerpt, status, slug, category_ids, tag_ids, author_id, featured_image_id.',
+			'description'         => 'Update post. Params: id (required), title, content, excerpt, status, slug, date, category_ids, tag_ids, author_id, featured_image_id.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -2233,6 +2233,10 @@ function mcp_register_content_abilities(): void {
 					'slug'         => array(
 						'type'        => 'string',
 						'description' => 'New post slug.',
+					),
+					'date'         => array(
+						'type'        => 'string',
+						'description' => 'New local post date in Y-m-d H:i:s format.',
 					),
 					'category_ids' => array(
 						'type'        => 'array',
@@ -2298,6 +2302,17 @@ function mcp_register_content_abilities(): void {
 				}
 				if ( isset( $input['slug'] ) ) {
 					$post_data['post_name'] = sanitize_title( $input['slug'] );
+				}
+				if ( isset( $input['date'] ) ) {
+					$date = (string) $input['date'];
+					$datetime = DateTimeImmutable::createFromFormat( 'Y-m-d H:i:s', $date );
+					if ( false === $datetime || $datetime->format( 'Y-m-d H:i:s' ) !== $date ) {
+						return array( 'success' => false, 'message' => esc_html__( 'Invalid date. Expected Y-m-d H:i:s.', 'mcp-expose-abilities' ) );
+					}
+
+					$post_data['post_date']     = $date;
+					$post_data['post_date_gmt'] = get_gmt_from_date( $date );
+					$post_data['edit_date']     = true;
 				}
 				if ( isset( $input['author_id'] ) ) {
 					$author_id = intval( $input['author_id'] );
