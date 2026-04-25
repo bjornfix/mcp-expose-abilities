@@ -238,6 +238,8 @@ When something does not work, check in this order:
 ### 3.0.38
 
 - Added `date` support to `content/update-post` for updating local post publish dates.
+- Added post meta support via `content/create-post`, `content/update-post`, `meta/update-post-meta`, and `meta/delete-post-meta`.
+- Security: post meta writes now check per-key `edit_post_meta` / `delete_post_meta` capabilities before modifying metadata.
 
 ### 3.0.37
 
@@ -555,6 +557,8 @@ Three-plugin stack plus optional add-ons:
 
 ### 3.0.38
 - Added: `content/update-post` now supports updating the local post date with the `date` parameter
+- Added: post meta support via `content/create-post`, `content/update-post`, `meta/update-post-meta`, and `meta/delete-post-meta`
+- Security: post meta writes now check per-key `edit_post_meta` / `delete_post_meta` capabilities before modifying metadata
 
 ### 3.0.37
 - Docs: removed the stray `Claude` mention from the GitHub README workflow wording

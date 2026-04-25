@@ -37,6 +37,8 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 
 = 3.0.38 =
 * Added: `content/update-post` now supports updating the local post date with the `date` parameter
+* Added: post meta support via `content/create-post`, `content/update-post`, `meta/update-post-meta`, and `meta/delete-post-meta`
+* Security: post meta writes now check per-key `edit_post_meta` / `delete_post_meta` capabilities before modifying metadata
 
 = 3.0.37 =
 * Docs: removed the stray `Claude` mention from the GitHub README workflow wording
