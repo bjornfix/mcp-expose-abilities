@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.37
+ * Version: 3.0.38
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -157,6 +157,10 @@ function mcp_expose_set_featured_image( int $post_id, int $featured_image_id ) {
 //   content/list-users                  Line 2566  - List users
 //   content/patch-post                  Line 2655  - Quick post edit
 //   content/search                      Line 2794  - Search posts/pages
+//
+// META
+//   meta/update-post-meta               - Update post meta fields
+//   meta/delete-post-meta               - Delete post meta fields
 //
 // PLUGINS
 //   plugins/upload                      Line 2880  - Install from zip file
@@ -2100,6 +2104,12 @@ function mcp_register_content_abilities(): void {
 			if ( ! empty( $input['author_id'] ) ) {
 				$post_data['post_author'] = intval( $input['author_id'] );
 			}
+			if ( isset( $input['meta_input'] ) ) {
+				if ( ! is_array( $input['meta_input'] ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'meta_input must be an object.', 'mcp-expose-abilities' ) );
+				}
+				$post_data['meta_input'] = $input['meta_input'];
+			}
 
 			$post_id = wp_insert_post( $post_data, true );
 
@@ -2137,16 +2147,6 @@ function mcp_register_content_abilities(): void {
 								wp_set_post_terms( $post_id, $term_ids, $taxonomy, false );
 							}
 						}
-					}
-				}
-			}
-
-			// Set meta fields (for Toolset field groups)
-			if ( ! empty( $input['meta_input'] ) && is_array( $input['meta_input'] ) ) {
-				foreach ( $input['meta_input'] as $key => $value ) {
-					$key = sanitize_key( $key );
-					if ( ! empty( $key ) ) {
-						update_post_meta( $post_id, $key, $value );
 					}
 				}
 			}
@@ -2203,7 +2203,7 @@ function mcp_register_content_abilities(): void {
 		'content/update-post',
 		array(
 			'label'               => 'Update Post',
-			'description'         => 'Update post. Params: id (required), title, content, excerpt, status, slug, category_ids, tag_ids, author_id, featured_image_id.',
+			'description'         => 'Update post. Params: id (required), title, content, excerpt, status, slug, category_ids, tag_ids, author_id, meta_input, featured_image_id.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -2247,6 +2247,10 @@ function mcp_register_content_abilities(): void {
 					'author_id'    => array(
 						'type'        => 'integer',
 						'description' => 'New author user ID.',
+					),
+					'meta_input'   => array(
+						'type'        => 'object',
+						'description' => 'Post meta fields to update. Format: {"meta_key": "value"}.',
 					),
 					'featured_image_id' => array(
 						'type'        => 'integer',
@@ -2306,6 +2310,12 @@ function mcp_register_content_abilities(): void {
 					}
 					$post_data['post_author'] = $author_id;
 				}
+				if ( isset( $input['meta_input'] ) ) {
+					if ( ! is_array( $input['meta_input'] ) ) {
+						return array( 'success' => false, 'message' => esc_html__( 'meta_input must be an object.', 'mcp-expose-abilities' ) );
+					}
+					$post_data['meta_input'] = $input['meta_input'];
+				}
 
 				$result = wp_update_post( $post_data, true );
 
@@ -2345,6 +2355,182 @@ function mcp_register_content_abilities(): void {
 				'annotations' => array(
 					'readonly'    => false,
 					'destructive' => false,
+					'idempotent'  => true,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// POST META - Update
+	// =========================================================================
+	wp_register_ability(
+		'meta/update-post-meta',
+		array(
+			'label'               => 'Update Post Meta',
+			'description'         => 'Update post meta fields. Params: post_id (required), meta (required object of key/value pairs).',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'required'             => array( 'post_id', 'meta' ),
+				'properties'           => array(
+					'post_id' => array(
+						'type'        => 'integer',
+						'description' => 'Post ID whose meta should be updated.',
+					),
+					'meta'    => array(
+						'type'        => 'object',
+						'description' => 'Meta fields to update. Format: {"meta_key": "value"}.',
+					),
+				),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success' => array( 'type' => 'boolean' ),
+					'post_id' => array( 'type' => 'integer' ),
+					'updated' => array(
+						'type'  => 'array',
+						'items' => array( 'type' => 'string' ),
+					),
+					'message' => array( 'type' => 'string' ),
+				),
+			),
+			'execute_callback'    => function ( $input = array() ): array {
+				$input = is_array( $input ) ? $input : array();
+
+				if ( empty( $input['post_id'] ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Post ID is required', 'mcp-expose-abilities' ) );
+				}
+				if ( ! isset( $input['meta'] ) || ! is_array( $input['meta'] ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'meta must be an object.', 'mcp-expose-abilities' ) );
+				}
+
+				$post_id = (int) $input['post_id'];
+				$post    = get_post( $post_id );
+				if ( ! $post ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Post not found', 'mcp-expose-abilities' ) );
+				}
+				if ( ! current_user_can( 'edit_post', $post_id ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Permission denied to edit this post.', 'mcp-expose-abilities' ) );
+				}
+
+				$updated = array();
+				foreach ( $input['meta'] as $key => $value ) {
+					$key = (string) $key;
+					if ( '' === $key ) {
+						return array( 'success' => false, 'message' => esc_html__( 'Meta keys cannot be empty.', 'mcp-expose-abilities' ) );
+					}
+
+					update_post_meta( $post_id, $key, $value );
+					$updated[] = $key;
+				}
+
+				return array(
+					'success' => true,
+					'post_id' => $post_id,
+					'updated' => $updated,
+					'message' => esc_html__( 'Post meta updated successfully', 'mcp-expose-abilities' ),
+				);
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'edit_posts' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => false,
+					'destructive' => false,
+					'idempotent'  => true,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// POST META - Delete
+	// =========================================================================
+	wp_register_ability(
+		'meta/delete-post-meta',
+		array(
+			'label'               => 'Delete Post Meta',
+			'description'         => 'Delete post meta fields. Params: post_id (required), meta (required object). Use null as a value to delete all values for a key.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'required'             => array( 'post_id', 'meta' ),
+				'properties'           => array(
+					'post_id' => array(
+						'type'        => 'integer',
+						'description' => 'Post ID whose meta should be deleted.',
+					),
+					'meta'    => array(
+						'type'        => 'object',
+						'description' => 'Meta fields to delete. Format: {"meta_key": "value"} deletes a specific value; {"meta_key": null} deletes all values for that key.',
+					),
+				),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success' => array( 'type' => 'boolean' ),
+					'post_id' => array( 'type' => 'integer' ),
+					'deleted' => array(
+						'type'  => 'array',
+						'items' => array( 'type' => 'string' ),
+					),
+					'message' => array( 'type' => 'string' ),
+				),
+			),
+			'execute_callback'    => function ( $input = array() ): array {
+				$input = is_array( $input ) ? $input : array();
+
+				if ( empty( $input['post_id'] ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Post ID is required', 'mcp-expose-abilities' ) );
+				}
+				if ( ! isset( $input['meta'] ) || ! is_array( $input['meta'] ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'meta must be an object.', 'mcp-expose-abilities' ) );
+				}
+
+				$post_id = (int) $input['post_id'];
+				$post    = get_post( $post_id );
+				if ( ! $post ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Post not found', 'mcp-expose-abilities' ) );
+				}
+				if ( ! current_user_can( 'edit_post', $post_id ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Permission denied to edit this post.', 'mcp-expose-abilities' ) );
+				}
+
+				$deleted = array();
+				foreach ( $input['meta'] as $key => $value ) {
+					$key = (string) $key;
+					if ( '' === $key ) {
+						return array( 'success' => false, 'message' => esc_html__( 'Meta keys cannot be empty.', 'mcp-expose-abilities' ) );
+					}
+
+					if ( null === $value ) {
+						delete_post_meta( $post_id, $key );
+					} else {
+						delete_post_meta( $post_id, $key, $value );
+					}
+					$deleted[] = $key;
+				}
+
+				return array(
+					'success' => true,
+					'post_id' => $post_id,
+					'deleted' => $deleted,
+					'message' => esc_html__( 'Post meta deleted successfully', 'mcp-expose-abilities' ),
+				);
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'edit_posts' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => false,
+					'destructive' => true,
 					'idempotent'  => true,
 				),
 			),
