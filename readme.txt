@@ -3,7 +3,7 @@ Contributors: devenia
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 6.9
-Stable tag: 3.0.38
+Stable tag: 3.0.39
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -34,6 +34,9 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 5. (Optional) Install add-on plugins for vendor-specific features
 
 == Changelog ==
+
+= 3.0.39 =
+* Added: `media/upload-base64` for uploading local/generated media files into the WordPress media library through MCP
 
 = 3.0.38 =
 * Added: `content/update-post` now supports updating the local post date with the `date` parameter

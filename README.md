@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 6.9
-**Stable tag:** 3.0.38
+**Stable tag:** 3.0.39
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -234,6 +234,10 @@ When something does not work, check in this order:
 6. Only then debug the specific add-on
 
 ## Recent Changes
+
+### 3.0.39
+
+- Added `media/upload-base64` for uploading local or generated media files into the WordPress media library through MCP.
 
 ### 3.0.38
 
@@ -554,6 +558,9 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.39
+- Added: `media/upload-base64` for uploading local/generated media files into the WordPress media library through MCP
 
 ### 3.0.38
 - Added: `content/update-post` now supports updating the local post date with the `date` parameter
