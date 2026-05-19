@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 6.9
-**Stable tag:** 3.0.39
+**Stable tag:** 3.0.40
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -160,7 +160,7 @@ Version 3.0 introduced a modular architecture. The core plugin provides WordPres
 
 | Plugin | Abilities | Description |
 |--------|-----------|-------------|
-| **MCP Expose Abilities** (core) | 66 | WordPress core: content, menus, users, media, widgets, plugins, options, comments, taxonomy, system |
+| **MCP Expose Abilities** (core) | 67 | WordPress core: content, menus, users, media, widgets, plugins, options, comments, taxonomy, system |
 | [MCP Abilities - Filesystem](https://github.com/bjornfix/mcp-abilities-filesystem) | 11 | File operations with security hardening |
 | [MCP Abilities - Elementor](https://github.com/bjornfix/mcp-abilities-elementor) | 40 | Elementor page builder integration |
 | [MCP Abilities - GeneratePress](https://github.com/bjornfix/mcp-abilities-generatepress) | 26 | GeneratePress theme + GenerateBlocks |
@@ -174,7 +174,7 @@ Version 3.0 introduced a modular architecture. The core plugin provides WordPres
 | [MCP Abilities - SitePress](https://github.com/bjornfix/mcp-abilities-sitepress) | 10 | WPML translation mapping, language-switcher recovery, and QA checks |
 | [MCP Abilities - Formidable](https://github.com/bjornfix/mcp-abilities-formidable) | 6 | Formidable Forms settings, usage tracing, styles, and CSS cache controls |
 
-**Total ecosystem: 285 abilities**
+**Total ecosystem: 286 abilities**
 
 Install only what you need. Running GeneratePress? Install that add-on. Don't use Elementor? Skip it.
 
@@ -235,6 +235,10 @@ When something does not work, check in this order:
 
 ## Recent Changes
 
+### 3.0.40
+
+- Added `content/update-discussion-status` for opening or closing comments and pings on posts/pages.
+
 ### 3.0.39
 
 - Added `media/upload-base64` for uploading local or generated media files into the WordPress media library through MCP.
@@ -274,9 +278,9 @@ When something does not work, check in this order:
 - Validates local plugin ZIP signatures before unzip so corrupted `plugins/upload` or `plugins/upload-base64` payloads fail with a direct ZIP-validation error.
 - Intended to pair with the MCP proxy HTTP transport fix that raises the default JSON body limit for large base64 plugin uploads.
 
-## Core Plugin Abilities (66)
+## Core Plugin Abilities (67)
 
-### Content Management (23)
+### Content Management (24)
 
 | Ability | Description |
 |---------|-------------|
@@ -291,6 +295,7 @@ When something does not work, check in this order:
 | `content/get-page` | Get single page by ID or slug |
 | `content/create-page` | Create new page, including `featured_image_id` |
 | `content/update-page` | Update existing page, including `featured_image_id` |
+| `content/update-discussion-status` | Open or close comments and pings for posts/pages |
 | `content/delete-page` | Delete page |
 | `content/patch-page` | Find/replace in page content |
 | `content/list-categories` | List all categories |
@@ -558,6 +563,9 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.40
+- Added: `content/update-discussion-status` for opening or closing comments and pings on posts/pages.
 
 ### 3.0.39
 - Added: `media/upload-base64` for uploading local/generated media files into the WordPress media library through MCP

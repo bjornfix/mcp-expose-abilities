@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.39
+ * Version: 3.0.40
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -191,6 +191,7 @@ function mcp_expose_validate_post_meta_permissions( int $post_id, array $meta, s
 // META
 //   meta/update-post-meta               - Update post meta fields
 //   meta/delete-post-meta               - Delete post meta fields
+//   content/update-discussion-status    - Open/close comments and pings
 //
 // PLUGINS
 //   plugins/upload                      Line 2880  - Install from zip file
@@ -3067,6 +3068,139 @@ function mcp_register_content_abilities(): void {
 					'readonly'    => false,
 					'destructive' => false,
 					'idempotent'  => false,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// CONTENT - Update Discussion Status
+	// =========================================================================
+	wp_register_ability(
+		'content/update-discussion-status',
+		array(
+			'label'               => 'Update Discussion Status',
+			'description'         => 'Open or close comments and pings for one or more posts/pages. Params: ids (required), comment_status, ping_status.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'required'             => array( 'ids' ),
+				'properties'           => array(
+					'ids'            => array(
+						'type'        => 'array',
+						'items'       => array( 'type' => 'integer' ),
+						'minItems'    => 1,
+						'description' => 'Post/page IDs to update.',
+					),
+					'comment_status' => array(
+						'type'        => 'string',
+						'enum'        => array( 'open', 'closed' ),
+						'description' => 'Comment status to apply. Omit to leave unchanged.',
+					),
+					'ping_status'    => array(
+						'type'        => 'string',
+						'enum'        => array( 'open', 'closed' ),
+						'description' => 'Ping/trackback status to apply. Omit to leave unchanged.',
+					),
+				),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success' => array( 'type' => 'boolean' ),
+					'updated' => array(
+						'type'  => 'array',
+						'items' => array( 'type' => 'integer' ),
+					),
+					'skipped' => array(
+						'type'  => 'array',
+						'items' => array( 'type' => 'object' ),
+					),
+					'message' => array( 'type' => 'string' ),
+				),
+			),
+			'execute_callback'    => function ( $input = array() ): array {
+				$input = is_array( $input ) ? $input : array();
+				$ids   = isset( $input['ids'] ) && is_array( $input['ids'] ) ? array_values( array_unique( array_map( 'absint', $input['ids'] ) ) ) : array();
+				$ids   = array_values( array_filter( $ids ) );
+
+				if ( empty( $ids ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'At least one post ID is required.', 'mcp-expose-abilities' ) );
+				}
+				if ( ! array_key_exists( 'comment_status', $input ) && ! array_key_exists( 'ping_status', $input ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'comment_status or ping_status is required.', 'mcp-expose-abilities' ) );
+				}
+
+				$allowed_statuses = array( 'open', 'closed' );
+				$post_data_base   = array();
+
+				if ( array_key_exists( 'comment_status', $input ) ) {
+					$comment_status = (string) $input['comment_status'];
+					if ( ! in_array( $comment_status, $allowed_statuses, true ) ) {
+						return array( 'success' => false, 'message' => esc_html__( 'Invalid comment_status.', 'mcp-expose-abilities' ) );
+					}
+					$post_data_base['comment_status'] = $comment_status;
+				}
+				if ( array_key_exists( 'ping_status', $input ) ) {
+					$ping_status = (string) $input['ping_status'];
+					if ( ! in_array( $ping_status, $allowed_statuses, true ) ) {
+						return array( 'success' => false, 'message' => esc_html__( 'Invalid ping_status.', 'mcp-expose-abilities' ) );
+					}
+					$post_data_base['ping_status'] = $ping_status;
+				}
+
+				$updated = array();
+				$skipped = array();
+
+				foreach ( $ids as $post_id ) {
+					$post = get_post( $post_id );
+					if ( ! $post ) {
+						$skipped[] = array(
+							'id'      => $post_id,
+							'message' => esc_html__( 'Post not found.', 'mcp-expose-abilities' ),
+						);
+						continue;
+					}
+					if ( ! current_user_can( 'edit_post', $post_id ) ) {
+						$skipped[] = array(
+							'id'      => $post_id,
+							'message' => esc_html__( 'Permission denied to edit this post.', 'mcp-expose-abilities' ),
+						);
+						continue;
+					}
+
+					$result = wp_update_post( array_merge( array( 'ID' => $post_id ), $post_data_base ), true );
+					if ( is_wp_error( $result ) ) {
+						$skipped[] = array(
+							'id'      => $post_id,
+							'message' => esc_html( $result->get_error_message() ),
+						);
+						continue;
+					}
+
+					$updated[] = $post_id;
+				}
+
+				return array(
+					'success' => true,
+					'updated' => $updated,
+					'skipped' => $skipped,
+					'message' => sprintf(
+						/* translators: %d: number of posts updated */
+						esc_html__( 'Updated discussion status for %d post(s).', 'mcp-expose-abilities' ),
+						count( $updated )
+					),
+				);
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'edit_posts' ) || current_user_can( 'edit_pages' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => false,
+					'destructive' => false,
+					'idempotent'  => true,
 				),
 			),
 		)
