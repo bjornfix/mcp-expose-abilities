@@ -7,8 +7,8 @@ Let AI assistants edit your WordPress site via MCP.
 [![WordPress](https://img.shields.io/badge/WordPress-6.9%2B-blue.svg)](https://wordpress.org)
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
-**Tested up to:** 6.9
-**Stable tag:** 3.0.40
+**Tested up to:** 7.0
+**Stable tag:** 3.0.41
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -189,7 +189,7 @@ Install only what you need. Running GeneratePress? Install that add-on. Don't us
 ## WordPress Compatibility
 
 - Requires WordPress 6.9 or newer
-- Tested up to WordPress 6.9
+- Tested up to WordPress 7.0
 - Requires PHP 8.0 or newer
 - Maintained against the WordPress 6.9 release line together with the supported add-on plugins
 
@@ -234,6 +234,10 @@ When something does not work, check in this order:
 6. Only then debug the specific add-on
 
 ## Recent Changes
+
+### 3.0.41
+
+- Fixed broad content update and patch abilities so they block accidental removal of existing GenerateBlocks/design markup unless explicitly overridden.
 
 ### 3.0.40
 

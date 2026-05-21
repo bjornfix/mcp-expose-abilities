@@ -2,8 +2,8 @@
 Contributors: devenia
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
-Tested up to: 6.9
-Stable tag: 3.0.40
+Tested up to: 7.0
+Stable tag: 3.0.41
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -19,7 +19,7 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 = Compatibility =
 
 * Requires WordPress 6.9 or newer
-* Tested up to WordPress 6.9
+* Tested up to WordPress 7.0
 * Requires PHP 8.0 or newer
 * Maintained against the WordPress 6.9 release line together with the supported add-on plugins
 
@@ -34,6 +34,9 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 5. (Optional) Install add-on plugins for vendor-specific features
 
 == Changelog ==
+
+= 3.0.41 =
+* Fixed: broad content update and patch abilities now block accidental removal of existing GenerateBlocks/design markup unless explicitly overridden.
 
 = 3.0.40 =
 * Added: `content/update-discussion-status` for opening or closing comments and pings on posts/pages.

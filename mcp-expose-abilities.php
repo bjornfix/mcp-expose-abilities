@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.40
+ * Version: 3.0.41
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -122,6 +122,61 @@ function mcp_expose_validate_post_meta_permissions( int $post_id, array $meta, s
 	}
 
 	return true;
+}
+
+/**
+ * Detect whether content carries builder/design markup that should not disappear
+ * during a broad content replacement.
+ *
+ * @param string $content Post content.
+ * @return string[]
+ */
+function mcp_expose_detect_design_markup_markers( string $content ): array {
+	$markers = array();
+
+	if ( false !== strpos( $content, '<!-- wp:generateblocks/' ) || false !== strpos( $content, 'gb-container-' ) || false !== strpos( $content, 'gb-grid-wrapper-' ) || false !== strpos( $content, 'gb-headline-' ) || false !== strpos( $content, 'gb-button-' ) ) {
+		$markers[] = 'generateblocks';
+	}
+
+	if ( preg_match( '/\bdv-page-\d+[-_a-z0-9]*\b/i', $content ) ) {
+		$markers[] = 'devenia-design-classes';
+	}
+
+	return array_values( array_unique( $markers ) );
+}
+
+/**
+ * Guard broad content writes from accidentally flattening designed pages.
+ *
+ * @param string $old_content Existing post content.
+ * @param string $new_content Proposed post content.
+ * @param array  $input       Ability input.
+ * @return true|WP_Error
+ */
+function mcp_expose_validate_content_design_markup_preserved( string $old_content, string $new_content, array $input ) {
+	if ( ! empty( $input['allow_design_markup_loss'] ) ) {
+		return true;
+	}
+
+	$old_markers = mcp_expose_detect_design_markup_markers( $old_content );
+	if ( empty( $old_markers ) ) {
+		return true;
+	}
+
+	$new_markers = mcp_expose_detect_design_markup_markers( $new_content );
+	$lost        = array_values( array_diff( $old_markers, $new_markers ) );
+	if ( empty( $lost ) ) {
+		return true;
+	}
+
+	return new WP_Error(
+		'mcp_design_markup_loss_blocked',
+		sprintf(
+			/* translators: %s: comma-separated marker names. */
+			__( 'Content update blocked because it would remove existing design markup (%s). Use a targeted patch or pass allow_design_markup_loss=true only when intentionally replacing the page design.', 'mcp-expose-abilities' ),
+			implode( ', ', $lost )
+		)
+	);
 }
 
 // ============================================================================
@@ -2286,6 +2341,11 @@ function mcp_register_content_abilities(): void {
 						'type'        => 'string',
 						'description' => 'New post content.',
 					),
+					'allow_design_markup_loss' => array(
+						'type'        => 'boolean',
+						'default'     => false,
+						'description' => 'Allow replacing content even when existing GenerateBlocks/design markup would be removed. Defaults to false.',
+					),
 					'excerpt'      => array(
 						'type'        => 'string',
 						'description' => 'New post excerpt.',
@@ -2361,6 +2421,10 @@ function mcp_register_content_abilities(): void {
 					$post_data['post_title'] = sanitize_text_field( $input['title'] );
 				}
 				if ( isset( $input['content'] ) ) {
+					$design_guard = mcp_expose_validate_content_design_markup_preserved( (string) $post->post_content, (string) $input['content'], $input );
+					if ( is_wp_error( $design_guard ) ) {
+						return array( 'success' => false, 'message' => esc_html( $design_guard->get_error_message() ) );
+					}
 					$post_data['post_content'] = $input['content'];
 				}
 				if ( isset( $input['excerpt'] ) ) {
@@ -3231,6 +3295,11 @@ function mcp_register_content_abilities(): void {
 						'type'        => 'string',
 						'description' => 'New page content.',
 					),
+					'allow_design_markup_loss' => array(
+						'type'        => 'boolean',
+						'default'     => false,
+						'description' => 'Allow replacing content even when existing GenerateBlocks/design markup would be removed. Defaults to false.',
+					),
 					'excerpt'    => array(
 						'type'        => 'string',
 						'description' => 'New page excerpt.',
@@ -3302,6 +3371,10 @@ function mcp_register_content_abilities(): void {
 					$page_data['post_title'] = sanitize_text_field( $input['title'] );
 				}
 				if ( isset( $input['content'] ) ) {
+					$design_guard = mcp_expose_validate_content_design_markup_preserved( (string) $page->post_content, (string) $input['content'], $input );
+					if ( is_wp_error( $design_guard ) ) {
+						return array( 'success' => false, 'message' => esc_html( $design_guard->get_error_message() ) );
+					}
 					$page_data['post_content'] = $input['content'];
 				}
 				if ( isset( $input['excerpt'] ) ) {
@@ -3621,6 +3694,11 @@ function mcp_register_content_abilities(): void {
 						'default'     => -1,
 						'description' => 'Maximum replacements (-1 for all). Only applies to non-regex mode.',
 					),
+					'allow_design_markup_loss' => array(
+						'type'        => 'boolean',
+						'default'     => false,
+						'description' => 'Allow patching content even when existing GenerateBlocks/design markup would be removed. Defaults to false.',
+					),
 				),
 				'additionalProperties' => false,
 			),
@@ -3680,6 +3758,11 @@ function mcp_register_content_abilities(): void {
 						'message'      => 'No matches found - content unchanged',
 						'link'         => get_permalink( $input['id'] ),
 					);
+				}
+
+				$design_guard = mcp_expose_validate_content_design_markup_preserved( (string) $content, (string) $new_content, $input );
+				if ( is_wp_error( $design_guard ) ) {
+					return array( 'success' => false, 'message' => esc_html( $design_guard->get_error_message() ) );
 				}
 
 				$result = wp_update_post( array(
@@ -4417,6 +4500,11 @@ function mcp_register_content_abilities(): void {
 						'default'     => -1,
 						'description' => 'Max replacements (-1 for all). Only applies to non-regex mode.',
 					),
+					'allow_design_markup_loss' => array(
+						'type'        => 'boolean',
+						'default'     => false,
+						'description' => 'Allow patching content even when existing GenerateBlocks/design markup would be removed. Defaults to false.',
+					),
 				),
 				'additionalProperties' => false,
 			),
@@ -4486,6 +4574,11 @@ function mcp_register_content_abilities(): void {
 						'message'      => 'No matches found - content unchanged',
 						'link'         => get_permalink( $post->ID ),
 					);
+				}
+
+				$design_guard = mcp_expose_validate_content_design_markup_preserved( (string) $content, (string) $new_content, $input );
+				if ( is_wp_error( $design_guard ) ) {
+					return array( 'success' => false, 'message' => esc_html( $design_guard->get_error_message() ) );
 				}
 
 				$result = wp_update_post(
