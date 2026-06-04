@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.41
+ * Version: 3.0.42
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -5129,16 +5129,20 @@ function mcp_register_content_abilities(): void {
 		'plugins/list',
 		array(
 			'label'               => 'List Plugins',
-			'description'         => 'List plugins. Params: status (all/active/inactive, optional).',
+			'description'         => 'List plugins. Params: status (all/active/inactive, optional), search (optional; matches plugin file, slug, name, author, or description).',
 			'category'            => 'site',
 			'input_schema'        => array(
-				'type'                 => 'object',
+				'type'                 => array( 'object', 'null' ),
 				'properties'           => array(
 					'status' => array(
 						'type'        => 'string',
 						'enum'        => array( 'all', 'active', 'inactive' ),
 						'default'     => 'all',
 						'description' => 'Filter by plugin status.',
+					),
+					'search' => array(
+						'type'        => 'string',
+						'description' => 'Optional case-insensitive search term. Matches plugin file, slug, name, author, or description.',
 					),
 				),
 				'additionalProperties' => false,
@@ -5148,18 +5152,27 @@ function mcp_register_content_abilities(): void {
 				'properties' => array(
 					'plugins' => array( 'type' => 'array' ),
 					'total'   => array( 'type' => 'integer' ),
+					'status'  => array( 'type' => 'string' ),
+					'search'  => array( 'type' => 'string' ),
 				),
 			),
-				'execute_callback'    => function ( $input = array() ): array {
-					$input = is_array( $input ) ? $input : array();
+			'execute_callback'    => function ( $input = array() ): array {
+				$input = is_array( $input ) ? $input : array();
 
 				$all_plugins    = get_plugins();
 				$active_plugins = get_option( 'active_plugins', array() );
 				$status_filter  = $input['status'] ?? 'all';
+				$search         = isset( $input['search'] ) ? sanitize_text_field( (string) $input['search'] ) : '';
+				$search_needle  = strtolower( $search );
 
 				$plugins = array();
 				foreach ( $all_plugins as $file => $data ) {
 					$is_active = in_array( $file, $active_plugins, true );
+					$slug      = dirname( $file );
+
+					if ( '.' === $slug ) {
+						$slug = basename( $file, '.php' );
+					}
 
 					if ( 'active' === $status_filter && ! $is_active ) {
 						continue;
@@ -5168,8 +5181,28 @@ function mcp_register_content_abilities(): void {
 						continue;
 					}
 
+					if ( '' !== $search_needle ) {
+						$haystack = strtolower(
+							implode(
+								' ',
+								array(
+									$file,
+									$slug,
+									$data['Name'] ?? '',
+									$data['Author'] ?? '',
+									$data['Description'] ?? '',
+								)
+							)
+						);
+
+						if ( false === strpos( $haystack, $search_needle ) ) {
+							continue;
+						}
+					}
+
 					$plugins[] = array(
 						'file'        => $file,
+						'slug'        => $slug,
 						'name'        => $data['Name'],
 						'version'     => $data['Version'],
 						'author'      => $data['Author'],
@@ -5181,6 +5214,8 @@ function mcp_register_content_abilities(): void {
 				return array(
 					'plugins' => $plugins,
 					'total'   => count( $plugins ),
+					'status'  => $status_filter,
+					'search'  => $search,
 				);
 			},
 			'permission_callback' => function (): bool {

@@ -3,7 +3,7 @@ Contributors: devenia
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.0
-Stable tag: 3.0.41
+Stable tag: 3.0.42
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -34,6 +34,10 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 5. (Optional) Install add-on plugins for vendor-specific features
 
 == Changelog ==
+
+= 3.0.42 =
+* Added: `plugins/list` now supports a `search` parameter for filtering installed plugins by file, slug, name, author, or description.
+* Fixed: `plugins/list` now accepts no-argument execution through the MCP proxy like the other null-safe list abilities.
 
 = 3.0.41 =
 * Fixed: broad content update and patch abilities now block accidental removal of existing GenerateBlocks/design markup unless explicitly overridden.

@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 7.0
-**Stable tag:** 3.0.41
+**Stable tag:** 3.0.42
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -234,6 +234,10 @@ When something does not work, check in this order:
 6. Only then debug the specific add-on
 
 ## Recent Changes
+
+### 3.0.42
+
+- Added efficient `plugins/list` filtering with a `search` parameter and null-safe no-argument input handling.
 
 ### 3.0.41
 
@@ -567,6 +571,13 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.42
+- Added: `plugins/list` now supports a `search` parameter for filtering installed plugins by file, slug, name, author, or description.
+- Fixed: `plugins/list` now accepts no-argument execution through the MCP proxy like the other null-safe list abilities.
+
+### 3.0.41
+- Fixed: broad content update and patch abilities now block accidental removal of existing GenerateBlocks/design markup unless explicitly overridden.
 
 ### 3.0.40
 - Added: `content/update-discussion-status` for opening or closing comments and pings on posts/pages.
