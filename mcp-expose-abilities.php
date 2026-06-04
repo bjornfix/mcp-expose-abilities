@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.42
+ * Version: 3.0.43
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -637,11 +637,9 @@ function mcp_expose_install_plugin_zip( string $zip_path, array $input ): array 
 		return array( 'success' => false, 'message' => esc_html( $zip_check->get_error_message() ) );
 	}
 
-	// Define stub for get_current_screen() if not available (REST API context).
-	if ( ! function_exists( 'get_current_screen' ) ) {
-		function get_current_screen() {
-			return null;
-		}
+	// WordPress filesystem/upgrader code may call get_current_screen() in REST context.
+	if ( ! function_exists( 'get_current_screen' ) && file_exists( ABSPATH . 'wp-admin/includes/screen.php' ) ) {
+		require_once ABSPATH . 'wp-admin/includes/screen.php';
 	}
 
 	// Prepare for unzipping.

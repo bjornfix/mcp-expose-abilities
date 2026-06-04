@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 7.0
-**Stable tag:** 3.0.42
+**Stable tag:** 3.0.43
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -234,6 +234,10 @@ When something does not work, check in this order:
 6. Only then debug the specific add-on
 
 ## Recent Changes
+
+### 3.0.43
+
+- Fixed: `plugins/upload` no longer defines a temporary `get_current_screen()` stub, avoiding a fatal redeclare when WordPress loads admin screen helpers during REST/MCP plugin installs.
 
 ### 3.0.42
 
