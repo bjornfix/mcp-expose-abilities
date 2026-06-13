@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 7.0
-**Stable tag:** 3.0.53
+**Stable tag:** 3.0.54
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -160,7 +160,7 @@ Version 3.0 introduced a modular architecture. The core plugin provides WordPres
 
 | Plugin | Abilities | Description |
 |--------|-----------|-------------|
-| **MCP Expose Abilities** (core) | 68 | WordPress core: content, menus, users, media, widgets, plugins, options, comments, taxonomy, system |
+| **MCP Expose Abilities** (core) | 69 | WordPress core: content, menus, users, media, widgets, plugins, options, comments, taxonomy, system |
 | [MCP Abilities - Filesystem](https://github.com/bjornfix/mcp-abilities-filesystem) | 11 | File operations with security hardening |
 | [MCP Abilities - Elementor](https://github.com/bjornfix/mcp-abilities-elementor) | 40 | Elementor page builder integration |
 | [MCP Abilities - GeneratePress](https://github.com/bjornfix/mcp-abilities-generatepress) | 26 | GeneratePress theme + GenerateBlocks |
@@ -174,7 +174,7 @@ Version 3.0 introduced a modular architecture. The core plugin provides WordPres
 | [MCP Abilities - SitePress](https://github.com/bjornfix/mcp-abilities-sitepress) | 10 | WPML translation mapping, language-switcher recovery, and QA checks |
 | [MCP Abilities - Formidable](https://github.com/bjornfix/mcp-abilities-formidable) | 6 | Formidable Forms settings, usage tracing, styles, and CSS cache controls |
 
-**Total ecosystem: 287 abilities**
+**Total ecosystem: 288 abilities**
 
 Install only what you need. Running GeneratePress? Install that add-on. Don't use Elementor? Skip it.
 
@@ -428,11 +428,12 @@ When something does not work, check in this order:
 | `options/update` | Update option (protected options blocked) |
 | `options/list` | List all options |
 
-### System (3)
+### System (4)
 
 | Ability | Description |
 |---------|-------------|
 | `system/get-transient` | Get transient value |
+| `system/ability-timings` | Read recent slow or failed ability timings |
 | `system/debug-log` | Read debug.log file |
 | `system/toggle-debug` | Toggle WP_DEBUG, WP_DEBUG_LOG, WP_DEBUG_DISPLAY |
 
@@ -608,6 +609,10 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.54
+- Added: `system/ability-timings` exposes a bounded read-only log of slow or failed ability calls.
+- Improved: ability callbacks now record timing data only when calls fail or exceed the default 1000 ms threshold.
 
 ### 3.0.53
 - Added: `menus/upsert-item` creates or updates menu items idempotently by page/post/category identity or custom URL.

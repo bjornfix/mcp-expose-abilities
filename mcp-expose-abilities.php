@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.53
+ * Version: 3.0.54
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -1636,9 +1636,173 @@ function mcp_expose_all_abilities( array $args, string $ability_name ): array {
 	if ( ! isset( $args['meta']['mcp']['type'] ) ) {
 		$args['meta']['mcp']['type'] = 'tool';
 	}
+	if ( isset( $args['execute_callback'] ) && is_callable( $args['execute_callback'] ) ) {
+		$args['execute_callback'] = mcp_expose_wrap_ability_timing_callback( $ability_name, $args['execute_callback'] );
+	}
 	return $args;
 }
 add_filter( 'wp_register_ability_args', 'mcp_expose_all_abilities', 10, 2 );
+
+/**
+ * Wrap an ability callback with lightweight timing capture.
+ *
+ * @param string   $ability_name Ability name.
+ * @param callable $callback     Original execute callback.
+ * @return callable
+ */
+function mcp_expose_wrap_ability_timing_callback( string $ability_name, callable $callback ): callable {
+	return function ( $input = array() ) use ( $ability_name, $callback ) {
+		$start_time   = microtime( true );
+		$start_memory = memory_get_usage( true );
+		$result       = null;
+		$thrown       = null;
+
+		try {
+			$result = call_user_func( $callback, $input );
+			return $result;
+		} catch ( Throwable $exception ) {
+			$thrown = $exception;
+			throw $exception;
+		} finally {
+			$duration_ms = ( microtime( true ) - $start_time ) * 1000;
+			mcp_expose_maybe_record_ability_timing(
+				$ability_name,
+				$duration_ms,
+				mcp_expose_ability_timing_result_details( $result, $thrown ),
+				memory_get_usage( true ) - $start_memory,
+				memory_get_peak_usage( true )
+			);
+		}
+	};
+}
+
+/**
+ * Derive timing status details from an ability result.
+ *
+ * @param mixed          $result Ability result.
+ * @param Throwable|null $thrown Thrown exception, if any.
+ * @return array{success:bool,code:string,message:string}
+ */
+function mcp_expose_ability_timing_result_details( $result, ?Throwable $thrown ): array {
+	if ( $thrown instanceof Throwable ) {
+		return array(
+			'success' => false,
+			'code'    => 'exception',
+			'message' => $thrown->getMessage(),
+		);
+	}
+
+	if ( is_wp_error( $result ) ) {
+		return array(
+			'success' => false,
+			'code'    => $result->get_error_code(),
+			'message' => $result->get_error_message(),
+		);
+	}
+
+	if ( is_array( $result ) && array_key_exists( 'success', $result ) && true !== $result['success'] ) {
+		$message = isset( $result['message'] ) && is_scalar( $result['message'] ) ? (string) $result['message'] : '';
+
+		return array(
+			'success' => false,
+			'code'    => 'ability_failure',
+			'message' => $message,
+		);
+	}
+
+	return array(
+		'success' => true,
+		'code'    => '',
+		'message' => '',
+	);
+}
+
+/**
+ * Store slow or failed ability timings in a bounded option.
+ *
+ * @param string $ability_name Ability name.
+ * @param float  $duration_ms  Duration in milliseconds.
+ * @param array  $details      Result details.
+ * @param int    $memory_delta Memory delta in bytes.
+ * @param int    $memory_peak  Peak memory in bytes.
+ * @return void
+ */
+function mcp_expose_maybe_record_ability_timing( string $ability_name, float $duration_ms, array $details, int $memory_delta, int $memory_peak ): void {
+	if ( 'system/ability-timings' === $ability_name ) {
+		return;
+	}
+
+	$threshold_ms = (float) apply_filters( 'mcp_expose_ability_timing_threshold_ms', 1000.0 );
+	$success      = isset( $details['success'] ) ? (bool) $details['success'] : true;
+
+	if ( $success && $duration_ms < $threshold_ms ) {
+		return;
+	}
+
+	$entries = get_option( 'mcp_expose_ability_timings', array() );
+	if ( ! is_array( $entries ) ) {
+		$entries = array();
+	}
+
+	$entries[] = array(
+		'timestamp'       => gmdate( 'c' ),
+		'ability'         => sanitize_text_field( $ability_name ),
+		'duration_ms'     => round( $duration_ms, 2 ),
+		'success'         => $success,
+		'code'            => isset( $details['code'] ) ? sanitize_key( (string) $details['code'] ) : '',
+		'message'         => isset( $details['message'] ) ? wp_strip_all_tags( (string) $details['message'] ) : '',
+		'memory_delta_mb' => round( $memory_delta / 1048576, 2 ),
+		'memory_peak_mb'  => round( $memory_peak / 1048576, 2 ),
+	);
+
+	$entries = array_slice( $entries, -50 );
+	update_option( 'mcp_expose_ability_timings', $entries, false );
+}
+
+/**
+ * Return recent stored ability timings.
+ *
+ * @param array $input Ability input.
+ * @return array
+ */
+function mcp_expose_get_ability_timings( array $input ): array {
+	$limit           = isset( $input['limit'] ) ? (int) $input['limit'] : 20;
+	$limit           = max( 1, min( 50, $limit ) );
+	$min_duration_ms = isset( $input['min_duration_ms'] ) ? max( 0.0, (float) $input['min_duration_ms'] ) : 0.0;
+	$ability_filter  = isset( $input['ability'] ) && is_string( $input['ability'] ) ? trim( $input['ability'] ) : '';
+	$entries         = get_option( 'mcp_expose_ability_timings', array() );
+
+	if ( ! is_array( $entries ) ) {
+		$entries = array();
+	}
+
+	$entries = array_values(
+		array_filter(
+			$entries,
+			function ( $entry ) use ( $ability_filter, $min_duration_ms ): bool {
+				if ( ! is_array( $entry ) ) {
+					return false;
+				}
+				if ( '' !== $ability_filter && ( $entry['ability'] ?? '' ) !== $ability_filter ) {
+					return false;
+				}
+				if ( isset( $entry['duration_ms'] ) && (float) $entry['duration_ms'] < $min_duration_ms ) {
+					return false;
+				}
+				return true;
+			}
+		)
+	);
+
+	$entries = array_slice( $entries, -$limit );
+
+	return array(
+		'success'      => true,
+		'threshold_ms' => (float) apply_filters( 'mcp_expose_ability_timing_threshold_ms', 1000.0 ),
+		'count'        => count( $entries ),
+		'entries'      => array_values( array_reverse( $entries ) ),
+	);
+}
 
 /**
  * Normalize pagination parameters for list abilities.
@@ -8089,6 +8253,64 @@ function mcp_register_content_abilities(): void {
 					'value'   => $value,
 					'message' => esc_html__( 'Transient retrieved successfully', 'mcp-expose-abilities' ),
 				);
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'manage_options' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => true,
+					'destructive' => false,
+					'idempotent'  => true,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// SYSTEM - Ability Timings
+	// =========================================================================
+	wp_register_ability(
+		'system/ability-timings',
+		array(
+			'label'               => 'Ability Timings',
+			'description'         => 'Returns recent slow or failed MCP ability calls captured by this plugin.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'properties'           => array(
+					'limit'           => array(
+						'type'        => 'integer',
+						'default'     => 20,
+						'minimum'     => 1,
+						'maximum'     => 50,
+						'description' => 'Maximum number of timing entries to return.',
+					),
+					'ability'         => array(
+						'type'        => 'string',
+						'description' => 'Optional exact ability name filter.',
+					),
+					'min_duration_ms' => array(
+						'type'        => 'number',
+						'default'     => 0,
+						'minimum'     => 0,
+						'description' => 'Optional minimum duration filter in milliseconds.',
+					),
+				),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success'      => array( 'type' => 'boolean' ),
+					'threshold_ms' => array( 'type' => 'number' ),
+					'count'        => array( 'type' => 'integer' ),
+					'entries'      => array( 'type' => 'array' ),
+				),
+			),
+			'execute_callback'    => function ( $input = array() ): array {
+				$input = is_array( $input ) ? $input : array();
+				return mcp_expose_get_ability_timings( $input );
 			},
 			'permission_callback' => function (): bool {
 				return current_user_can( 'manage_options' );
