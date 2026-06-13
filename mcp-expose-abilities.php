@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.43
+ * Version: 3.0.44
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -300,7 +300,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.39');
+define('MCP_VERSION', '3.0.44');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -1086,6 +1086,7 @@ function mcp_expose_update_plugin( string $plugin_file ): array {
 	if ( ! isset( $all_plugins[ $plugin_file ] ) ) {
 		return array( 'success' => false, 'message' => esc_html__( 'Plugin not found: ', 'mcp-expose-abilities' ) . esc_html( $plugin_file ) );
 	}
+	$was_active = is_plugin_active( $plugin_file );
 
 	$update_item = null;
 	foreach ( mcp_expose_get_plugin_updates() as $item ) {
@@ -1118,16 +1119,38 @@ function mcp_expose_update_plugin( string $plugin_file ): array {
 	}
 
 	wp_clean_plugins_cache( true );
+	if ( $was_active && ! is_plugin_active( $plugin_file ) ) {
+		$activate_result = activate_plugin( $plugin_file );
+		if ( is_wp_error( $activate_result ) ) {
+			return array(
+				'success'          => false,
+				'message'          => esc_html__( 'Plugin updated, but reactivation failed: ', 'mcp-expose-abilities' ) . esc_html( $activate_result->get_error_message() ),
+				'plugin'           => $plugin_file,
+				'previous_version' => (string) $update_item['current_version'],
+				'current_version'  => '',
+				'updated'          => true,
+				'active_before'    => true,
+				'active_after'     => false,
+				'reactivated'      => false,
+			);
+		}
+	}
+
+	wp_clean_plugins_cache( true );
 	$all_plugins = get_plugins();
 	$new_version = isset( $all_plugins[ $plugin_file ]['Version'] ) ? (string) $all_plugins[ $plugin_file ]['Version'] : '';
+	$active_after = is_plugin_active( $plugin_file );
 
 	return array(
 		'success'         => true,
 		'message'         => esc_html__( 'Plugin updated successfully', 'mcp-expose-abilities' ),
 		'plugin'          => $plugin_file,
-		'previous_version'=> (string) $update_item['current_version'],
+		'previous_version' => (string) $update_item['current_version'],
 		'current_version' => $new_version,
 		'updated'         => true,
+		'active_before'   => $was_active,
+		'active_after'    => $active_after,
+		'reactivated'     => $was_active && $active_after,
 	);
 }
 
@@ -5303,6 +5326,9 @@ function mcp_register_content_abilities(): void {
 					'previous_version' => array( 'type' => 'string' ),
 					'current_version'  => array( 'type' => 'string' ),
 					'updated'          => array( 'type' => 'boolean' ),
+					'active_before'    => array( 'type' => 'boolean' ),
+					'active_after'     => array( 'type' => 'boolean' ),
+					'reactivated'      => array( 'type' => 'boolean' ),
 				),
 			),
 			'execute_callback'    => function ( array $input ): array {

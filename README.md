@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 7.0
-**Stable tag:** 3.0.43
+**Stable tag:** 3.0.44
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -234,6 +234,10 @@ When something does not work, check in this order:
 6. Only then debug the specific add-on
 
 ## Recent Changes
+
+### 3.0.44
+- Fixed `plugins/update` so plugins that were active before a WordPress-native update are reactivated if WordPress leaves them inactive after the upgrader run.
+- Added `active_before`, `active_after`, and `reactivated` fields to the `plugins/update` response.
 
 ### 3.0.43
 
@@ -575,6 +579,9 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.44
+- Fixed: `plugins/update` now preserves active plugin state across WordPress-native plugin updates and reports the before/after activation state.
 
 ### 3.0.42
 - Added: `plugins/list` now supports a `search` parameter for filtering installed plugins by file, slug, name, author, or description.
