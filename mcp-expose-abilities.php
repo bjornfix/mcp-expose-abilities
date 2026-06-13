@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.50
+ * Version: 3.0.51
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -6168,29 +6168,43 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'message' => esc_html__( 'Menu not found', 'mcp-expose-abilities' ) );
 				}
 
-				$object    = $input['object'] ?? 'custom';
-				$object_id = $input['object_id'] ?? 0;
+				$object    = isset( $input['object'] ) ? sanitize_key( $input['object'] ) : 'custom';
+				$object_id = isset( $input['object_id'] ) ? absint( $input['object_id'] ) : 0;
 				$type      = 'custom';
 
-				if ( 'page' === $object ) {
-					$type = 'post_type';
-				} elseif ( 'post' === $object ) {
-					$type = 'post_type';
-				} elseif ( 'category' === $object ) {
-					$type      = 'taxonomy';
-					$object    = 'category';
+				if ( 'custom' !== $object ) {
+					if ( ! $object_id ) {
+						return array( 'success' => false, 'message' => esc_html__( 'Object ID is required for non-custom menu items', 'mcp-expose-abilities' ) );
+					}
+
+					if ( 'category' === $object ) {
+						$term = get_term( $object_id, 'category' );
+						if ( ! $term || is_wp_error( $term ) ) {
+							return array( 'success' => false, 'message' => esc_html__( 'Category not found', 'mcp-expose-abilities' ) );
+						}
+						$type = 'taxonomy';
+					} else {
+						$post_type = get_post_type( $object_id );
+						if ( ! $post_type ) {
+							return array( 'success' => false, 'message' => esc_html__( 'Post object not found', 'mcp-expose-abilities' ) );
+						}
+						if ( $post_type !== $object ) {
+							return array( 'success' => false, 'message' => esc_html__( 'Object type does not match the object ID', 'mcp-expose-abilities' ) );
+						}
+						$type = 'post_type';
+					}
 				}
 
 				$item_data = array(
 					'menu-item-title'     => sanitize_text_field( $input['title'] ),
-					'menu-item-url'       => $input['url'] ?? '',
+					'menu-item-url'       => 'custom' === $object ? esc_url_raw( $input['url'] ?? '' ) : '',
 					'menu-item-object'    => $object,
 					'menu-item-object-id' => $object_id,
 					'menu-item-type'      => $type,
-					'menu-item-parent-id' => $input['parent'] ?? 0,
-					'menu-item-position'  => $input['position'] ?? 0,
-					'menu-item-target'    => $input['target'] ?? '',
-					'menu-item-classes'   => $input['classes'] ?? '',
+					'menu-item-parent-id' => isset( $input['parent'] ) ? absint( $input['parent'] ) : 0,
+					'menu-item-position'  => isset( $input['position'] ) ? absint( $input['position'] ) : 0,
+					'menu-item-target'    => isset( $input['target'] ) ? sanitize_key( $input['target'] ) : '',
+					'menu-item-classes'   => isset( $input['classes'] ) ? sanitize_text_field( $input['classes'] ) : '',
 					'menu-item-status'    => 'publish',
 				);
 
@@ -6286,8 +6300,26 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'message' => esc_html__( 'Menu item not found', 'mcp-expose-abilities' ) );
 				}
 
+				$existing_type      = get_post_meta( $input['item_id'], '_menu_item_type', true );
+				$existing_object    = get_post_meta( $input['item_id'], '_menu_item_object', true );
+				$existing_object_id = (int) get_post_meta( $input['item_id'], '_menu_item_object_id', true );
+				$existing_parent    = (int) get_post_meta( $input['item_id'], '_menu_item_menu_item_parent', true );
+				$existing_url       = get_post_meta( $input['item_id'], '_menu_item_url', true );
+				$existing_target    = get_post_meta( $input['item_id'], '_menu_item_target', true );
+				$existing_classes   = get_post_meta( $input['item_id'], '_menu_item_classes', true );
+				$existing_classes   = is_array( $existing_classes ) ? implode( ' ', $existing_classes ) : (string) $existing_classes;
+
 				$item_data = array(
-					'menu-item-status' => 'publish',
+					'menu-item-title'     => $item->post_title,
+					'menu-item-url'       => $existing_url,
+					'menu-item-object'    => $existing_object,
+					'menu-item-object-id' => $existing_object_id,
+					'menu-item-type'      => $existing_type,
+					'menu-item-parent-id' => $existing_parent,
+					'menu-item-position'  => (int) $item->menu_order,
+					'menu-item-target'    => $existing_target,
+					'menu-item-classes'   => $existing_classes,
+					'menu-item-status'    => 'publish',
 				);
 
 				if ( isset( $input['title'] ) ) {

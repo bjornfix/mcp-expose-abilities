@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 7.0
-**Stable tag:** 3.0.50
+**Stable tag:** 3.0.51
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -607,6 +607,10 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.51
+- Fixed: `menus/add-item` now validates page/post/category object IDs before creating non-custom menu items.
+- Fixed: `menus/update-item` now preserves existing menu item fields when only changing title, URL, parent, position, target, or classes.
 
 ### 3.0.50
 - Security: `plugins/update` can run through MCP only for Devenia manifest-managed packages with explicit confirmation; generic plugin code writes remain disabled by default.
