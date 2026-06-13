@@ -3,7 +3,7 @@ Contributors: devenia
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.0
-Stable tag: 3.0.52
+Stable tag: 3.0.53
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -34,6 +34,10 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 5. (Optional) Install add-on plugins for vendor-specific features
 
 == Changelog ==
+
+= 3.0.53 =
+* Added: `menus/upsert-item` creates or updates menu items idempotently by page/post/category identity or custom URL.
+* Improved: menu add/update now use one normalized nav menu item module with write readback, object/type preservation, title persistence, and contract-test coverage.
 
 = 3.0.52 =
 * Fixed: menu item title updates now also persist the underlying nav menu item post title, so frontend labels do not fall back to stale object labels.

@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.52
+ * Version: 3.0.53
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -803,6 +803,234 @@ function mcp_expose_validate_local_plugin_zip( string $zip_path ) {
 	}
 
 	return true;
+}
+
+/**
+ * Return a normalized ability-facing nav menu item model.
+ *
+ * @param int|WP_Post $item Menu item ID or post object.
+ * @return array|null
+ */
+function mcp_expose_get_nav_menu_item_model( $item ): ?array {
+	$post = is_numeric( $item ) ? get_post( (int) $item ) : $item;
+	if ( ! $post || 'nav_menu_item' !== $post->post_type ) {
+		return null;
+	}
+
+	$menu_item = wp_setup_nav_menu_item( $post );
+	if ( ! $menu_item ) {
+		return null;
+	}
+
+	return array(
+		'id'          => (int) $menu_item->ID,
+		'title'       => (string) $menu_item->title,
+		'post_title'  => (string) $post->post_title,
+		'url'         => (string) $menu_item->url,
+		'target'      => (string) $menu_item->target,
+		'attr_title'  => (string) $menu_item->attr_title,
+		'description' => (string) $menu_item->description,
+		'classes'     => is_array( $menu_item->classes ) ? array_values( array_filter( $menu_item->classes ) ) : array(),
+		'xfn'         => (string) $menu_item->xfn,
+		'parent'      => (int) $menu_item->menu_item_parent,
+		'order'       => (int) $menu_item->menu_order,
+		'object'      => (string) $menu_item->object,
+		'object_id'   => (int) $menu_item->object_id,
+		'type'        => (string) $menu_item->type,
+	);
+}
+
+/**
+ * Resolve a menu item object/type pair for a write payload.
+ *
+ * @param string $object    Object type.
+ * @param int    $object_id Object ID.
+ * @return array|WP_Error
+ */
+function mcp_expose_resolve_nav_menu_item_target( string $object, int $object_id ) {
+	$object = sanitize_key( $object );
+	if ( '' === $object ) {
+		$object = 'custom';
+	}
+
+	if ( 'custom' === $object ) {
+		return array(
+			'object'    => 'custom',
+			'object_id' => 0,
+			'type'      => 'custom',
+		);
+	}
+
+	if ( ! $object_id ) {
+		return new WP_Error( 'mcp_menu_object_id_required', __( 'Object ID is required for non-custom menu items', 'mcp-expose-abilities' ) );
+	}
+
+	if ( 'category' === $object ) {
+		$term = get_term( $object_id, 'category' );
+		if ( ! $term || is_wp_error( $term ) ) {
+			return new WP_Error( 'mcp_menu_category_not_found', __( 'Category not found', 'mcp-expose-abilities' ) );
+		}
+
+		return array(
+			'object'    => 'category',
+			'object_id' => $object_id,
+			'type'      => 'taxonomy',
+		);
+	}
+
+	$post_type = get_post_type( $object_id );
+	if ( ! $post_type ) {
+		return new WP_Error( 'mcp_menu_post_object_not_found', __( 'Post object not found', 'mcp-expose-abilities' ) );
+	}
+
+	if ( $post_type !== $object ) {
+		return new WP_Error( 'mcp_menu_object_type_mismatch', __( 'Object type does not match the object ID', 'mcp-expose-abilities' ) );
+	}
+
+	return array(
+		'object'    => $object,
+		'object_id' => $object_id,
+		'type'      => 'post_type',
+	);
+}
+
+/**
+ * Build a complete WordPress nav menu item write payload.
+ *
+ * @param array      $input    Ability input.
+ * @param array|null $existing Existing normalized item model.
+ * @return array|WP_Error
+ */
+function mcp_expose_build_nav_menu_item_payload( array $input, ?array $existing = null ) {
+	$title = array_key_exists( 'title', $input )
+		? sanitize_text_field( (string) $input['title'] )
+		: sanitize_text_field( (string) ( $existing['post_title'] ?? $existing['title'] ?? '' ) );
+
+	if ( '' === $title ) {
+		return new WP_Error( 'mcp_menu_title_required', __( 'Title is required', 'mcp-expose-abilities' ) );
+	}
+
+	$object = array_key_exists( 'object', $input )
+		? sanitize_key( (string) $input['object'] )
+		: (string) ( $existing['object'] ?? 'custom' );
+	$object_id = array_key_exists( 'object_id', $input )
+		? absint( $input['object_id'] )
+		: (int) ( $existing['object_id'] ?? 0 );
+
+	$target = mcp_expose_resolve_nav_menu_item_target( $object, $object_id );
+	if ( is_wp_error( $target ) ) {
+		return $target;
+	}
+
+	$url = array_key_exists( 'url', $input )
+		? esc_url_raw( (string) $input['url'] )
+		: (string) ( $existing['url'] ?? '' );
+
+	if ( 'custom' !== $target['object'] ) {
+		$url = '';
+	}
+
+	$classes = array_key_exists( 'classes', $input )
+		? sanitize_text_field( (string) $input['classes'] )
+		: implode( ' ', (array) ( $existing['classes'] ?? array() ) );
+
+	return array(
+		'menu-item-title'     => $title,
+		'menu-item-url'       => $url,
+		'menu-item-object'    => $target['object'],
+		'menu-item-object-id' => (int) $target['object_id'],
+		'menu-item-type'      => $target['type'],
+		'menu-item-parent-id' => array_key_exists( 'parent', $input ) ? absint( $input['parent'] ) : (int) ( $existing['parent'] ?? 0 ),
+		'menu-item-position'  => array_key_exists( 'position', $input ) ? absint( $input['position'] ) : (int) ( $existing['order'] ?? 0 ),
+		'menu-item-target'    => array_key_exists( 'target', $input ) ? sanitize_key( (string) $input['target'] ) : (string) ( $existing['target'] ?? '' ),
+		'menu-item-classes'   => $classes,
+		'menu-item-status'    => 'publish',
+	);
+}
+
+/**
+ * Write a nav menu item and verify the normalized readback.
+ *
+ * @param int   $menu_id Menu ID.
+ * @param int   $item_id Existing item ID, or 0 to create.
+ * @param array $payload Complete WordPress nav menu item payload.
+ * @return array|WP_Error
+ */
+function mcp_expose_write_nav_menu_item( int $menu_id, int $item_id, array $payload ) {
+	$result = wp_update_nav_menu_item( $menu_id, $item_id, $payload );
+	if ( is_wp_error( $result ) ) {
+		return $result;
+	}
+
+	$persisted_title = sanitize_text_field( (string) $payload['menu-item-title'] );
+	if ( '' !== $persisted_title ) {
+		$title_result = wp_update_post(
+			array(
+				'ID'         => (int) $result,
+				'post_title' => $persisted_title,
+			),
+			true
+		);
+		if ( is_wp_error( $title_result ) ) {
+			return $title_result;
+		}
+		clean_post_cache( (int) $result );
+	}
+
+	$model = mcp_expose_get_nav_menu_item_model( (int) $result );
+	if ( ! $model ) {
+		return new WP_Error( 'mcp_menu_item_readback_failed', __( 'Menu item was written but could not be read back', 'mcp-expose-abilities' ) );
+	}
+
+	foreach ( array( 'object', 'object_id', 'type', 'parent' ) as $field ) {
+		$payload_key = array(
+			'object'    => 'menu-item-object',
+			'object_id' => 'menu-item-object-id',
+			'type'      => 'menu-item-type',
+			'parent'    => 'menu-item-parent-id',
+		)[ $field ];
+
+		if ( (string) $model[ $field ] !== (string) $payload[ $payload_key ] ) {
+			return new WP_Error( 'mcp_menu_item_readback_mismatch', __( 'Menu item readback did not match the requested object, type, or parent', 'mcp-expose-abilities' ) );
+		}
+	}
+
+	return $model;
+}
+
+/**
+ * Find an existing menu item by object identity or custom URL.
+ *
+ * @param int   $menu_id Menu ID.
+ * @param array $input   Ability input.
+ * @return array|null
+ */
+function mcp_expose_find_nav_menu_item_for_upsert( int $menu_id, array $input ): ?array {
+	$items = wp_get_nav_menu_items( $menu_id );
+	if ( ! $items ) {
+		return null;
+	}
+
+	$object    = isset( $input['object'] ) ? sanitize_key( (string) $input['object'] ) : 'custom';
+	$object_id = isset( $input['object_id'] ) ? absint( $input['object_id'] ) : 0;
+	$url       = isset( $input['url'] ) ? esc_url_raw( (string) $input['url'] ) : '';
+
+	foreach ( $items as $item ) {
+		$model = mcp_expose_get_nav_menu_item_model( $item );
+		if ( ! $model ) {
+			continue;
+		}
+
+		if ( 'custom' !== $object && $model['object'] === $object && (int) $model['object_id'] === $object_id ) {
+			return $model;
+		}
+
+		if ( 'custom' === $object && '' !== $url && $model['type'] === 'custom' && $model['url'] === $url ) {
+			return $model;
+		}
+	}
+
+	return null;
 }
 
 /**
@@ -5988,21 +6216,10 @@ function mcp_register_content_abilities(): void {
 
 				if ( $items ) {
 					foreach ( $items as $item ) {
-						$item_list[] = array(
-							'id'          => $item->ID,
-							'title'       => $item->title,
-							'url'         => $item->url,
-							'target'      => $item->target,
-							'attr_title'  => $item->attr_title,
-							'description' => $item->description,
-							'classes'     => $item->classes,
-							'xfn'         => $item->xfn,
-							'parent'      => (int) $item->menu_item_parent,
-							'order'       => (int) $item->menu_order,
-							'object'      => $item->object,
-							'object_id'   => (int) $item->object_id,
-							'type'        => $item->type,
-						);
+						$model = mcp_expose_get_nav_menu_item_model( $item );
+						if ( $model ) {
+							$item_list[] = $model;
+						}
 					}
 				}
 
@@ -6168,62 +6385,20 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'message' => esc_html__( 'Menu not found', 'mcp-expose-abilities' ) );
 				}
 
-				$object    = isset( $input['object'] ) ? sanitize_key( $input['object'] ) : 'custom';
-				$object_id = isset( $input['object_id'] ) ? absint( $input['object_id'] ) : 0;
-				$type      = 'custom';
-
-				if ( 'custom' !== $object ) {
-					if ( ! $object_id ) {
-						return array( 'success' => false, 'message' => esc_html__( 'Object ID is required for non-custom menu items', 'mcp-expose-abilities' ) );
-					}
-
-					if ( 'category' === $object ) {
-						$term = get_term( $object_id, 'category' );
-						if ( ! $term || is_wp_error( $term ) ) {
-							return array( 'success' => false, 'message' => esc_html__( 'Category not found', 'mcp-expose-abilities' ) );
-						}
-						$type = 'taxonomy';
-					} else {
-						$post_type = get_post_type( $object_id );
-						if ( ! $post_type ) {
-							return array( 'success' => false, 'message' => esc_html__( 'Post object not found', 'mcp-expose-abilities' ) );
-						}
-						if ( $post_type !== $object ) {
-							return array( 'success' => false, 'message' => esc_html__( 'Object type does not match the object ID', 'mcp-expose-abilities' ) );
-						}
-						$type = 'post_type';
-					}
+				$item_data = mcp_expose_build_nav_menu_item_payload( $input );
+				if ( is_wp_error( $item_data ) ) {
+					return array( 'success' => false, 'message' => esc_html( $item_data->get_error_message() ), 'code' => $item_data->get_error_code() );
 				}
 
-				$item_data = array(
-					'menu-item-title'     => sanitize_text_field( $input['title'] ),
-					'menu-item-url'       => 'custom' === $object ? esc_url_raw( $input['url'] ?? '' ) : '',
-					'menu-item-object'    => $object,
-					'menu-item-object-id' => $object_id,
-					'menu-item-type'      => $type,
-					'menu-item-parent-id' => isset( $input['parent'] ) ? absint( $input['parent'] ) : 0,
-					'menu-item-position'  => isset( $input['position'] ) ? absint( $input['position'] ) : 0,
-					'menu-item-target'    => isset( $input['target'] ) ? sanitize_key( $input['target'] ) : '',
-					'menu-item-classes'   => isset( $input['classes'] ) ? sanitize_text_field( $input['classes'] ) : '',
-					'menu-item-status'    => 'publish',
-				);
-
-				$item_id = wp_update_nav_menu_item( $input['menu_id'], 0, $item_data );
-
-				if ( is_wp_error( $item_id ) ) {
-					return array( 'success' => false, 'message' => esc_html( $item_id->get_error_message() ) );
+				$item = mcp_expose_write_nav_menu_item( (int) $input['menu_id'], 0, $item_data );
+				if ( is_wp_error( $item ) ) {
+					return array( 'success' => false, 'message' => esc_html( $item->get_error_message() ), 'code' => $item->get_error_code() );
 				}
-
-				wp_update_post(
-					array(
-						'ID'         => (int) $item_id,
-						'post_title' => sanitize_text_field( $input['title'] ),
-					)
-				);
 
 				return array(
 					'success' => true,
-					'id'      => $item_id,
+					'id'      => (int) $item['id'],
+					'item'    => $item,
 					'message' => esc_html__( 'Menu item added successfully', 'mcp-expose-abilities' ),
 				);
 			},
@@ -6307,65 +6482,146 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'message' => esc_html__( 'Menu item not found', 'mcp-expose-abilities' ) );
 				}
 
-				$existing_type      = get_post_meta( $input['item_id'], '_menu_item_type', true );
-				$existing_object    = get_post_meta( $input['item_id'], '_menu_item_object', true );
-				$existing_object_id = (int) get_post_meta( $input['item_id'], '_menu_item_object_id', true );
-				$existing_parent    = (int) get_post_meta( $input['item_id'], '_menu_item_menu_item_parent', true );
-				$existing_url       = get_post_meta( $input['item_id'], '_menu_item_url', true );
-				$existing_target    = get_post_meta( $input['item_id'], '_menu_item_target', true );
-				$existing_classes   = get_post_meta( $input['item_id'], '_menu_item_classes', true );
-				$existing_classes   = is_array( $existing_classes ) ? implode( ' ', $existing_classes ) : (string) $existing_classes;
-
-				$item_data = array(
-					'menu-item-title'     => $item->post_title,
-					'menu-item-url'       => $existing_url,
-					'menu-item-object'    => $existing_object,
-					'menu-item-object-id' => $existing_object_id,
-					'menu-item-type'      => $existing_type,
-					'menu-item-parent-id' => $existing_parent,
-					'menu-item-position'  => (int) $item->menu_order,
-					'menu-item-target'    => $existing_target,
-					'menu-item-classes'   => $existing_classes,
-					'menu-item-status'    => 'publish',
-				);
-
-				if ( isset( $input['title'] ) ) {
-					$item_data['menu-item-title'] = sanitize_text_field( $input['title'] );
-				}
-				if ( isset( $input['url'] ) ) {
-					$item_data['menu-item-url'] = esc_url_raw( $input['url'] );
-				}
-				if ( isset( $input['parent'] ) ) {
-					$item_data['menu-item-parent-id'] = (int) $input['parent'];
-				}
-				if ( isset( $input['position'] ) ) {
-					$item_data['menu-item-position'] = (int) $input['position'];
-				}
-				if ( isset( $input['target'] ) ) {
-					$item_data['menu-item-target'] = $input['target'];
-				}
-				if ( isset( $input['classes'] ) ) {
-					$item_data['menu-item-classes'] = $input['classes'];
+				$existing = mcp_expose_get_nav_menu_item_model( $item );
+				if ( ! $existing ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Menu item could not be normalized', 'mcp-expose-abilities' ) );
 				}
 
-				$result = wp_update_nav_menu_item( $input['menu_id'], $input['item_id'], $item_data );
-
-				if ( is_wp_error( $result ) ) {
-					return array( 'success' => false, 'message' => esc_html( $result->get_error_message() ) );
+				$item_data = mcp_expose_build_nav_menu_item_payload( $input, $existing );
+				if ( is_wp_error( $item_data ) ) {
+					return array( 'success' => false, 'message' => esc_html( $item_data->get_error_message() ), 'code' => $item_data->get_error_code() );
 				}
 
-				if ( isset( $input['title'] ) ) {
-					wp_update_post(
-						array(
-							'ID'         => (int) $input['item_id'],
-							'post_title' => sanitize_text_field( $input['title'] ),
-						)
-					);
+				$updated = mcp_expose_write_nav_menu_item( (int) $input['menu_id'], (int) $input['item_id'], $item_data );
+				if ( is_wp_error( $updated ) ) {
+					return array( 'success' => false, 'message' => esc_html( $updated->get_error_message() ), 'code' => $updated->get_error_code() );
 				}
 
 				return array(
 					'success' => true,
+					'item'    => $updated,
 					'message' => esc_html__( 'Menu item updated successfully', 'mcp-expose-abilities' ),
+				);
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'edit_theme_options' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => false,
+					'destructive' => false,
+					'idempotent'  => true,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// MENUS - Upsert Menu Item
+	// =========================================================================
+	wp_register_ability(
+		'menus/upsert-item',
+		array(
+			'label'               => 'Upsert Menu Item',
+			'description'         => 'Create or update a menu item by object identity, or by URL for custom links.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'required'             => array( 'menu_id', 'title' ),
+				'properties'           => array(
+					'menu_id'   => array(
+						'type'        => 'integer',
+						'description' => 'Menu ID.',
+					),
+					'title'     => array(
+						'type'        => 'string',
+						'description' => 'Menu item title.',
+					),
+					'url'       => array(
+						'type'        => 'string',
+						'description' => 'URL for custom links.',
+					),
+					'object'    => array(
+						'type'        => 'string',
+						'description' => 'Object type (page, post, category, custom).',
+						'default'     => 'custom',
+					),
+					'object_id' => array(
+						'type'        => 'integer',
+						'description' => 'Object ID for pages, posts, or categories.',
+					),
+					'parent'    => array(
+						'type'        => 'integer',
+						'description' => 'Parent menu item ID.',
+						'default'     => 0,
+					),
+					'position'  => array(
+						'type'        => 'integer',
+						'description' => 'Menu position/order.',
+					),
+					'target'    => array(
+						'type'        => 'string',
+						'enum'        => array( '', '_blank' ),
+						'description' => 'Link target.',
+					),
+					'classes'   => array(
+						'type'        => 'string',
+						'description' => 'CSS classes.',
+					),
+				),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success' => array( 'type' => 'boolean' ),
+					'id'      => array( 'type' => 'integer' ),
+					'action'  => array( 'type' => 'string' ),
+					'item'    => array( 'type' => 'object' ),
+					'message' => array( 'type' => 'string' ),
+				),
+			),
+			'execute_callback'    => function ( $input = array() ): array {
+				$input = is_array( $input ) ? $input : array();
+
+				if ( empty( $input['menu_id'] ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Menu ID is required', 'mcp-expose-abilities' ) );
+				}
+				if ( empty( $input['title'] ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Title is required', 'mcp-expose-abilities' ) );
+				}
+
+				$menu = wp_get_nav_menu_object( $input['menu_id'] );
+				if ( ! $menu ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Menu not found', 'mcp-expose-abilities' ) );
+				}
+
+				$existing = mcp_expose_find_nav_menu_item_for_upsert( (int) $input['menu_id'], $input );
+				$payload  = mcp_expose_build_nav_menu_item_payload( $input, $existing );
+				if ( is_wp_error( $payload ) ) {
+					return array( 'success' => false, 'message' => esc_html( $payload->get_error_message() ), 'code' => $payload->get_error_code() );
+				}
+
+				$item = mcp_expose_write_nav_menu_item(
+					(int) $input['menu_id'],
+					$existing ? (int) $existing['id'] : 0,
+					$payload
+				);
+				if ( is_wp_error( $item ) ) {
+					return array( 'success' => false, 'message' => esc_html( $item->get_error_message() ), 'code' => $item->get_error_code() );
+				}
+
+				$action = $existing ? 'updated' : 'created';
+				return array(
+					'success' => true,
+					'id'      => (int) $item['id'],
+					'action'  => $action,
+					'item'    => $item,
+					'message' => esc_html( sprintf(
+						/* translators: %s: action created or updated. */
+						__( 'Menu item %s successfully', 'mcp-expose-abilities' ),
+						$action
+					) ),
 				);
 			},
 			'permission_callback' => function (): bool {

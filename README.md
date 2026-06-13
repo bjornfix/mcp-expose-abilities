@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 7.0
-**Stable tag:** 3.0.52
+**Stable tag:** 3.0.53
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -160,7 +160,7 @@ Version 3.0 introduced a modular architecture. The core plugin provides WordPres
 
 | Plugin | Abilities | Description |
 |--------|-----------|-------------|
-| **MCP Expose Abilities** (core) | 67 | WordPress core: content, menus, users, media, widgets, plugins, options, comments, taxonomy, system |
+| **MCP Expose Abilities** (core) | 68 | WordPress core: content, menus, users, media, widgets, plugins, options, comments, taxonomy, system |
 | [MCP Abilities - Filesystem](https://github.com/bjornfix/mcp-abilities-filesystem) | 11 | File operations with security hardening |
 | [MCP Abilities - Elementor](https://github.com/bjornfix/mcp-abilities-elementor) | 40 | Elementor page builder integration |
 | [MCP Abilities - GeneratePress](https://github.com/bjornfix/mcp-abilities-generatepress) | 26 | GeneratePress theme + GenerateBlocks |
@@ -174,7 +174,7 @@ Version 3.0 introduced a modular architecture. The core plugin provides WordPres
 | [MCP Abilities - SitePress](https://github.com/bjornfix/mcp-abilities-sitepress) | 10 | WPML translation mapping, language-switcher recovery, and QA checks |
 | [MCP Abilities - Formidable](https://github.com/bjornfix/mcp-abilities-formidable) | 6 | Formidable Forms settings, usage tracing, styles, and CSS cache controls |
 
-**Total ecosystem: 286 abilities**
+**Total ecosystem: 287 abilities**
 
 Install only what you need. Running GeneratePress? Install that add-on. Don't use Elementor? Skip it.
 
@@ -353,7 +353,7 @@ When something does not work, check in this order:
 | `content/list-revisions` | List revisions for a post/page |
 | `content/get-revision` | Get specific revision details |
 
-### Menu Management (7)
+### Menu Management (8)
 
 | Ability | Description |
 |---------|-------------|
@@ -362,6 +362,7 @@ When something does not work, check in this order:
 | `menus/create` | Create new menu |
 | `menus/add-item` | Add item to menu |
 | `menus/update-item` | Update menu item |
+| `menus/upsert-item` | Create or update an item by object identity or custom URL |
 | `menus/delete-item` | Delete menu item |
 | `menus/assign-location` | Assign menu to theme location |
 
@@ -607,6 +608,10 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.53
+- Added: `menus/upsert-item` creates or updates menu items idempotently by page/post/category identity or custom URL.
+- Improved: menu add/update now use one normalized nav menu item module with write readback, object/type preservation, title persistence, and contract-test coverage.
 
 ### 3.0.52
 - Fixed: menu item title updates now also persist the underlying nav menu item post title, so frontend labels do not fall back to stale object labels.
