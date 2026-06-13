@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 7.0
-**Stable tag:** 3.0.51
+**Stable tag:** 3.0.52
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -607,6 +607,9 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.52
+- Fixed: menu item title updates now also persist the underlying nav menu item post title, so frontend labels do not fall back to stale object labels.
 
 ### 3.0.51
 - Fixed: `menus/add-item` now validates page/post/category object IDs before creating non-custom menu items.
