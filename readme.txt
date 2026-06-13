@@ -3,7 +3,7 @@ Contributors: devenia
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.0
-Stable tag: 3.0.44
+Stable tag: 3.0.49
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -34,6 +34,25 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 5. (Optional) Install add-on plugins for vendor-specific features
 
 == Changelog ==
+
+= 3.0.49 =
+* Security: `options/update` now blocks theme bootstrap options `template` and `stylesheet`.
+
+= 3.0.48 =
+* Security: plugin code write abilities are disabled by default unless server-side configuration explicitly enables `MCP_EXPOSE_ENABLE_PLUGIN_CODE_WRITES`.
+* Security: WordPress.org plugin install, plugin update, and plugin delete now require explicit per-ability confirmation when plugin code writes are enabled.
+
+= 3.0.47 =
+* Security: MCP transport and generic execute-ability entrypoints now default to `manage_options` via adapter capability filters.
+* Security: high-risk `plugins/upload`, `plugins/upload-base64`, and `options/update` calls now require explicit per-ability confirmation.
+
+= 3.0.46 =
+* Improved: generic post meta writes now use a single post meta write policy interface with a filterable protected-key registry.
+* Added: local ability contract harness for verifying protected Elementor meta writes are rejected before side effects.
+
+= 3.0.45 =
+* Security: generic content/meta abilities now block protected Elementor meta keys and require dedicated `elementor/*` abilities for Elementor document writes.
+* Changed: plugin ZIP uploads now use WordPress core `Plugin_Upgrader` instead of direct plugin-directory unzip/copy operations.
 
 = 3.0.44 =
 * Fixed: `plugins/update` now preserves active plugin state across WordPress-native plugin updates and reports the before/after activation state.

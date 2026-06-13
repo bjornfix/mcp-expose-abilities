@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.44
+ * Version: 3.0.49
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -19,6 +19,161 @@ declare( strict_types=1 );
 // Prevent direct access.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
+}
+
+/**
+ * Return the minimum WordPress capability required to reach MCP transport and
+ * generic execute-ability entrypoints.
+ *
+ * @return string
+ */
+function mcp_expose_get_mcp_transport_capability(): string {
+	$capability = apply_filters( 'mcp_expose_mcp_transport_capability', 'manage_options' );
+
+	if ( ! is_string( $capability ) || '' === trim( $capability ) ) {
+		return 'manage_options';
+	}
+
+	return trim( $capability );
+}
+
+/**
+ * Filter MCP adapter transport and execute-ability capabilities.
+ *
+ * @return string
+ */
+function mcp_expose_filter_mcp_transport_capability(): string {
+	return mcp_expose_get_mcp_transport_capability();
+}
+
+add_filter( 'mcp_adapter_default_transport_permission_user_capability', 'mcp_expose_filter_mcp_transport_capability', 20 );
+add_filter( 'mcp_adapter_execute_ability_capability', 'mcp_expose_filter_mcp_transport_capability', 20 );
+
+/**
+ * Return input schema fragment for high-risk ability confirmation.
+ *
+ * @param string $ability_name Ability name.
+ * @return array
+ */
+function mcp_expose_dangerous_action_confirmation_schema( string $ability_name ): array {
+	return array(
+		'type'        => 'string',
+		'description' => sprintf(
+			/* translators: %s: Ability name. */
+			__( 'Required for this high-risk action. Must exactly equal "%s".', 'mcp-expose-abilities' ),
+			$ability_name
+		),
+	);
+}
+
+/**
+ * Require an explicit per-ability confirmation token for high-risk writes.
+ *
+ * @param array  $input        Ability input.
+ * @param string $ability_name Ability name.
+ * @return true|WP_Error
+ */
+function mcp_expose_confirm_dangerous_action( array $input, string $ability_name ) {
+	$confirmation = isset( $input['confirm_dangerous_action'] ) ? (string) $input['confirm_dangerous_action'] : '';
+	if ( $ability_name === $confirmation ) {
+		return true;
+	}
+
+	return new WP_Error(
+		'mcp_dangerous_action_confirmation_required',
+		sprintf(
+			/* translators: 1: Ability name, 2: Confirmation parameter name, 3: Confirmation value. */
+			__( 'High-risk ability "%1$s" requires explicit confirmation. Set %2$s to "%3$s" after verifying the target and rollback path.', 'mcp-expose-abilities' ),
+			$ability_name,
+			'confirm_dangerous_action',
+			$ability_name
+		)
+	);
+}
+
+/**
+ * Convert a dangerous-action guard result to a standard ability response.
+ *
+ * @param true|WP_Error $result Guard result.
+ * @param string        $ability_name Ability name.
+ * @return array|null
+ */
+function mcp_expose_dangerous_action_error_response( $result, string $ability_name ): ?array {
+	if ( ! is_wp_error( $result ) ) {
+		return null;
+	}
+
+	return array(
+		'success' => false,
+		'message' => $result->get_error_message(),
+		'ability' => $ability_name,
+		'code'    => $result->get_error_code(),
+	);
+}
+
+/**
+ * Check whether MCP plugin code writes are explicitly enabled on this site.
+ *
+ * Plugin install/update/delete abilities can execute attacker-controlled PHP if
+ * an MCP admin credential is stolen, so they require a server-side opt-in in
+ * addition to per-call confirmation.
+ *
+ * @return bool
+ */
+function mcp_expose_plugin_code_writes_enabled(): bool {
+	$enabled = defined( 'MCP_EXPOSE_ENABLE_PLUGIN_CODE_WRITES' ) && true === MCP_EXPOSE_ENABLE_PLUGIN_CODE_WRITES;
+
+	/**
+	 * Filter whether MCP plugin code write abilities are enabled.
+	 *
+	 * This should only be enabled from trusted server-side configuration, not
+	 * from user-controlled request data.
+	 *
+	 * @param bool $enabled Whether plugin code writes are enabled.
+	 */
+	return (bool) apply_filters( 'mcp_expose_enable_plugin_code_writes', $enabled );
+}
+
+/**
+ * Require server-side opt-in for plugin install/update/delete abilities.
+ *
+ * @param string $ability_name Ability name.
+ * @return true|WP_Error
+ */
+function mcp_expose_require_plugin_code_write_enabled( string $ability_name ) {
+	if ( mcp_expose_plugin_code_writes_enabled() ) {
+		return true;
+	}
+
+	return new WP_Error(
+		'mcp_plugin_code_writes_disabled',
+		sprintf(
+			/* translators: 1: Ability name, 2: Constant name. */
+			__( 'High-risk plugin code write ability "%1$s" is disabled by default. Define %2$s as true in trusted server-side configuration to enable it temporarily.', 'mcp-expose-abilities' ),
+			$ability_name,
+			'MCP_EXPOSE_ENABLE_PLUGIN_CODE_WRITES'
+		)
+	);
+}
+
+/**
+ * Convert plugin-code-write guard result to ability output.
+ *
+ * @param true|WP_Error $result Guard result.
+ * @param string        $ability_name Ability name.
+ * @return array|null
+ */
+function mcp_expose_plugin_code_write_error_response( $result, string $ability_name ): ?array {
+	if ( ! is_wp_error( $result ) ) {
+		return null;
+	}
+
+	return array(
+		'success' => false,
+		'message' => $result->get_error_message(),
+		'ability' => $ability_name,
+		'code'    => $result->get_error_code(),
+	);
 }
 
 /**
@@ -95,21 +250,77 @@ function mcp_expose_set_featured_image( int $post_id, int $featured_image_id ) {
 }
 
 /**
- * Validate per-key post meta permissions before direct meta writes.
+ * Return post meta keys that must not be changed through generic meta abilities.
  *
- * @param int    $post_id Post ID.
- * @param array  $meta    Meta key/value map.
- * @param string $cap     Meta capability to check.
+ * These keys are owned by Elementor and require dedicated Elementor abilities
+ * that validate/encode the builder document format before writing.
+ *
+ * @return string[]
+ */
+function mcp_expose_get_protected_post_meta_keys(): array {
+	$protected = array(
+		'_elementor_controls_usage',
+		'_elementor_css',
+		'_elementor_data',
+		'_elementor_edit_mode',
+		'_elementor_page_settings',
+		'_elementor_popup_display_settings',
+		'_elementor_pro_version',
+		'_elementor_template_sub_type',
+		'_elementor_template_type',
+		'_elementor_version',
+	);
+
+	/**
+	 * Filter post meta keys blocked from generic content/meta abilities.
+	 *
+	 * Builder-specific add-ons can add keys here while keeping the generic
+	 * post meta write policy in one place.
+	 *
+	 * @param string[] $protected Protected post meta keys.
+	 */
+	$filtered = apply_filters( 'mcp_expose_protected_post_meta_keys', $protected );
+	if ( ! is_array( $filtered ) ) {
+		$filtered = $protected;
+	}
+
+	return array_values( array_unique( array_map( 'strval', $filtered ) ) );
+}
+
+/**
+ * Validate generic post meta write intent before any direct write runs.
+ *
+ * This is the single policy interface for generic post meta writes. When
+ * $post_id is null it validates keys only, which lets create-post fail before
+ * wp_insert_post() can create a temporary post. When $post_id is provided it
+ * also validates per-key WordPress meta capabilities.
+ *
+ * @param array    $meta    Meta key/value map.
+ * @param int|null $post_id Post ID when capability checks should run.
+ * @param string   $cap     Meta capability to check.
  * @return true|WP_Error
  */
-function mcp_expose_validate_post_meta_permissions( int $post_id, array $meta, string $cap = 'edit_post_meta' ) {
+function mcp_expose_validate_post_meta_write_policy( array $meta, ?int $post_id = null, string $cap = 'edit_post_meta' ) {
+	$protected_keys = array_fill_keys( mcp_expose_get_protected_post_meta_keys(), true );
+
 	foreach ( array_keys( $meta ) as $key ) {
 		$key = (string) $key;
 		if ( '' === $key ) {
 			return new WP_Error( 'mcp_empty_meta_key', __( 'Meta keys cannot be empty.', 'mcp-expose-abilities' ) );
 		}
 
-		if ( ! current_user_can( $cap, $post_id, $key ) ) {
+		if ( isset( $protected_keys[ $key ] ) ) {
+			return new WP_Error(
+				'mcp_protected_elementor_meta_key',
+				sprintf(
+					/* translators: %s: Meta key. */
+					__( 'Protected Elementor meta key "%s" cannot be changed through generic content/meta abilities. Use the dedicated elementor/* abilities instead.', 'mcp-expose-abilities' ),
+					$key
+				)
+			);
+		}
+
+		if ( null !== $post_id && ! current_user_can( $cap, $post_id, $key ) ) {
 			return new WP_Error(
 				'mcp_post_meta_permission_denied',
 				sprintf(
@@ -300,7 +511,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.44');
+define('MCP_VERSION', '3.0.49');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -637,158 +848,41 @@ function mcp_expose_install_plugin_zip( string $zip_path, array $input ): array 
 		return array( 'success' => false, 'message' => esc_html( $zip_check->get_error_message() ) );
 	}
 
-	// WordPress filesystem/upgrader code may call get_current_screen() in REST context.
-	if ( ! function_exists( 'get_current_screen' ) && file_exists( ABSPATH . 'wp-admin/includes/screen.php' ) ) {
-		require_once ABSPATH . 'wp-admin/includes/screen.php';
+	$activate  = ! array_key_exists( 'activate', $input ) || (bool) $input['activate'];
+	$overwrite = ! array_key_exists( 'overwrite', $input ) || (bool) $input['overwrite'];
+
+	$before_plugins = get_plugins();
+	$before_active  = array();
+	foreach ( array_keys( $before_plugins ) as $file ) {
+		$before_active[ $file ] = is_plugin_active( $file );
 	}
 
-	// Prepare for unzipping.
-	WP_Filesystem();
-	global $wp_filesystem;
+	$skin     = new WP_Ajax_Upgrader_Skin();
+	$upgrader = new Plugin_Upgrader( $skin );
+	$args     = array(
+		'clear_update_cache' => true,
+	);
 
-	$plugins_dir = WP_PLUGIN_DIR;
-	$temp_dir    = $plugins_dir . '/mcp-temp-' . uniqid();
-
-	// Unzip to temp directory first to inspect contents.
-	$unzip_result = unzip_file( $zip_path, $temp_dir );
-	if ( is_wp_error( $unzip_result ) ) {
-		if ( $wp_filesystem ) {
-			$wp_filesystem->delete( $temp_dir, true );
-		}
-		/* translators: %s: Error message from WordPress */
-		return array( 'success' => false, 'message' => esc_html__( 'Unzip failed: ', 'mcp-expose-abilities' ) . esc_html( $unzip_result->get_error_message() ) );
+	if ( $overwrite ) {
+		$args['overwrite_package'] = true;
 	}
 
-	// Find the plugin folder (first directory in the zip).
-	$files = $wp_filesystem ? $wp_filesystem->dirlist( $temp_dir ) : array();
-	if ( empty( $files ) ) {
-		if ( $wp_filesystem ) {
-			$wp_filesystem->delete( $temp_dir, true );
-		}
-		return array( 'success' => false, 'message' => esc_html__( 'Invalid plugin zip - no files found', 'mcp-expose-abilities' ) );
-	}
-
-	$plugin_folder = '';
-	foreach ( $files as $file => $info ) {
-		if ( 'd' === $info['type'] ) {
-			$plugin_folder = $file;
-			break;
-		}
-	}
-
-	if ( empty( $plugin_folder ) ) {
-		$found_items = array();
-		foreach ( $files as $file => $info ) {
-			/* translators: %1$s: File name, %2$s: File type */
-			$found_items[] = $file . ' (type: ' . $info['type'] . ')';
-		}
-		if ( $wp_filesystem ) {
-			$wp_filesystem->delete( $temp_dir, true );
-		}
+	$result = $upgrader->install( $zip_path, $args );
+	if ( true !== $result ) {
 		return array(
 			'success' => false,
-			/* translators: %s: List of found items */
-			'message' => esc_html__( 'Invalid plugin zip - no plugin folder found. Found: ', 'mcp-expose-abilities' ) . esc_html( implode( ', ', $found_items ) ),
+			'message' => esc_html( mcp_expose_get_upgrader_error_message( $skin, $result, __( 'Plugin installation failed.', 'mcp-expose-abilities' ) ) ),
 		);
 	}
 
-	$target_dir  = $plugins_dir . '/' . $plugin_folder;
-	$source_dir  = $temp_dir . '/' . $plugin_folder;
-	$plugin_file = '';
+	wp_clean_plugins_cache( true );
 
-	// Check if plugin already exists.
-	if ( is_dir( $target_dir ) ) {
-		if ( empty( $input['overwrite'] ) && false === $input['overwrite'] ) {
-			if ( $wp_filesystem ) {
-				$wp_filesystem->delete( $temp_dir, true );
-			}
-			return array( 'success' => false, 'message' => esc_html__( 'Plugin already exists and overwrite is disabled', 'mcp-expose-abilities' ) );
-		}
-		// Deactivate if active before overwriting.
-		$all_plugins = get_plugins();
-		foreach ( $all_plugins as $file => $data ) {
-			if ( strpos( $file, $plugin_folder . '/' ) === 0 ) {
-				$plugin_file = $file;
-				if ( is_plugin_active( $file ) ) {
-					deactivate_plugins( $file );
-				}
-				break;
-			}
-		}
-		// Remove old plugin.
-		if ( $wp_filesystem ) {
-			$wp_filesystem->delete( $target_dir, true );
-		}
-	}
-
-	// Move plugin to plugins directory. Some filesystem transports fail on move/rename
-	// even when the unpacked directory is readable, so fall back to copy_dir().
-	$install_result = false;
-	$install_error  = null;
-
-	if ( $wp_filesystem ) {
-		$install_result = $wp_filesystem->move( $source_dir, $target_dir );
-	}
-
-	if ( ! $install_result ) {
-		if ( ! function_exists( 'copy_dir' ) ) {
-			require_once ABSPATH . 'wp-admin/includes/file.php';
-		}
-
-		$copy_result = copy_dir( $source_dir, $target_dir );
-		if ( is_wp_error( $copy_result ) ) {
-			$install_error = $copy_result;
-		} else {
-			$install_result = true;
-		}
-	}
-
-	if ( $wp_filesystem ) {
-		$wp_filesystem->delete( $temp_dir, true );
-	}
-
-	if ( ! $install_result ) {
-		$method = '';
-		if ( $wp_filesystem && isset( $wp_filesystem->method ) ) {
-			$method = (string) $wp_filesystem->method;
-		}
-
-		$message = esc_html__( 'Failed to install plugin into plugins directory', 'mcp-expose-abilities' );
-		if ( $install_error instanceof WP_Error ) {
-			$message .= ': ' . $install_error->get_error_message();
-		}
-		if ( '' !== $method ) {
-			$message .= ' [' . $method . ']';
-		}
-
-		return array( 'success' => false, 'message' => $message );
-	}
-
-	// Find the main plugin file if not already known.
+	$plugin_file = $upgrader->plugin_info();
 	if ( empty( $plugin_file ) ) {
-		// Refresh the plugins cache so newly moved plugin folders are discoverable
-		// in the same request (fixes first-time installs via upload-base64/upload).
-		if ( function_exists( 'wp_clean_plugins_cache' ) ) {
-			wp_clean_plugins_cache( true );
-		}
-
-		$all_plugins = get_plugins();
-		foreach ( $all_plugins as $file => $data ) {
-			if ( strpos( $file, $plugin_folder . '/' ) === 0 ) {
+		$after_plugins = get_plugins();
+		foreach ( $after_plugins as $file => $data ) {
+			if ( ! isset( $before_plugins[ $file ] ) || $before_plugins[ $file ] !== $data ) {
 				$plugin_file = $file;
-				break;
-			}
-		}
-
-		// Fallback: query just the target plugin folder in case the global list is stale.
-		if ( empty( $plugin_file ) ) {
-			$folder_plugins = get_plugins( '/' . $plugin_folder );
-			foreach ( $folder_plugins as $file => $data ) {
-				if ( strpos( $file, $plugin_folder . '/' ) === 0 ) {
-					$plugin_file = $file;
-					break;
-				}
-				$plugin_file = ( false === strpos( $file, '/' ) ) ? $plugin_folder . '/' . $file : $file;
 				break;
 			}
 		}
@@ -798,9 +892,9 @@ function mcp_expose_install_plugin_zip( string $zip_path, array $input ): array 
 		return array( 'success' => false, 'message' => esc_html__( 'Plugin installed but main file not found', 'mcp-expose-abilities' ) );
 	}
 
-	// Activate if requested.
+	$was_active = isset( $before_active[ $plugin_file ] ) && $before_active[ $plugin_file ];
 	$activated = false;
-	if ( ! empty( $input['activate'] ) || ! isset( $input['activate'] ) ) {
+	if ( $activate || $was_active ) {
 		$activate_result = activate_plugin( $plugin_file );
 		if ( is_wp_error( $activate_result ) ) {
 			return array(
@@ -814,12 +908,16 @@ function mcp_expose_install_plugin_zip( string $zip_path, array $input ): array 
 		$activated = true;
 	}
 
+	$all_plugins = get_plugins();
+	$version     = isset( $all_plugins[ $plugin_file ]['Version'] ) ? (string) $all_plugins[ $plugin_file ]['Version'] : '';
+
 	return array(
 		'success'   => true,
 		'message'   => $activated
 			? esc_html__( 'Plugin installed successfully and activated', 'mcp-expose-abilities' )
 			: esc_html__( 'Plugin installed successfully', 'mcp-expose-abilities' ),
 		'plugin'    => $plugin_file,
+		'version'   => $version,
 		'activated' => $activated,
 	);
 }
@@ -1324,6 +1422,8 @@ function mcp_expose_protected_option_names(): array {
 		'active_plugins',           // Can disable security plugins.
 		'siteurl',                  // Can break site access.
 		'home',                     // Can break site access.
+		'template',                 // Can break theme bootstrap.
+		'stylesheet',               // Can break theme bootstrap.
 		'users_can_register',       // Security: user registration.
 		'default_role',             // Security: new user privileges.
 		'admin_email',              // Security: site recovery email.
@@ -2238,6 +2338,10 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'message' => esc_html__( 'meta_input must be an object.', 'mcp-expose-abilities' ) );
 				}
 				$meta_input = $input['meta_input'];
+				$meta_guard = mcp_expose_validate_post_meta_write_policy( $meta_input );
+				if ( is_wp_error( $meta_guard ) ) {
+					return array( 'success' => false, 'message' => esc_html( $meta_guard->get_error_message() ) );
+				}
 			}
 
 			$post_id = wp_insert_post( $post_data, true );
@@ -2247,7 +2351,7 @@ function mcp_register_content_abilities(): void {
 			}
 
 			if ( null !== $meta_input ) {
-				$meta_permission = mcp_expose_validate_post_meta_permissions( (int) $post_id, $meta_input );
+				$meta_permission = mcp_expose_validate_post_meta_write_policy( $meta_input, (int) $post_id );
 				if ( is_wp_error( $meta_permission ) ) {
 					wp_delete_post( (int) $post_id, true );
 					return array( 'success' => false, 'message' => esc_html( $meta_permission->get_error_message() ) );
@@ -2479,7 +2583,7 @@ function mcp_register_content_abilities(): void {
 					if ( ! is_array( $input['meta_input'] ) ) {
 						return array( 'success' => false, 'message' => esc_html__( 'meta_input must be an object.', 'mcp-expose-abilities' ) );
 					}
-					$meta_permission = mcp_expose_validate_post_meta_permissions( (int) $post->ID, $input['meta_input'] );
+					$meta_permission = mcp_expose_validate_post_meta_write_policy( $input['meta_input'], (int) $post->ID );
 					if ( is_wp_error( $meta_permission ) ) {
 						return array( 'success' => false, 'message' => esc_html( $meta_permission->get_error_message() ) );
 					}
@@ -2585,7 +2689,7 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'message' => esc_html__( 'Permission denied to edit this post.', 'mcp-expose-abilities' ) );
 				}
 
-				$meta_permission = mcp_expose_validate_post_meta_permissions( $post_id, $input['meta'] );
+				$meta_permission = mcp_expose_validate_post_meta_write_policy( $input['meta'], $post_id );
 				if ( is_wp_error( $meta_permission ) ) {
 					return array( 'success' => false, 'message' => esc_html( $meta_permission->get_error_message() ) );
 				}
@@ -2672,7 +2776,7 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'message' => esc_html__( 'Permission denied to edit this post.', 'mcp-expose-abilities' ) );
 				}
 
-				$meta_permission = mcp_expose_validate_post_meta_permissions( $post_id, $input['meta'], 'delete_post_meta' );
+				$meta_permission = mcp_expose_validate_post_meta_write_policy( $input['meta'], $post_id, 'delete_post_meta' );
 				if ( is_wp_error( $meta_permission ) ) {
 					return array( 'success' => false, 'message' => esc_html( $meta_permission->get_error_message() ) );
 				}
@@ -4748,6 +4852,7 @@ function mcp_register_content_abilities(): void {
 						'default'     => true,
 						'description' => 'Overwrite existing plugin if it exists.',
 					),
+					'confirm_dangerous_action' => mcp_expose_dangerous_action_confirmation_schema( 'plugins/upload' ),
 				),
 				'additionalProperties' => false,
 			),
@@ -4762,6 +4867,20 @@ function mcp_register_content_abilities(): void {
 			),
 				'execute_callback'    => function ( $input = array() ): array {
 					$input = is_array( $input ) ? $input : array();
+					$code_write_error = mcp_expose_plugin_code_write_error_response(
+						mcp_expose_require_plugin_code_write_enabled( 'plugins/upload' ),
+						'plugins/upload'
+					);
+					if ( null !== $code_write_error ) {
+						return $code_write_error;
+					}
+					$confirmation_error = mcp_expose_dangerous_action_error_response(
+						mcp_expose_confirm_dangerous_action( $input, 'plugins/upload' ),
+						'plugins/upload'
+					);
+					if ( null !== $confirmation_error ) {
+						return $confirmation_error;
+					}
 
 					if ( empty( $input['url'] ) ) {
 						return array( 'success' => false, 'message' => esc_html__( 'Plugin URL is required', 'mcp-expose-abilities' ) );
@@ -4844,6 +4963,7 @@ function mcp_register_content_abilities(): void {
 						'default'     => true,
 						'description' => 'Overwrite existing plugin if it exists.',
 					),
+					'confirm_dangerous_action' => mcp_expose_dangerous_action_confirmation_schema( 'plugins/upload-base64' ),
 				),
 				'additionalProperties' => false,
 			),
@@ -4858,6 +4978,20 @@ function mcp_register_content_abilities(): void {
 			),
 				'execute_callback'    => function ( $input = array() ): array {
 					$input = is_array( $input ) ? $input : array();
+					$code_write_error = mcp_expose_plugin_code_write_error_response(
+						mcp_expose_require_plugin_code_write_enabled( 'plugins/upload-base64' ),
+						'plugins/upload-base64'
+					);
+					if ( null !== $code_write_error ) {
+						return $code_write_error;
+					}
+					$confirmation_error = mcp_expose_dangerous_action_error_response(
+						mcp_expose_confirm_dangerous_action( $input, 'plugins/upload-base64' ),
+						'plugins/upload-base64'
+					);
+					if ( null !== $confirmation_error ) {
+						return $confirmation_error;
+					}
 
 					if ( ! empty( $input['zip_path'] ) ) {
 						$zip_path = wp_normalize_path( $input['zip_path'] );
@@ -5106,6 +5240,7 @@ function mcp_register_content_abilities(): void {
 						'default'     => false,
 						'description' => 'Reinstall the plugin if it is already installed.',
 					),
+					'confirm_dangerous_action' => mcp_expose_dangerous_action_confirmation_schema( 'plugins/install-directory' ),
 				),
 				'additionalProperties' => false,
 			),
@@ -5123,6 +5258,20 @@ function mcp_register_content_abilities(): void {
 			),
 			'execute_callback'    => function ( $input = array() ): array {
 				$input = is_array( $input ) ? $input : array();
+				$code_write_error = mcp_expose_plugin_code_write_error_response(
+					mcp_expose_require_plugin_code_write_enabled( 'plugins/install-directory' ),
+					'plugins/install-directory'
+				);
+				if ( null !== $code_write_error ) {
+					return $code_write_error;
+				}
+				$confirmation_error = mcp_expose_dangerous_action_error_response(
+					mcp_expose_confirm_dangerous_action( $input, 'plugins/install-directory' ),
+					'plugins/install-directory'
+				);
+				if ( null !== $confirmation_error ) {
+					return $confirmation_error;
+				}
 				$slug  = isset( $input['slug'] ) ? sanitize_key( (string) $input['slug'] ) : '';
 				if ( '' === $slug ) {
 					return array( 'success' => false, 'message' => esc_html__( 'slug is required', 'mcp-expose-abilities' ) );
@@ -5313,6 +5462,7 @@ function mcp_register_content_abilities(): void {
 						'type'        => 'string',
 						'description' => 'Plugin file path (e.g., "plugin-folder/plugin-file.php").',
 					),
+					'confirm_dangerous_action' => mcp_expose_dangerous_action_confirmation_schema( 'plugins/update' ),
 				),
 				'required'             => array( 'plugin' ),
 				'additionalProperties' => false,
@@ -5332,6 +5482,20 @@ function mcp_register_content_abilities(): void {
 				),
 			),
 			'execute_callback'    => function ( array $input ): array {
+				$code_write_error = mcp_expose_plugin_code_write_error_response(
+					mcp_expose_require_plugin_code_write_enabled( 'plugins/update' ),
+					'plugins/update'
+				);
+				if ( null !== $code_write_error ) {
+					return $code_write_error;
+				}
+				$confirmation_error = mcp_expose_dangerous_action_error_response(
+					mcp_expose_confirm_dangerous_action( $input, 'plugins/update' ),
+					'plugins/update'
+				);
+				if ( null !== $confirmation_error ) {
+					return $confirmation_error;
+				}
 				if ( empty( $input['plugin'] ) ) {
 					return array( 'success' => false, 'message' => esc_html__( 'Plugin parameter is required', 'mcp-expose-abilities' ) );
 				}
@@ -5428,6 +5592,7 @@ function mcp_register_content_abilities(): void {
 						'type'        => 'string',
 						'description' => 'Plugin file path (e.g., "plugin-folder/plugin-file.php").',
 					),
+					'confirm_dangerous_action' => mcp_expose_dangerous_action_confirmation_schema( 'plugins/delete' ),
 				),
 				'required'             => array( 'plugin' ),
 				'additionalProperties' => false,
@@ -5440,6 +5605,20 @@ function mcp_register_content_abilities(): void {
 				),
 			),
 			'execute_callback'    => function ( array $input ): array {
+				$code_write_error = mcp_expose_plugin_code_write_error_response(
+					mcp_expose_require_plugin_code_write_enabled( 'plugins/delete' ),
+					'plugins/delete'
+				);
+				if ( null !== $code_write_error ) {
+					return $code_write_error;
+				}
+				$confirmation_error = mcp_expose_dangerous_action_error_response(
+					mcp_expose_confirm_dangerous_action( $input, 'plugins/delete' ),
+					'plugins/delete'
+				);
+				if ( null !== $confirmation_error ) {
+					return $confirmation_error;
+				}
 				if ( empty( $input['plugin'] ) ) {
 					return array( 'success' => false, 'message' => esc_html__( 'Plugin parameter is required', 'mcp-expose-abilities' ) );
 				}
@@ -7895,6 +8074,7 @@ function mcp_register_content_abilities(): void {
 						'type'        => 'string',
 						'description' => 'Optional: If the option is an array, update only this specific key within it.',
 					),
+					'confirm_dangerous_action' => mcp_expose_dangerous_action_confirmation_schema( 'options/update' ),
 				),
 				'required'             => array( 'name', 'value' ),
 				'additionalProperties' => false,
@@ -7911,6 +8091,13 @@ function mcp_register_content_abilities(): void {
 			),
 			'execute_callback'    => function ( $input = array() ): array {
 				$input = is_array( $input ) ? $input : array();
+				$confirmation_error = mcp_expose_dangerous_action_error_response(
+					mcp_expose_confirm_dangerous_action( $input, 'options/update' ),
+					'options/update'
+				);
+				if ( null !== $confirmation_error ) {
+					return $confirmation_error;
+				}
 
 				if ( empty( $input['name'] ) ) {
 					return array( 'success' => false, 'name' => '', 'message' => esc_html__( 'Missing required parameter: name', 'mcp-expose-abilities' ) );
