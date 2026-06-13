@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.49
+ * Version: 3.0.50
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -154,6 +154,67 @@ function mcp_expose_require_plugin_code_write_enabled( string $ability_name ) {
 			'MCP_EXPOSE_ENABLE_PLUGIN_CODE_WRITES'
 		)
 	);
+}
+
+/**
+ * Check whether a plugin update is explicitly gated by the Devenia MCP updater manifest.
+ *
+ * This keeps generic plugin code writes disabled while allowing WordPress-native
+ * updates for Devenia-managed packages that have already passed the updater's
+ * manifest/package/hash/Plugin Check gates.
+ *
+ * @param string $plugin_file Plugin file path.
+ * @return bool
+ */
+function mcp_expose_is_devenia_manifest_plugin_update( string $plugin_file ): bool {
+	if ( ! function_exists( 'devenia_mcp_updater_manifest_plugins' ) ) {
+		return false;
+	}
+
+	$manifest_plugins = devenia_mcp_updater_manifest_plugins( true );
+	if ( ! isset( $manifest_plugins[ $plugin_file ] ) || ! is_array( $manifest_plugins[ $plugin_file ] ) ) {
+		return false;
+	}
+
+	$manifest_entry = $manifest_plugins[ $plugin_file ];
+	if ( empty( $manifest_entry['autoUpdate'] ) ) {
+		return false;
+	}
+
+	$manifest_package = isset( $manifest_entry['package'] ) ? (string) $manifest_entry['package'] : '';
+	$manifest_version = isset( $manifest_entry['version'] ) ? (string) $manifest_entry['version'] : '';
+	if ( '' === $manifest_package || '' === $manifest_version ) {
+		return false;
+	}
+
+	wp_clean_plugins_cache( true );
+	wp_update_plugins();
+
+	$updates = get_site_transient( 'update_plugins' );
+	if ( ! is_object( $updates ) || empty( $updates->response ) || ! is_array( $updates->response ) || ! isset( $updates->response[ $plugin_file ] ) ) {
+		return false;
+	}
+
+	$update_item    = $updates->response[ $plugin_file ];
+	$update_package = isset( $update_item->package ) ? (string) $update_item->package : '';
+	$update_version = isset( $update_item->new_version ) ? (string) $update_item->new_version : '';
+
+	return hash_equals( $manifest_package, $update_package ) && hash_equals( $manifest_version, $update_version );
+}
+
+/**
+ * Require either global plugin-code-write opt-in or a manifest-gated update.
+ *
+ * @param string $ability_name Ability name.
+ * @param string $plugin_file  Plugin file path.
+ * @return true|WP_Error
+ */
+function mcp_expose_require_plugin_update_allowed( string $ability_name, string $plugin_file ) {
+	if ( mcp_expose_plugin_code_writes_enabled() || mcp_expose_is_devenia_manifest_plugin_update( $plugin_file ) ) {
+		return true;
+	}
+
+	return mcp_expose_require_plugin_code_write_enabled( $ability_name );
 }
 
 /**
@@ -511,7 +572,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.49');
+define('MCP_VERSION', '3.0.50');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -5482,13 +5543,11 @@ function mcp_register_content_abilities(): void {
 				),
 			),
 			'execute_callback'    => function ( array $input ): array {
-				$code_write_error = mcp_expose_plugin_code_write_error_response(
-					mcp_expose_require_plugin_code_write_enabled( 'plugins/update' ),
-					'plugins/update'
-				);
-				if ( null !== $code_write_error ) {
-					return $code_write_error;
+				if ( empty( $input['plugin'] ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Plugin parameter is required', 'mcp-expose-abilities' ) );
 				}
+				$plugin_file = (string) $input['plugin'];
+
 				$confirmation_error = mcp_expose_dangerous_action_error_response(
 					mcp_expose_confirm_dangerous_action( $input, 'plugins/update' ),
 					'plugins/update'
@@ -5496,11 +5555,16 @@ function mcp_register_content_abilities(): void {
 				if ( null !== $confirmation_error ) {
 					return $confirmation_error;
 				}
-				if ( empty( $input['plugin'] ) ) {
-					return array( 'success' => false, 'message' => esc_html__( 'Plugin parameter is required', 'mcp-expose-abilities' ) );
+
+				$code_write_error = mcp_expose_plugin_code_write_error_response(
+					mcp_expose_require_plugin_update_allowed( 'plugins/update', $plugin_file ),
+					'plugins/update'
+				);
+				if ( null !== $code_write_error ) {
+					return $code_write_error;
 				}
 
-				return mcp_expose_update_plugin( (string) $input['plugin'] );
+				return mcp_expose_update_plugin( $plugin_file );
 			},
 			'permission_callback' => function (): bool {
 				return current_user_can( 'update_plugins' );

@@ -3,7 +3,7 @@ Contributors: devenia
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.0
-Stable tag: 3.0.49
+Stable tag: 3.0.50
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -34,6 +34,9 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 5. (Optional) Install add-on plugins for vendor-specific features
 
 == Changelog ==
+
+= 3.0.50 =
+* Security: `plugins/update` can run through MCP only for Devenia manifest-managed packages with explicit confirmation; generic plugin code writes remain disabled by default.
 
 = 3.0.49 =
 * Security: `options/update` now blocks theme bootstrap options `template` and `stylesheet`.

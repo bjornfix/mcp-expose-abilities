@@ -96,6 +96,10 @@ expect_plugin_code_write_disabled \
   "plugins/install-directory" \
   '{"slug":"hello-dolly","activate":false,"overwrite":false,"confirm_dangerous_action":"plugins/install-directory"}'
 
+expect_dangerous_action_block \
+  "plugins/update" \
+  '{"plugin":"hello.php"}'
+
 expect_plugin_code_write_disabled \
   "plugins/update" \
   '{"plugin":"hello.php","confirm_dangerous_action":"plugins/update"}'
