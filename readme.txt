@@ -3,7 +3,7 @@ Contributors: devenia
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.0
-Stable tag: 3.0.54
+Stable tag: 3.0.55
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -34,6 +34,9 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 5. (Optional) Install add-on plugins for vendor-specific features
 
 == Changelog ==
+
+= 3.0.55 =
+* Fixed: `content/patch-page` and `content/patch-post` now use a short per-post write lock so concurrent patch calls against the same item cannot overwrite each other with stale content.
 
 = 3.0.54 =
 * Added: `system/ability-timings` exposes a bounded read-only log of slow or failed ability calls.

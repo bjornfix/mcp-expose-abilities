@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.54
+ * Version: 3.0.55
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -449,6 +449,77 @@ function mcp_expose_validate_content_design_markup_preserved( string $old_conten
 			implode( ', ', $lost )
 		)
 	);
+}
+
+/**
+ * Acquire a short-lived per-post write lock for read-modify-write abilities.
+ *
+ * This prevents concurrent patch calls from reading the same old content and
+ * then overwriting each other with stale saves.
+ *
+ * @param int    $post_id   Post ID being modified.
+ * @param string $operation Ability/operation name.
+ * @param int    $ttl       Lock lifetime in seconds.
+ * @return string|WP_Error Lock token or error.
+ */
+function mcp_expose_acquire_post_write_lock( int $post_id, string $operation, int $ttl = 30 ) {
+	$option_name = 'mcp_expose_post_write_lock_' . $post_id;
+	$now         = time();
+	$existing    = get_option( $option_name );
+
+	if ( is_array( $existing ) && isset( $existing['expires_at'] ) && (int) $existing['expires_at'] <= $now ) {
+		delete_option( $option_name );
+		$existing = false;
+	}
+
+	if ( is_array( $existing ) ) {
+		$existing_operation = isset( $existing['operation'] ) ? (string) $existing['operation'] : 'another write operation';
+		return new WP_Error(
+			'mcp_post_write_lock_active',
+			sprintf(
+				/* translators: 1: Post ID, 2: Operation name. */
+				__( 'Post %1$d is already being modified by %2$s. Retry after the current write completes; do not run concurrent patch calls against the same post.', 'mcp-expose-abilities' ),
+				$post_id,
+				$existing_operation
+			)
+		);
+	}
+
+	$token = wp_generate_uuid4();
+	$lock  = array(
+		'token'      => $token,
+		'operation'  => $operation,
+		'created_at' => $now,
+		'expires_at' => $now + max( 5, $ttl ),
+	);
+
+	if ( add_option( $option_name, $lock, '', 'no' ) ) {
+		return $token;
+	}
+
+	return new WP_Error(
+		'mcp_post_write_lock_active',
+		sprintf(
+			/* translators: %d: Post ID. */
+			__( 'Post %d is already being modified. Retry after the current write completes; do not run concurrent patch calls against the same post.', 'mcp-expose-abilities' ),
+			$post_id
+		)
+	);
+}
+
+/**
+ * Release a per-post write lock created by mcp_expose_acquire_post_write_lock().
+ *
+ * @param int    $post_id Post ID.
+ * @param string $token   Lock token.
+ */
+function mcp_expose_release_post_write_lock( int $post_id, string $token ): void {
+	$option_name = 'mcp_expose_post_write_lock_' . $post_id;
+	$existing    = get_option( $option_name );
+
+	if ( is_array( $existing ) && isset( $existing['token'] ) && hash_equals( (string) $existing['token'], $token ) ) {
+		delete_option( $option_name );
+	}
 }
 
 // ============================================================================
@@ -4303,62 +4374,72 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'message' => esc_html__( 'Replace string is required', 'mcp-expose-abilities' ) );
 				}
 
-				$page = get_post( $input['id'] );
-				if ( ! $page || 'page' !== $page->post_type ) {
-					return array( 'success' => false, 'message' => esc_html__( 'Page not found', 'mcp-expose-abilities' ) );
+				$post_id    = (int) $input['id'];
+				$lock_token = mcp_expose_acquire_post_write_lock( $post_id, 'content/patch-page' );
+				if ( is_wp_error( $lock_token ) ) {
+					return array( 'success' => false, 'message' => esc_html( $lock_token->get_error_message() ) );
 				}
 
-				$content   = $page->post_content;
-				$find      = $input['find'];
-				$replace   = $input['replace'];
-				$use_regex = ! empty( $input['regex'] );
-				$limit     = isset( $input['limit'] ) ? (int) $input['limit'] : -1;
-				$count     = 0;
-
-				if ( $use_regex ) {
-					$new_content = preg_replace( $find, $replace, $content, -1, $count );
-					if ( null === $new_content ) {
-						return array( 'success' => false, 'message' => esc_html__( 'Invalid regex pattern', 'mcp-expose-abilities' ) );
+				try {
+					$page = get_post( $post_id );
+					if ( ! $page || 'page' !== $page->post_type ) {
+						return array( 'success' => false, 'message' => esc_html__( 'Page not found', 'mcp-expose-abilities' ) );
 					}
-				} else {
-					if ( -1 === $limit ) {
-						$new_content = str_replace( $find, $replace, $content, $count );
+
+					$content   = $page->post_content;
+					$find      = $input['find'];
+					$replace   = $input['replace'];
+					$use_regex = ! empty( $input['regex'] );
+					$limit     = isset( $input['limit'] ) ? (int) $input['limit'] : -1;
+					$count     = 0;
+
+					if ( $use_regex ) {
+						$new_content = preg_replace( $find, $replace, $content, -1, $count );
+						if ( null === $new_content ) {
+							return array( 'success' => false, 'message' => esc_html__( 'Invalid regex pattern', 'mcp-expose-abilities' ) );
+						}
 					} else {
-						$new_content = preg_replace( '/' . preg_quote( $find, '/' ) . '/', $replace, $content, $limit, $count );
+						if ( -1 === $limit ) {
+							$new_content = str_replace( $find, $replace, $content, $count );
+						} else {
+							$new_content = preg_replace( '/' . preg_quote( $find, '/' ) . '/', $replace, $content, $limit, $count );
+						}
 					}
-				}
 
-				if ( 0 === $count ) {
+					if ( 0 === $count ) {
+						return array(
+							'success'      => true,
+							'id'           => $post_id,
+							'replacements' => 0,
+							'message'      => 'No matches found - content unchanged',
+							'link'         => get_permalink( $post_id ),
+						);
+					}
+
+					$design_guard = mcp_expose_validate_content_design_markup_preserved( (string) $content, (string) $new_content, $input );
+					if ( is_wp_error( $design_guard ) ) {
+						return array( 'success' => false, 'message' => esc_html( $design_guard->get_error_message() ) );
+					}
+
+					$result = wp_update_post( array(
+						'ID'           => $post_id,
+						'post_content' => $new_content,
+					), true );
+
+					if ( is_wp_error( $result ) ) {
+						return array( 'success' => false, 'message' => esc_html( $result->get_error_message() ) );
+					}
+
 					return array(
 						'success'      => true,
-						'id'           => $input['id'],
-						'replacements' => 0,
-						'message'      => 'No matches found - content unchanged',
-						'link'         => get_permalink( $input['id'] ),
+						'id'           => $post_id,
+						'replacements' => $count,
+						'message'      => "Successfully replaced {$count} occurrence(s)",
+						'link'         => get_permalink( $post_id ),
 					);
+				} finally {
+					mcp_expose_release_post_write_lock( $post_id, $lock_token );
 				}
-
-				$design_guard = mcp_expose_validate_content_design_markup_preserved( (string) $content, (string) $new_content, $input );
-				if ( is_wp_error( $design_guard ) ) {
-					return array( 'success' => false, 'message' => esc_html( $design_guard->get_error_message() ) );
-				}
-
-				$result = wp_update_post( array(
-					'ID'           => $input['id'],
-					'post_content' => $new_content,
-				), true );
-
-				if ( is_wp_error( $result ) ) {
-					return array( 'success' => false, 'message' => esc_html( $result->get_error_message() ) );
-				}
-
-				return array(
-					'success'      => true,
-					'id'           => $input['id'],
-					'replacements' => $count,
-					'message'      => "Successfully replaced {$count} occurrence(s)",
-					'link'         => get_permalink( $input['id'] ),
-				);
 			},
 			'permission_callback' => function (): bool {
 				return current_user_can( 'edit_pages' );
@@ -5109,75 +5190,85 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'message' => esc_html__( 'Replace string is required', 'mcp-expose-abilities' ) );
 				}
 
-				$post = get_post( $input['id'] );
-				if ( ! $post ) {
-					return array( 'success' => false, 'message' => esc_html__( 'Post not found', 'mcp-expose-abilities' ) );
+				$post_id    = (int) $input['id'];
+				$lock_token = mcp_expose_acquire_post_write_lock( $post_id, 'content/patch-post' );
+				if ( is_wp_error( $lock_token ) ) {
+					return array( 'success' => false, 'message' => esc_html( $lock_token->get_error_message() ) );
 				}
 
-				$content     = $post->post_content;
-				$find        = $input['find'];
-				$replace     = $input['replace'];
-				$use_regex   = ! empty( $input['regex'] );
-				$limit       = $input['limit'] ?? -1;
-				$count       = 0;
-
-				if ( $use_regex ) {
-					// Regex mode
-					$new_content = preg_replace( $find, $replace, $content, -1, $count );
-					if ( null === $new_content ) {
-						return array( 'success' => false, 'message' => esc_html__( 'Invalid regex pattern', 'mcp-expose-abilities' ) );
+				try {
+					$post = get_post( $post_id );
+					if ( ! $post ) {
+						return array( 'success' => false, 'message' => esc_html__( 'Post not found', 'mcp-expose-abilities' ) );
 					}
-				} else {
-					// Plain text mode with optional limit
-					if ( $limit === -1 ) {
-						$new_content = str_replace( $find, $replace, $content, $count );
+
+					$content   = $post->post_content;
+					$find      = $input['find'];
+					$replace   = $input['replace'];
+					$use_regex = ! empty( $input['regex'] );
+					$limit     = $input['limit'] ?? -1;
+					$count     = 0;
+
+					if ( $use_regex ) {
+						// Regex mode.
+						$new_content = preg_replace( $find, $replace, $content, -1, $count );
+						if ( null === $new_content ) {
+							return array( 'success' => false, 'message' => esc_html__( 'Invalid regex pattern', 'mcp-expose-abilities' ) );
+						}
 					} else {
-						// Manual limited replacement
-						$new_content = $content;
-						$count       = 0;
-						$pos         = 0;
-						while ( $count < $limit && ( $pos = strpos( $new_content, $find, $pos ) ) !== false ) {
-							$new_content = substr_replace( $new_content, $replace, $pos, strlen( $find ) );
-							$pos        += strlen( $replace );
-							$count++;
+						// Plain text mode with optional limit.
+						if ( $limit === -1 ) {
+							$new_content = str_replace( $find, $replace, $content, $count );
+						} else {
+							// Manual limited replacement.
+							$new_content = $content;
+							$count       = 0;
+							$pos         = 0;
+							while ( $count < $limit && ( $pos = strpos( $new_content, $find, $pos ) ) !== false ) {
+								$new_content = substr_replace( $new_content, $replace, $pos, strlen( $find ) );
+								$pos        += strlen( $replace );
+								$count++;
+							}
 						}
 					}
-				}
 
-				if ( $count === 0 ) {
+					if ( $count === 0 ) {
+						return array(
+							'success'      => true,
+							'id'           => $post_id,
+							'replacements' => 0,
+							'message'      => 'No matches found - content unchanged',
+							'link'         => get_permalink( $post_id ),
+						);
+					}
+
+					$design_guard = mcp_expose_validate_content_design_markup_preserved( (string) $content, (string) $new_content, $input );
+					if ( is_wp_error( $design_guard ) ) {
+						return array( 'success' => false, 'message' => esc_html( $design_guard->get_error_message() ) );
+					}
+
+					$result = wp_update_post(
+						array(
+							'ID'           => $post_id,
+							'post_content' => $new_content,
+						),
+						true
+					);
+
+					if ( is_wp_error( $result ) ) {
+						return array( 'success' => false, 'message' => esc_html( $result->get_error_message() ) );
+					}
+
 					return array(
 						'success'      => true,
-						'id'           => $post->ID,
-						'replacements' => 0,
-						'message'      => 'No matches found - content unchanged',
-						'link'         => get_permalink( $post->ID ),
+						'id'           => $post_id,
+						'replacements' => $count,
+						'message'      => "Successfully replaced {$count} occurrence(s)",
+						'link'         => get_permalink( $post_id ),
 					);
+				} finally {
+					mcp_expose_release_post_write_lock( $post_id, $lock_token );
 				}
-
-				$design_guard = mcp_expose_validate_content_design_markup_preserved( (string) $content, (string) $new_content, $input );
-				if ( is_wp_error( $design_guard ) ) {
-					return array( 'success' => false, 'message' => esc_html( $design_guard->get_error_message() ) );
-				}
-
-				$result = wp_update_post(
-					array(
-						'ID'           => $post->ID,
-						'post_content' => $new_content,
-					),
-					true
-				);
-
-				if ( is_wp_error( $result ) ) {
-					return array( 'success' => false, 'message' => esc_html( $result->get_error_message() ) );
-				}
-
-				return array(
-					'success'      => true,
-					'id'           => $post->ID,
-					'replacements' => $count,
-					'message'      => "Successfully replaced {$count} occurrence(s)",
-					'link'         => get_permalink( $post->ID ),
-				);
 			},
 			'permission_callback' => function (): bool {
 				return current_user_can( 'edit_posts' );
