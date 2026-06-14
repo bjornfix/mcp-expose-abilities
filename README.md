@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 7.0
-**Stable tag:** 3.0.55
+**Stable tag:** 3.0.56
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -609,6 +609,9 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.56
+- Added: MCP Adapter transport requests are now recorded in `system/ability-timings` when they fail or exceed the timing threshold, including method/tool context for discovery and `tools/list` diagnostics.
 
 ### 3.0.55
 - Fixed: `content/patch-page` and `content/patch-post` now use a short per-post write lock so concurrent patch calls against the same item cannot overwrite each other with stale content.

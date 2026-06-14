@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.55
+ * Version: 3.0.56
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -48,6 +48,73 @@ function mcp_expose_filter_mcp_transport_capability(): string {
 
 add_filter( 'mcp_adapter_default_transport_permission_user_capability', 'mcp_expose_filter_mcp_transport_capability', 20 );
 add_filter( 'mcp_adapter_execute_ability_capability', 'mcp_expose_filter_mcp_transport_capability', 20 );
+
+/**
+ * Install an MCP Adapter observability handler for the default server.
+ *
+ * The existing ability timing wrapper only sees calls that reach a WordPress
+ * ability callback. Transport-level failures, slow discovery calls, and adapter
+ * routing issues otherwise disappear when Cloudflare times out before a normal
+ * ability response is returned.
+ *
+ * @param array $config Default MCP adapter server config.
+ * @return array
+ */
+function mcp_expose_enable_adapter_observability( array $config ): array {
+	if ( ! interface_exists( '\WP\MCP\Infrastructure\Observability\Contracts\McpObservabilityHandlerInterface' ) ) {
+		return $config;
+	}
+
+	if ( ! class_exists( 'MCP_Expose_Adapter_Observability_Handler', false ) ) {
+		class MCP_Expose_Adapter_Observability_Handler implements \WP\MCP\Infrastructure\Observability\Contracts\McpObservabilityHandlerInterface {
+			/**
+			 * Record an MCP adapter event.
+			 *
+			 * @param string     $event       Event name.
+			 * @param array      $tags        Event tags.
+			 * @param float|null $duration_ms Duration in milliseconds.
+			 * @return void
+			 */
+			public function record_event( string $event, array $tags = array(), ?float $duration_ms = null ): void {
+				if ( 'mcp.request' !== $event || null === $duration_ms ) {
+					return;
+				}
+
+				$method = isset( $tags['method'] ) && is_scalar( $tags['method'] ) ? (string) $tags['method'] : 'unknown';
+				$params = isset( $tags['params'] ) && is_array( $tags['params'] ) ? $tags['params'] : array();
+				$tool   = isset( $params['name'] ) && is_scalar( $params['name'] ) ? (string) $params['name'] : '';
+
+				$details = array(
+					'success' => ! isset( $tags['status'] ) || 'error' !== (string) $tags['status'],
+					'code'    => isset( $tags['error_code'] ) ? (string) $tags['error_code'] : '',
+					'message' => '',
+					'context' => array(
+						'event'      => $event,
+						'method'     => $method,
+						'tool'       => $tool,
+						'status'     => isset( $tags['status'] ) && is_scalar( $tags['status'] ) ? (string) $tags['status'] : '',
+						'transport'  => isset( $tags['transport'] ) && is_scalar( $tags['transport'] ) ? (string) $tags['transport'] : '',
+						'server_id'  => isset( $tags['server_id'] ) && is_scalar( $tags['server_id'] ) ? (string) $tags['server_id'] : '',
+						'request_id' => isset( $tags['request_id'] ) && is_scalar( $tags['request_id'] ) ? (string) $tags['request_id'] : '',
+					),
+				);
+
+				$operation = '' !== $tool ? "{$method}:{$tool}" : $method;
+				mcp_expose_maybe_record_ability_timing(
+					'mcp.request/' . $operation,
+					$duration_ms,
+					$details,
+					0,
+					memory_get_peak_usage( true )
+				);
+			}
+		}
+	}
+
+	$config['observability_handler'] = 'MCP_Expose_Adapter_Observability_Handler';
+	return $config;
+}
+add_filter( 'mcp_adapter_default_server_config', 'mcp_expose_enable_adapter_observability', 20 );
 
 /**
  * Return input schema fragment for high-risk ability confirmation.
@@ -1815,7 +1882,7 @@ function mcp_expose_maybe_record_ability_timing( string $ability_name, float $du
 		$entries = array();
 	}
 
-	$entries[] = array(
+	$entry = array(
 		'timestamp'       => gmdate( 'c' ),
 		'ability'         => sanitize_text_field( $ability_name ),
 		'duration_ms'     => round( $duration_ms, 2 ),
@@ -1826,8 +1893,37 @@ function mcp_expose_maybe_record_ability_timing( string $ability_name, float $du
 		'memory_peak_mb'  => round( $memory_peak / 1048576, 2 ),
 	);
 
+	if ( isset( $details['context'] ) && is_array( $details['context'] ) ) {
+		$entry['context'] = mcp_expose_sanitize_timing_context( $details['context'] );
+	}
+
+	$entries[] = $entry;
+
 	$entries = array_slice( $entries, -50 );
 	update_option( 'mcp_expose_ability_timings', $entries, false );
+}
+
+/**
+ * Sanitize a compact diagnostic context for timing entries.
+ *
+ * @param array $context Raw context.
+ * @return array
+ */
+function mcp_expose_sanitize_timing_context( array $context ): array {
+	$allowed = array( 'event', 'method', 'tool', 'status', 'transport', 'server_id', 'request_id' );
+	$result  = array();
+
+	foreach ( $allowed as $key ) {
+		if ( ! isset( $context[ $key ] ) || ! is_scalar( $context[ $key ] ) ) {
+			continue;
+		}
+		$value = sanitize_text_field( (string) $context[ $key ] );
+		if ( '' !== $value ) {
+			$result[ $key ] = $value;
+		}
+	}
+
+	return $result;
 }
 
 /**
