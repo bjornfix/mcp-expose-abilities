@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.56
+ * Version: 3.0.57
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -48,6 +48,121 @@ function mcp_expose_filter_mcp_transport_capability(): string {
 
 add_filter( 'mcp_adapter_default_transport_permission_user_capability', 'mcp_expose_filter_mcp_transport_capability', 20 );
 add_filter( 'mcp_adapter_execute_ability_capability', 'mcp_expose_filter_mcp_transport_capability', 20 );
+
+/**
+ * Watch MCP HTTP requests from below the adapter layer.
+ *
+ * Adapter observability only helps once a request reaches the adapter router
+ * and the configured observability handler. A shutdown watcher gives us a
+ * second signal for long-running or fatal MCP REST requests without logging
+ * request bodies, ability arguments, authentication headers, or session data.
+ *
+ * @return void
+ */
+function mcp_expose_watch_mcp_http_request(): void {
+	if ( defined( 'WP_CLI' ) && constant( 'WP_CLI' ) ) {
+		return;
+	}
+
+	$uri = mcp_expose_get_server_text_value( 'REQUEST_URI' );
+	if ( ! mcp_expose_is_mcp_http_request_uri( $uri ) ) {
+		return;
+	}
+
+	$method       = mcp_expose_get_server_text_value( 'REQUEST_METHOD' );
+	$method       = '' !== $method ? strtoupper( $method ) : 'UNKNOWN';
+	$route        = mcp_expose_normalize_mcp_http_route( $uri );
+	$start        = microtime( true );
+	$start_memory = memory_get_usage( true );
+
+	register_shutdown_function(
+		static function () use ( $start, $start_memory, $method, $route ): void {
+			$duration_ms = ( microtime( true ) - $start ) * 1000;
+			$error       = error_get_last();
+			$fatal_types = array( E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR, E_RECOVERABLE_ERROR );
+			$is_fatal    = is_array( $error ) && isset( $error['type'] ) && in_array( (int) $error['type'], $fatal_types, true );
+			$threshold   = (float) apply_filters( 'mcp_expose_mcp_http_shutdown_threshold_ms', 10000.0 );
+
+			if ( ! $is_fatal && $duration_ms < $threshold ) {
+				return;
+			}
+
+			$status = $is_fatal ? 'fatal' : 'slow_shutdown';
+			$code   = $is_fatal ? 'php_fatal_shutdown' : 'slow_shutdown';
+
+			mcp_expose_maybe_record_ability_timing(
+				'mcp.http/' . $method . ' ' . $route,
+				$duration_ms,
+				array(
+					'success' => ! $is_fatal,
+					'code'    => $code,
+					'message' => $is_fatal && isset( $error['message'] ) ? (string) $error['message'] : '',
+					'context' => array(
+						'event'     => 'mcp.http.shutdown',
+						'method'    => $method,
+						'status'    => $status,
+						'transport' => 'http',
+						'server_id' => $route,
+					),
+				),
+				memory_get_usage( true ) - $start_memory,
+				memory_get_peak_usage( true )
+			);
+		}
+	);
+}
+add_action( 'init', 'mcp_expose_watch_mcp_http_request', 0 );
+
+/**
+ * Get a sanitized scalar value from the server environment.
+ *
+ * @param string $key Server key.
+ * @return string
+ */
+function mcp_expose_get_server_text_value( string $key ): string {
+	if ( ! isset( $_SERVER[ $key ] ) || ! is_scalar( $_SERVER[ $key ] ) ) {
+		return '';
+	}
+
+	return sanitize_text_field( wp_unslash( (string) $_SERVER[ $key ] ) );
+}
+
+/**
+ * Determine whether a request URI targets the MCP REST route.
+ *
+ * @param string $uri Request URI.
+ * @return bool
+ */
+function mcp_expose_is_mcp_http_request_uri( string $uri ): bool {
+	if ( '' === $uri ) {
+		return false;
+	}
+
+	return false !== strpos( $uri, '/wp-json/mcp/' ) || false !== strpos( $uri, 'rest_route=/mcp/' );
+}
+
+/**
+ * Normalize an MCP REST route for compact diagnostics.
+ *
+ * @param string $uri Request URI.
+ * @return string
+ */
+function mcp_expose_normalize_mcp_http_route( string $uri ): string {
+	$path = (string) wp_parse_url( $uri, PHP_URL_PATH );
+
+	if ( '' === $path && false !== strpos( $uri, 'rest_route=' ) ) {
+		parse_str( (string) wp_parse_url( $uri, PHP_URL_QUERY ), $query );
+		if ( isset( $query['rest_route'] ) && is_scalar( $query['rest_route'] ) ) {
+			$path = (string) $query['rest_route'];
+		}
+	}
+
+	$path = preg_replace( '#^/wp-json/#', '/', $path );
+	$path = preg_replace( '#/+#', '/', (string) $path );
+	$path = trim( (string) $path, '/' );
+
+	return '' !== $path ? sanitize_text_field( $path ) : 'mcp';
+}
 
 /**
  * Install an MCP Adapter observability handler for the default server.

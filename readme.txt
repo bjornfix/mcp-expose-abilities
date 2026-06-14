@@ -3,7 +3,7 @@ Contributors: devenia
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.0
-Stable tag: 3.0.56
+Stable tag: 3.0.57
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -34,6 +34,9 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 5. (Optional) Install add-on plugins for vendor-specific features
 
 == Changelog ==
+
+= 3.0.57 =
+* Added: MCP HTTP shutdown timing fallback records long-running or fatal MCP REST requests even when adapter-level observability does not fire.
 
 = 3.0.56 =
 * Added: MCP Adapter transport requests are now recorded in `system/ability-timings` when they fail or exceed the timing threshold, including method/tool context for discovery and `tools/list` diagnostics.
