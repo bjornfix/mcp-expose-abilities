@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.57
+ * Version: 3.0.58
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -336,6 +336,63 @@ function mcp_expose_require_plugin_code_write_enabled( string $ability_name ) {
 			'MCP_EXPOSE_ENABLE_PLUGIN_CODE_WRITES'
 		)
 	);
+}
+
+/**
+ * Check whether a plugin-upload URL belongs to the trusted Devenia downloads channel.
+ *
+ * This deliberately allows only root-level ZIP files from downloads.devenia.com.
+ * It rejects query strings, fragments, credentials, subdirectories, non-HTTPS,
+ * and all other hosts so the URL upload path cannot become a generic code-write
+ * entry point.
+ *
+ * @param string $url Candidate plugin package URL.
+ * @return bool
+ */
+function mcp_expose_is_devenia_downloads_plugin_upload_url( string $url ): bool {
+	$url = trim( $url );
+	if ( '' === $url ) {
+		return false;
+	}
+
+	$parts = wp_parse_url( $url );
+	if ( ! is_array( $parts ) ) {
+		return false;
+	}
+
+	$scheme = strtolower( (string) ( $parts['scheme'] ?? '' ) );
+	$host   = strtolower( (string) ( $parts['host'] ?? '' ) );
+	$path   = (string) ( $parts['path'] ?? '' );
+
+	if ( 'https' !== $scheme || 'downloads.devenia.com' !== $host ) {
+		return false;
+	}
+
+	foreach ( array( 'user', 'pass', 'query', 'fragment' ) as $disallowed_part ) {
+		if ( array_key_exists( $disallowed_part, $parts ) ) {
+			return false;
+		}
+	}
+
+	return 1 === preg_match( '#^/[A-Za-z0-9._-]+\.zip$#', $path );
+}
+
+/**
+ * Require code-write permission for plugin URL uploads.
+ *
+ * Global plugin code writes remain disabled unless explicitly enabled, but
+ * plugins/upload may install packages from the Devenia downloads channel.
+ *
+ * @param string $ability_name Ability name.
+ * @param string $url          Plugin package URL.
+ * @return true|WP_Error
+ */
+function mcp_expose_require_plugin_upload_allowed( string $ability_name, string $url ) {
+	if ( mcp_expose_plugin_code_writes_enabled() || mcp_expose_is_devenia_downloads_plugin_upload_url( $url ) ) {
+		return true;
+	}
+
+	return mcp_expose_require_plugin_code_write_enabled( $ability_name );
 }
 
 /**
@@ -5622,13 +5679,6 @@ function mcp_register_content_abilities(): void {
 			),
 				'execute_callback'    => function ( $input = array() ): array {
 					$input = is_array( $input ) ? $input : array();
-					$code_write_error = mcp_expose_plugin_code_write_error_response(
-						mcp_expose_require_plugin_code_write_enabled( 'plugins/upload' ),
-						'plugins/upload'
-					);
-					if ( null !== $code_write_error ) {
-						return $code_write_error;
-					}
 					$confirmation_error = mcp_expose_dangerous_action_error_response(
 						mcp_expose_confirm_dangerous_action( $input, 'plugins/upload' ),
 						'plugins/upload'
@@ -5639,6 +5689,14 @@ function mcp_register_content_abilities(): void {
 
 					if ( empty( $input['url'] ) ) {
 						return array( 'success' => false, 'message' => esc_html__( 'Plugin URL is required', 'mcp-expose-abilities' ) );
+					}
+
+					$code_write_error = mcp_expose_plugin_code_write_error_response(
+						mcp_expose_require_plugin_upload_allowed( 'plugins/upload', (string) $input['url'] ),
+						'plugins/upload'
+					);
+					if ( null !== $code_write_error ) {
+						return $code_write_error;
 					}
 
 					$url_check = mcp_expose_validate_remote_download_url( (string) $input['url'] );
