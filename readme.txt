@@ -3,7 +3,7 @@ Contributors: devenia
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.0
-Stable tag: 3.0.58
+Stable tag: 3.0.57
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -34,9 +34,6 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 5. (Optional) Install add-on plugins for vendor-specific features
 
 == Changelog ==
-
-= 3.0.58 =
-* Security: `plugins/upload` can run through MCP only for HTTPS ZIP packages directly under `downloads.devenia.com`; base64, local path, delete, and generic plugin writes remain disabled by default.
 
 = 3.0.57 =
 * Added: MCP HTTP shutdown timing fallback records long-running or fatal MCP REST requests even when adapter-level observability does not fire.
