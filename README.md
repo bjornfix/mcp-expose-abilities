@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 7.0
-**Stable tag:** 3.0.59
+**Stable tag:** 3.0.60
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -324,9 +324,9 @@ When something does not work, check in this order:
 - Validates local plugin ZIP signatures before unzip so corrupted `plugins/upload` or `plugins/upload-base64` payloads fail with a direct ZIP-validation error.
 - Intended to pair with the MCP proxy HTTP transport fix that raises the default JSON body limit for large base64 plugin uploads.
 
-## Core Plugin Abilities (67)
+## Core Plugin Abilities (68)
 
-### Content Management (24)
+### Content Management (25)
 
 | Ability | Description |
 |---------|-------------|
@@ -336,6 +336,7 @@ When something does not work, check in this order:
 | `content/create-post` | Create new post, including `featured_image_id` |
 | `content/update-post` | Update existing post, including `featured_image_id` |
 | `content/delete-post` | Delete post (trash or permanent) |
+| `content/restore-post` | Restore a post, page, or custom post type from trash |
 | `content/patch-post` | Find/replace in post content |
 | `content/list-pages` | List pages with filtering |
 | `content/get-page` | Get single page by ID or slug |
@@ -611,6 +612,10 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.60
+- Added: `content/list-posts` now supports `status:trash` for explicit trash inspection.
+- Added: `content/restore-post` restores posts, pages, and custom post types from trash with per-post edit permission checks.
 
 ### 3.0.59
 - Changed: plugin-code-write guards now pass structured ability name and input to a dedicated filter, allowing trusted upload gates without request-body parsing or stack inspection.

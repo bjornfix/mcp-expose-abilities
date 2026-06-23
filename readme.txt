@@ -1,9 +1,9 @@
 === MCP Expose Abilities ===
-Contributors: devenia
+Contributors: basicus
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.0
-Stable tag: 3.0.59
+Stable tag: 3.0.60
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -50,6 +50,10 @@ Install add-ons only when your site actually uses that product:
 * Store Locator: mcp-abilities-store-locator
 
 == Changelog ==
+
+= 3.0.60 =
+* Added: `content/list-posts` now supports `status:trash` for explicit trash inspection.
+* Added: `content/restore-post` restores posts, pages, and custom post types from trash with per-post edit permission checks.
 
 = 3.0.59 =
 * Changed: plugin-code-write guards now pass structured ability name and input to a dedicated filter, allowing trusted upload gates without request-body parsing or stack inspection.

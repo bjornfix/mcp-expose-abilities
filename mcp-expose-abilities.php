@@ -3,9 +3,9 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.59
- * Author: Bjorn Solstad
- * Author URI: https://devenia.com
+ * Version: 3.0.60
+ * Author: basicus
+ * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
  * License URI: http://www.gnu.org/licenses/gpl-2.0.txt
  * Requires at least: 6.9
@@ -765,6 +765,7 @@ function mcp_expose_release_post_write_lock( int $post_id, string $token ): void
 //   content/create-post                 Line 987   - Create new post
 //   content/update-post                 Line 1117  - Update existing post
 //   content/delete-post                 Line 1255  - Delete/trash post
+//   content/restore-post                - Restore a post, page, or custom post type from trash
 //   content/list-pages                  Line 1328  - List pages
 //   content/get-page                    Line 1442  - Get single page
 //   content/create-page                 Line 1545  - Create new page
@@ -840,7 +841,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.50');
+define('MCP_VERSION', '3.0.60');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -2650,7 +2651,7 @@ function mcp_register_content_abilities(): void {
 				'properties'           => array(
 					'status'      => array(
 						'type'        => 'string',
-						'enum'        => array( 'publish', 'draft', 'pending', 'private', 'future', 'any' ),
+						'enum'        => array( 'publish', 'draft', 'pending', 'private', 'future', 'trash', 'any' ),
 						'default'     => 'publish',
 						'description' => 'Filter by post status.',
 					),
@@ -3794,6 +3795,130 @@ function mcp_register_content_abilities(): void {
 					'readonly'    => false,
 					'destructive' => true,
 					'idempotent'  => false,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// POSTS - Restore from Trash
+	// =========================================================================
+	wp_register_ability(
+		'content/restore-post',
+		array(
+			'label'               => 'Restore Post',
+			'description'         => 'Restore a post, page, or custom post type from trash. Params: id (required), status (optional; defaults to previous status or draft).',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'required'             => array( 'id' ),
+				'properties'           => array(
+					'id'     => array(
+						'type'        => 'integer',
+						'description' => 'Post ID to restore from trash.',
+					),
+					'status' => array(
+						'type'        => 'string',
+						'enum'        => array( 'publish', 'draft', 'pending', 'private', 'future' ),
+						'description' => 'Optional post status to apply after restoring. Defaults to WordPress previous status when available.',
+					),
+				),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success'     => array( 'type' => 'boolean' ),
+					'id'          => array( 'type' => 'integer' ),
+					'post_type'   => array( 'type' => 'string' ),
+					'post_status' => array( 'type' => 'string' ),
+					'link'        => array( 'type' => 'string' ),
+					'message'     => array( 'type' => 'string' ),
+				),
+			),
+			'execute_callback'    => function ( $input = array() ): array {
+				$input = is_array( $input ) ? $input : array();
+
+				if ( empty( $input['id'] ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Post ID is required', 'mcp-expose-abilities' ) );
+				}
+
+				$post_id = (int) $input['id'];
+				$post    = get_post( $post_id );
+				if ( ! $post ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Post not found', 'mcp-expose-abilities' ) );
+				}
+
+				if ( 'trash' !== $post->post_status ) {
+					return array(
+						'success'     => true,
+						'id'          => $post_id,
+						'post_type'   => (string) $post->post_type,
+						'post_status' => (string) $post->post_status,
+						'link'        => get_permalink( $post_id ),
+						'message'     => esc_html__( 'Post is not in trash', 'mcp-expose-abilities' ),
+					);
+				}
+
+				if ( ! current_user_can( 'edit_post', $post_id ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Permission denied to restore this post.', 'mcp-expose-abilities' ) );
+				}
+
+				$lock_token = mcp_expose_acquire_post_write_lock( $post_id, 'content/restore-post' );
+				if ( is_wp_error( $lock_token ) ) {
+					return array( 'success' => false, 'message' => esc_html( $lock_token->get_error_message() ) );
+				}
+
+				try {
+					$restored = wp_untrash_post( $post_id );
+					if ( ! $restored ) {
+						return array( 'success' => false, 'message' => esc_html__( 'Post restore failed', 'mcp-expose-abilities' ) );
+					}
+
+					if ( isset( $input['status'] ) ) {
+						$status_result = wp_update_post(
+							array(
+								'ID'          => $post_id,
+								'post_status' => (string) $input['status'],
+							),
+							true
+						);
+
+						if ( is_wp_error( $status_result ) ) {
+							return array( 'success' => false, 'message' => esc_html( $status_result->get_error_message() ) );
+						}
+					}
+				} finally {
+					mcp_expose_release_post_write_lock( $post_id, $lock_token );
+				}
+
+				$restored_post = get_post( $post_id );
+				if ( ! $restored_post ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Restored post could not be read', 'mcp-expose-abilities' ) );
+				}
+
+				return array(
+					'success'     => true,
+					'id'          => $post_id,
+					'post_type'   => (string) $restored_post->post_type,
+					'post_status' => (string) $restored_post->post_status,
+					'link'        => get_permalink( $post_id ),
+					'message'     => esc_html__( 'Post restored successfully', 'mcp-expose-abilities' ),
+				);
+			},
+			'permission_callback' => function ( $input = array() ): bool {
+				$input = is_array( $input ) ? $input : array();
+				if ( empty( $input['id'] ) ) {
+					return current_user_can( 'edit_posts' ) || current_user_can( 'edit_pages' );
+				}
+
+				return current_user_can( 'edit_post', (int) $input['id'] );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => false,
+					'destructive' => false,
+					'idempotent'  => true,
 				),
 			),
 		)
