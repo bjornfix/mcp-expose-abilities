@@ -3,7 +3,7 @@ Contributors: devenia
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.0
-Stable tag: 3.0.57
+Stable tag: 3.0.59
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -33,7 +33,30 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 4. Activate the plugin
 5. (Optional) Install add-on plugins for vendor-specific features
 
+= Supported Add-ons =
+
+Install add-ons only when your site actually uses that product:
+
+* Elementor: mcp-abilities-elementor
+* GeneratePress / GenerateBlocks: mcp-abilities-generatepress
+* Cloudflare: mcp-abilities-cloudflare
+* Google Workspace: mcp-abilities-workspace
+* Rank Math: mcp-abilities-rankmath
+* Wordfence: mcp-abilities-wordfence
+* Brevo: mcp-abilities-brevo
+* Toolset: mcp-abilities-toolset
+* WPML / SitePress: mcp-abilities-sitepress
+* Formidable Forms: mcp-abilities-formidable
+* Store Locator: mcp-abilities-store-locator
+
 == Changelog ==
+
+= 3.0.59 =
+* Changed: plugin-code-write guards now pass structured ability name and input to a dedicated filter, allowing trusted upload gates without request-body parsing or stack inspection.
+* Fixed: plugin uploads with `overwrite:true` now recover from empty stale target directories left by failed installs.
+
+= 3.0.58 =
+* Added: `content/restore-revision` ability for restoring posts, pages, and custom post types through WordPress revisions without transporting block content through JSON.
 
 = 3.0.57 =
 * Added: MCP HTTP shutdown timing fallback records long-running or fatal MCP REST requests even when adapter-level observability does not fire.

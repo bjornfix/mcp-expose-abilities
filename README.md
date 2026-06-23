@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 7.0
-**Stable tag:** 3.0.57
+**Stable tag:** 3.0.59
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -173,8 +173,9 @@ Version 3.0 introduced a modular architecture. The core plugin provides WordPres
 | [MCP Abilities - Toolset](https://github.com/bjornfix/mcp-abilities-toolset) | 38 | Toolset post types, custom fields, taxonomies, relationships |
 | [MCP Abilities - SitePress](https://github.com/bjornfix/mcp-abilities-sitepress) | 10 | WPML translation mapping, language-switcher recovery, and QA checks |
 | [MCP Abilities - Formidable](https://github.com/bjornfix/mcp-abilities-formidable) | 6 | Formidable Forms settings, usage tracing, styles, and CSS cache controls |
+| [MCP Abilities - Store Locator](https://github.com/bjornfix/mcp-abilities-store-locator) | 9 | Store Locator settings, templates, store records, categories, and transient cleanup |
 
-**Total ecosystem: 288 abilities**
+**Total ecosystem: 297 abilities**
 
 Install only what you need. Running GeneratePress? Install that add-on. Don't use Elementor? Skip it.
 
@@ -217,6 +218,7 @@ Install add-ons only when your site actually uses that product:
 - Toolset site: install [`mcp-abilities-toolset`](https://github.com/bjornfix/mcp-abilities-toolset)
 - WPML site: install [`mcp-abilities-sitepress`](https://github.com/bjornfix/mcp-abilities-sitepress)
 - Formidable Forms site: install [`mcp-abilities-formidable`](https://github.com/bjornfix/mcp-abilities-formidable)
+- Store Locator site: install [`mcp-abilities-store-locator`](https://github.com/bjornfix/mcp-abilities-store-locator)
 
 Do not install every add-on by default. Most sites only need one or two.
 
@@ -609,6 +611,13 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.59
+- Changed: plugin-code-write guards now pass structured ability name and input to a dedicated filter, allowing trusted upload gates without request-body parsing or stack inspection.
+- Fixed: plugin uploads with `overwrite:true` now recover from empty stale target directories left by failed installs.
+
+### 3.0.58
+- Added: `content/restore-revision` ability for restoring posts, pages, and custom post types through WordPress revisions without transporting block content through JSON.
 
 ### 3.0.57
 - Added: MCP HTTP shutdown timing fallback records long-running or fatal MCP REST requests even when adapter-level observability does not fire.

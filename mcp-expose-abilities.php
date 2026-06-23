@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.57
+ * Version: 3.0.59
  * Author: Bjorn Solstad
  * Author URI: https://devenia.com
  * License: GPL-2.0+
@@ -300,9 +300,11 @@ function mcp_expose_dangerous_action_error_response( $result, string $ability_na
  * an MCP admin credential is stolen, so they require a server-side opt-in in
  * addition to per-call confirmation.
  *
+ * @param string              $ability_name Ability name currently being checked.
+ * @param array<string,mixed> $input        Ability input.
  * @return bool
  */
-function mcp_expose_plugin_code_writes_enabled(): bool {
+function mcp_expose_plugin_code_writes_enabled( string $ability_name = '', array $input = array() ): bool {
 	$enabled = defined( 'MCP_EXPOSE_ENABLE_PLUGIN_CODE_WRITES' ) && true === MCP_EXPOSE_ENABLE_PLUGIN_CODE_WRITES;
 
 	/**
@@ -313,17 +315,30 @@ function mcp_expose_plugin_code_writes_enabled(): bool {
 	 *
 	 * @param bool $enabled Whether plugin code writes are enabled.
 	 */
-	return (bool) apply_filters( 'mcp_expose_enable_plugin_code_writes', $enabled );
+	$enabled = (bool) apply_filters( 'mcp_expose_enable_plugin_code_writes', $enabled );
+
+	/**
+	 * Filter whether a specific MCP plugin code write ability is enabled.
+	 *
+	 * This gives trusted server-side gate plugins structured context without
+	 * requiring request-body parsing or stack inspection.
+	 *
+	 * @param bool                $enabled      Whether plugin code writes are enabled.
+	 * @param string              $ability_name Ability name currently being checked.
+	 * @param array<string,mixed> $input        Ability input.
+	 */
+	return (bool) apply_filters( 'mcp_expose_enable_plugin_code_write_ability', $enabled, $ability_name, $input );
 }
 
 /**
  * Require server-side opt-in for plugin install/update/delete abilities.
  *
- * @param string $ability_name Ability name.
+ * @param string              $ability_name Ability name.
+ * @param array<string,mixed> $input        Ability input.
  * @return true|WP_Error
  */
-function mcp_expose_require_plugin_code_write_enabled( string $ability_name ) {
-	if ( mcp_expose_plugin_code_writes_enabled() ) {
+function mcp_expose_require_plugin_code_write_enabled( string $ability_name, array $input = array() ) {
+	if ( mcp_expose_plugin_code_writes_enabled( $ability_name, $input ) ) {
 		return true;
 	}
 
@@ -392,7 +407,7 @@ function mcp_expose_is_devenia_manifest_plugin_update( string $plugin_file ): bo
  * @return true|WP_Error
  */
 function mcp_expose_require_plugin_update_allowed( string $ability_name, string $plugin_file ) {
-	if ( mcp_expose_plugin_code_writes_enabled() || mcp_expose_is_devenia_manifest_plugin_update( $plugin_file ) ) {
+	if ( mcp_expose_plugin_code_writes_enabled( $ability_name ) || mcp_expose_is_devenia_manifest_plugin_update( $plugin_file ) ) {
 		return true;
 	}
 
@@ -1059,6 +1074,162 @@ function mcp_expose_validate_local_plugin_zip( string $zip_path ) {
 }
 
 /**
+ * Resolve the single top-level directory from a plugin ZIP.
+ *
+ * @param string $zip_path Path to the local zip file.
+ * @return string Empty string when the ZIP has no single safe root directory.
+ */
+function mcp_expose_get_plugin_zip_root_directory( string $zip_path ): string {
+	if ( ! class_exists( 'ZipArchive' ) ) {
+		return '';
+	}
+
+	$zip = new ZipArchive();
+	if ( true !== $zip->open( $zip_path, ZipArchive::CHECKCONS ) ) {
+		return '';
+	}
+
+	$root = '';
+	for ( $i = 0; $i < $zip->numFiles; $i++ ) {
+		$name = (string) $zip->getNameIndex( $i );
+		$name = trim( wp_normalize_path( $name ), '/' );
+		if ( '' === $name || str_contains( $name, '../' ) ) {
+			continue;
+		}
+
+		$parts = explode( '/', $name );
+		if ( empty( $parts[0] ) ) {
+			continue;
+		}
+
+		if ( '' === $root ) {
+			$root = $parts[0];
+			continue;
+		}
+
+		if ( $root !== $parts[0] ) {
+			$zip->close();
+			return '';
+		}
+	}
+
+	$zip->close();
+
+	if ( '' === $root || sanitize_file_name( $root ) !== $root ) {
+		return '';
+	}
+
+	return $root;
+}
+
+/**
+ * Check whether a directory tree contains no files.
+ *
+ * @param string $directory Directory path.
+ * @return bool
+ */
+function mcp_expose_is_empty_directory_tree( string $directory ): bool {
+	if ( ! is_dir( $directory ) ) {
+		return false;
+	}
+
+	$items = scandir( $directory );
+	if ( false === $items ) {
+		return false;
+	}
+
+	foreach ( $items as $item ) {
+		if ( '.' === $item || '..' === $item ) {
+			continue;
+		}
+
+		$path = trailingslashit( $directory ) . $item;
+		if ( is_dir( $path ) ) {
+			if ( ! mcp_expose_is_empty_directory_tree( $path ) ) {
+				return false;
+			}
+			continue;
+		}
+
+		return false;
+	}
+
+	return true;
+}
+
+/**
+ * Delete an empty directory tree.
+ *
+ * @param string $directory Directory path.
+ * @return bool
+ */
+function mcp_expose_delete_empty_directory_tree( string $directory ): bool {
+	if ( ! is_dir( $directory ) ) {
+		return false;
+	}
+
+	$items = scandir( $directory );
+	if ( false === $items ) {
+		return false;
+	}
+
+	foreach ( $items as $item ) {
+		if ( '.' === $item || '..' === $item ) {
+			continue;
+		}
+
+		$path = trailingslashit( $directory ) . $item;
+		if ( ! is_dir( $path ) || ! mcp_expose_delete_empty_directory_tree( $path ) ) {
+			return false;
+		}
+	}
+
+	WP_Filesystem();
+	global $wp_filesystem;
+
+	if ( ! $wp_filesystem ) {
+		return false;
+	}
+
+	return (bool) $wp_filesystem->rmdir( $directory );
+}
+
+/**
+ * Remove an empty stale target directory before an overwrite install.
+ *
+ * @param string $zip_path Path to the local zip file.
+ * @return true|WP_Error
+ */
+function mcp_expose_prepare_plugin_overwrite_target( string $zip_path ) {
+	$root = mcp_expose_get_plugin_zip_root_directory( $zip_path );
+	if ( '' === $root ) {
+		return true;
+	}
+
+	$target = wp_normalize_path( trailingslashit( WP_PLUGIN_DIR ) . $root );
+	if ( ! is_dir( $target ) ) {
+		return true;
+	}
+
+	if ( ! mcp_expose_is_empty_directory_tree( $target ) ) {
+		return true;
+	}
+
+	if ( ! mcp_expose_delete_empty_directory_tree( $target ) ) {
+		return new WP_Error(
+			'mcp_empty_plugin_target_cleanup_failed',
+			sprintf(
+				/* translators: %s: Plugin target directory. */
+				__( 'Plugin upload could not remove empty stale target directory: %s', 'mcp-expose-abilities' ),
+				$target
+			)
+		);
+	}
+
+	return true;
+}
+
+/**
  * Return a normalized ability-facing nav menu item model.
  *
  * @param int|WP_Post $item Menu item ID or post object.
@@ -1407,6 +1578,14 @@ function mcp_expose_install_plugin_zip( string $zip_path, array $input ): array 
 
 	if ( $overwrite ) {
 		$args['overwrite_package'] = true;
+
+		$target_check = mcp_expose_prepare_plugin_overwrite_target( $zip_path );
+		if ( is_wp_error( $target_check ) ) {
+			return array(
+				'success' => false,
+				'message' => esc_html( $target_check->get_error_message() ),
+			);
+		}
 	}
 
 	$result = $upgrader->install( $zip_path, $args );
@@ -4520,6 +4699,107 @@ function mcp_register_content_abilities(): void {
 	);
 
 	// =========================================================================
+	// REVISIONS - Restore
+	// =========================================================================
+	wp_register_ability(
+		'content/restore-revision',
+		array(
+			'label'               => 'Restore Revision',
+			'description'         => 'Restore a post, page, or custom post type from an existing revision. Params: id (required revision ID).',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'required'             => array( 'id' ),
+				'properties'           => array(
+					'id' => array(
+						'type'        => 'integer',
+						'description' => 'Revision ID to restore.',
+					),
+				),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success'     => array( 'type' => 'boolean' ),
+					'id'          => array( 'type' => 'integer' ),
+					'parent_id'   => array( 'type' => 'integer' ),
+					'post_type'   => array( 'type' => 'string' ),
+					'post_status' => array( 'type' => 'string' ),
+					'message'     => array( 'type' => 'string' ),
+				),
+			),
+			'execute_callback'    => function ( $input = array() ): array {
+				$input = is_array( $input ) ? $input : array();
+
+				if ( empty( $input['id'] ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Revision ID is required', 'mcp-expose-abilities' ) );
+				}
+
+				$revision = get_post( (int) $input['id'] );
+				if ( ! $revision || 'revision' !== $revision->post_type ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Revision not found', 'mcp-expose-abilities' ) );
+				}
+
+				$parent = get_post( (int) $revision->post_parent );
+				if ( ! $parent ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Revision parent not found', 'mcp-expose-abilities' ) );
+				}
+
+				if ( ! current_user_can( 'edit_post', (int) $parent->ID ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Current user cannot edit the revision parent', 'mcp-expose-abilities' ) );
+				}
+
+				$lock_token = mcp_expose_acquire_post_write_lock( (int) $parent->ID, 'content/restore-revision' );
+				if ( is_wp_error( $lock_token ) ) {
+					return array( 'success' => false, 'message' => esc_html( $lock_token->get_error_message() ) );
+				}
+
+				try {
+					$restored = wp_restore_post_revision( (int) $revision->ID );
+				} finally {
+					mcp_expose_release_post_write_lock( (int) $parent->ID, $lock_token );
+				}
+
+				if ( ! $restored ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Revision restore failed', 'mcp-expose-abilities' ) );
+				}
+
+				$restored_post = get_post( (int) $parent->ID );
+
+				return array(
+					'success'     => true,
+					'id'          => (int) $revision->ID,
+					'parent_id'   => (int) $parent->ID,
+					'post_type'   => $restored_post ? (string) $restored_post->post_type : (string) $parent->post_type,
+					'post_status' => $restored_post ? (string) $restored_post->post_status : (string) $parent->post_status,
+					'message'     => esc_html__( 'Revision restored successfully', 'mcp-expose-abilities' ),
+				);
+			},
+			'permission_callback' => function ( $input = array() ): bool {
+				$input = is_array( $input ) ? $input : array();
+				if ( empty( $input['id'] ) ) {
+					return current_user_can( 'edit_posts' );
+				}
+
+				$revision = get_post( (int) $input['id'] );
+				if ( ! $revision || 'revision' !== $revision->post_type ) {
+					return current_user_can( 'edit_posts' );
+				}
+
+				return current_user_can( 'edit_post', (int) $revision->post_parent );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => false,
+					'destructive' => false,
+					'idempotent'  => true,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
 	// PAGES - Patch
 	// =========================================================================
 	wp_register_ability(
@@ -5623,7 +5903,7 @@ function mcp_register_content_abilities(): void {
 				'execute_callback'    => function ( $input = array() ): array {
 					$input = is_array( $input ) ? $input : array();
 					$code_write_error = mcp_expose_plugin_code_write_error_response(
-						mcp_expose_require_plugin_code_write_enabled( 'plugins/upload' ),
+						mcp_expose_require_plugin_code_write_enabled( 'plugins/upload', $input ),
 						'plugins/upload'
 					);
 					if ( null !== $code_write_error ) {
@@ -5734,7 +6014,7 @@ function mcp_register_content_abilities(): void {
 				'execute_callback'    => function ( $input = array() ): array {
 					$input = is_array( $input ) ? $input : array();
 					$code_write_error = mcp_expose_plugin_code_write_error_response(
-						mcp_expose_require_plugin_code_write_enabled( 'plugins/upload-base64' ),
+						mcp_expose_require_plugin_code_write_enabled( 'plugins/upload-base64', $input ),
 						'plugins/upload-base64'
 					);
 					if ( null !== $code_write_error ) {
@@ -6014,7 +6294,7 @@ function mcp_register_content_abilities(): void {
 			'execute_callback'    => function ( $input = array() ): array {
 				$input = is_array( $input ) ? $input : array();
 				$code_write_error = mcp_expose_plugin_code_write_error_response(
-					mcp_expose_require_plugin_code_write_enabled( 'plugins/install-directory' ),
+					mcp_expose_require_plugin_code_write_enabled( 'plugins/install-directory', $input ),
 					'plugins/install-directory'
 				);
 				if ( null !== $code_write_error ) {
@@ -6364,7 +6644,7 @@ function mcp_register_content_abilities(): void {
 			),
 			'execute_callback'    => function ( array $input ): array {
 				$code_write_error = mcp_expose_plugin_code_write_error_response(
-					mcp_expose_require_plugin_code_write_enabled( 'plugins/delete' ),
+					mcp_expose_require_plugin_code_write_enabled( 'plugins/delete', $input ),
 					'plugins/delete'
 				);
 				if ( null !== $code_write_error ) {
