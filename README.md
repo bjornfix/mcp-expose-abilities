@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 7.0
-**Stable tag:** 3.0.60
+**Stable tag:** 3.0.61
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -612,6 +612,11 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.61
+
+- Fixed `content/list-pages` so the documented `search` parameter is accepted
+  and passed through to the WordPress page query.
 
 ### 3.0.60
 - Added: `content/list-posts` now supports `status:trash` for explicit trash inspection.
