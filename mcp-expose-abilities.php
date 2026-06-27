@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.63
+ * Version: 3.0.64
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -481,6 +481,44 @@ function mcp_expose_normalize_assigned_template( int $post_id, string $post_type
 	delete_post_meta( $post_id, '_wp_page_template' );
 
 	return true;
+}
+
+/**
+ * Trigger post-save integrations after updating Yoast SEO post meta.
+ *
+ * @param int      $post_id   Post ID.
+ * @param string[] $meta_keys Changed meta keys.
+ * @return bool True when a refresh was triggered.
+ */
+function mcp_expose_maybe_refresh_yoast_indexable_for_meta_keys( int $post_id, array $meta_keys ): bool {
+	$has_yoast_meta = false;
+	foreach ( $meta_keys as $meta_key ) {
+		if ( 0 === strpos( (string) $meta_key, '_yoast_wpseo_' ) ) {
+			$has_yoast_meta = true;
+			break;
+		}
+	}
+
+	if ( ! $has_yoast_meta ) {
+		return false;
+	}
+
+	$post = get_post( $post_id );
+	if ( ! $post ) {
+		return false;
+	}
+
+	mcp_expose_normalize_assigned_template( $post_id, (string) $post->post_type );
+	clean_post_cache( $post_id );
+
+	$result = wp_update_post(
+		array(
+			'ID' => $post_id,
+		),
+		true
+	);
+
+	return ! is_wp_error( $result );
 }
 
 /**
@@ -3664,7 +3702,8 @@ function mcp_register_content_abilities(): void {
 						'type'  => 'array',
 						'items' => array( 'type' => 'string' ),
 					),
-					'message' => array( 'type' => 'string' ),
+					'yoast_indexable_refresh_triggered' => array( 'type' => 'boolean' ),
+					'message'                           => array( 'type' => 'string' ),
 				),
 			),
 			'execute_callback'    => function ( $input = array() ): array {
@@ -3697,12 +3736,14 @@ function mcp_register_content_abilities(): void {
 					update_post_meta( $post_id, $key, $value );
 					$updated[] = $key;
 				}
+				$yoast_indexable_refresh_triggered = mcp_expose_maybe_refresh_yoast_indexable_for_meta_keys( $post_id, $updated );
 
 				return array(
-					'success' => true,
-					'post_id' => $post_id,
-					'updated' => $updated,
-					'message' => esc_html__( 'Post meta updated successfully', 'mcp-expose-abilities' ),
+					'success'                           => true,
+					'post_id'                           => $post_id,
+					'updated'                           => $updated,
+					'yoast_indexable_refresh_triggered' => $yoast_indexable_refresh_triggered,
+					'message'                           => esc_html__( 'Post meta updated successfully', 'mcp-expose-abilities' ),
 				);
 			},
 			'permission_callback' => function (): bool {
@@ -3751,7 +3792,8 @@ function mcp_register_content_abilities(): void {
 						'type'  => 'array',
 						'items' => array( 'type' => 'string' ),
 					),
-					'message' => array( 'type' => 'string' ),
+					'yoast_indexable_refresh_triggered' => array( 'type' => 'boolean' ),
+					'message'                           => array( 'type' => 'string' ),
 				),
 			),
 			'execute_callback'    => function ( $input = array() ): array {
@@ -3788,12 +3830,14 @@ function mcp_register_content_abilities(): void {
 					}
 					$deleted[] = $key;
 				}
+				$yoast_indexable_refresh_triggered = mcp_expose_maybe_refresh_yoast_indexable_for_meta_keys( $post_id, $deleted );
 
 				return array(
-					'success' => true,
-					'post_id' => $post_id,
-					'deleted' => $deleted,
-					'message' => esc_html__( 'Post meta deleted successfully', 'mcp-expose-abilities' ),
+					'success'                           => true,
+					'post_id'                           => $post_id,
+					'deleted'                           => $deleted,
+					'yoast_indexable_refresh_triggered' => $yoast_indexable_refresh_triggered,
+					'message'                           => esc_html__( 'Post meta deleted successfully', 'mcp-expose-abilities' ),
 				);
 			},
 			'permission_callback' => function (): bool {
