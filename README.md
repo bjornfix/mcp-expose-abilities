@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 7.0
-**Stable tag:** 3.0.64
+**Stable tag:** 3.0.65
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -612,6 +612,14 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.65
+
+- Fixed `content/update-post` and `content/update-page` so generic post/page
+  updates protect translated sibling content and critical Elementor/featured
+  image meta from WPML/Polylang-style sync hooks.
+- Added `translation_guard` details to content update responses so callers can
+  verify which translated siblings were protected and restored.
 
 ### 3.0.64
 

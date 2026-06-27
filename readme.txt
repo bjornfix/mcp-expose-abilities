@@ -3,7 +3,7 @@ Contributors: basicus
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.0
-Stable tag: 3.0.64
+Stable tag: 3.0.65
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -50,6 +50,10 @@ Install add-ons only when your site actually uses that product:
 * Store Locator: mcp-abilities-store-locator
 
 == Changelog ==
+
+= 3.0.65 =
+* Fixed: `content/update-post` and `content/update-page` now protect translated sibling content and critical Elementor/featured-image meta from WPML/Polylang-style sync hooks during generic updates.
+* Added: content update responses include `translation_guard` details showing which translated siblings were protected and restored.
 
 = 3.0.64 =
 * Fixed: `meta/update-post-meta` and `meta/delete-post-meta` now trigger a post refresh for SEO indexable rebuilds when `_yoast_wpseo_*` fields change.

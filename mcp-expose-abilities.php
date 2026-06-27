@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.64
+ * Version: 3.0.65
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -543,6 +543,227 @@ function mcp_expose_set_featured_image( int $post_id, int $featured_image_id ) {
 	}
 
 	return new WP_Error( 'mcp_set_featured_image_failed', __( 'Failed to set featured image', 'mcp-expose-abilities' ) );
+}
+
+/**
+ * Get translated sibling post IDs through the shared Elementor/WPML sibling provider when available.
+ *
+ * Generic content updates must target only the requested post. WPML can sync
+ * custom fields and content to translated siblings during wp_update_post() or
+ * set_post_thumbnail(), so content abilities snapshot siblings first and restore
+ * them after the requested write.
+ *
+ * @param int $post_id Post ID.
+ * @return int[]
+ */
+function mcp_expose_get_translation_sibling_post_ids( int $post_id ): array {
+	$post = get_post( $post_id );
+	if ( ! $post ) {
+		return array();
+	}
+
+	$sibling_ids = array();
+
+	if ( function_exists( 'mcp_abilities_elementor_translation_sibling_filter_name' ) ) {
+		$sibling_ids = apply_filters( mcp_abilities_elementor_translation_sibling_filter_name(), $sibling_ids, $post_id, $post );
+	}
+
+	$sibling_ids = apply_filters( 'mcp_expose_translation_sibling_post_ids', $sibling_ids, $post_id, $post );
+
+	if ( ! is_array( $sibling_ids ) ) {
+		return array();
+	}
+
+	return array_values(
+		array_unique(
+			array_filter(
+				array_map( 'intval', $sibling_ids ),
+				static function ( int $sibling_id ) use ( $post_id ): bool {
+					return $sibling_id > 0 && $sibling_id !== $post_id;
+				}
+			)
+		)
+	);
+}
+
+/**
+ * Meta keys that must be preserved on translated siblings during generic content updates.
+ *
+ * @return string[]
+ */
+function mcp_expose_get_translation_sibling_guard_meta_keys(): array {
+	return array(
+		'_elementor_data',
+		'_elementor_page_settings',
+		'_thumbnail_id',
+	);
+}
+
+/**
+ * Capture translated sibling post fields and critical meta.
+ *
+ * @param int $post_id Post ID being edited.
+ * @return array
+ */
+function mcp_expose_capture_translation_sibling_state( int $post_id ): array {
+	$sibling_ids = mcp_expose_get_translation_sibling_post_ids( $post_id );
+	$snapshot    = array(
+		'sibling_ids' => $sibling_ids,
+		'posts'       => array(),
+		'meta'        => array(),
+	);
+
+	foreach ( $sibling_ids as $sibling_id ) {
+		$post = get_post( $sibling_id );
+		if ( ! $post ) {
+			continue;
+		}
+
+		$snapshot['posts'][ $sibling_id ] = array(
+			'post_title'   => (string) $post->post_title,
+			'post_content' => (string) $post->post_content,
+			'post_excerpt' => (string) $post->post_excerpt,
+			'post_name'    => (string) $post->post_name,
+			'post_status'  => (string) $post->post_status,
+			'post_parent'  => (int) $post->post_parent,
+			'menu_order'   => (int) $post->menu_order,
+		);
+
+		$snapshot['meta'][ $sibling_id ] = array();
+		foreach ( mcp_expose_get_translation_sibling_guard_meta_keys() as $meta_key ) {
+			$snapshot['meta'][ $sibling_id ][ $meta_key ] = get_post_meta( $sibling_id, $meta_key, false );
+		}
+	}
+
+	return $snapshot;
+}
+
+/**
+ * Restore a meta key directly without firing metadata sync hooks.
+ *
+ * @param int    $post_id Post ID.
+ * @param string $meta_key Meta key.
+ * @param array  $values Meta values as returned by get_post_meta( ..., false ).
+ * @return void
+ */
+function mcp_expose_restore_post_meta_rows_direct( int $post_id, string $meta_key, array $values ): void {
+	global $wpdb;
+
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Intentional hook-bypassing restore after multilingual sync hooks mutate translated siblings.
+	$wpdb->delete(
+		$wpdb->postmeta,
+		array(
+			'post_id'  => $post_id,
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Direct restore of one known meta key for one translated sibling.
+			'meta_key' => $meta_key,
+		),
+		array( '%d', '%s' )
+	);
+
+	foreach ( $values as $value ) {
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Intentional hook-bypassing restore after multilingual sync hooks mutate translated siblings.
+		$wpdb->insert(
+			$wpdb->postmeta,
+			array(
+				'post_id'    => $post_id,
+				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Direct restore of one known meta key for one translated sibling.
+				'meta_key'   => $meta_key,
+				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- Direct restore of captured meta value for one translated sibling.
+				'meta_value' => maybe_serialize( $value ),
+			),
+			array( '%d', '%s', '%s' )
+		);
+	}
+}
+
+/**
+ * Restore translated sibling state if a multilingual sync hook changed it.
+ *
+ * @param array $snapshot Snapshot from mcp_expose_capture_translation_sibling_state().
+ * @return array
+ */
+function mcp_expose_restore_translation_sibling_state( array $snapshot ): array {
+	global $wpdb;
+
+	$restored_posts = array();
+	$restored_meta  = array();
+
+	foreach ( (array) ( $snapshot['posts'] ?? array() ) as $post_id => $fields ) {
+		$post_id = (int) $post_id;
+		$current = get_post( $post_id );
+		if ( ! $current || ! is_array( $fields ) ) {
+			continue;
+		}
+
+		$changed = false;
+		foreach ( $fields as $field => $value ) {
+			if ( isset( $current->{$field} ) && $current->{$field} !== $value ) {
+				$changed = true;
+				break;
+			}
+		}
+
+		if ( $changed ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Intentional hook-bypassing restore after multilingual sync hooks mutate translated siblings.
+			$wpdb->update(
+				$wpdb->posts,
+				$fields,
+				array( 'ID' => $post_id ),
+				array( '%s', '%s', '%s', '%s', '%s', '%d', '%d' ),
+				array( '%d' )
+			);
+			$restored_posts[] = $post_id;
+		}
+	}
+
+	foreach ( (array) ( $snapshot['meta'] ?? array() ) as $post_id => $meta_by_key ) {
+		$post_id = (int) $post_id;
+		if ( ! is_array( $meta_by_key ) ) {
+			continue;
+		}
+
+		foreach ( $meta_by_key as $meta_key => $values ) {
+			$current_values = get_post_meta( $post_id, (string) $meta_key, false );
+			if ( $current_values !== $values ) {
+				mcp_expose_restore_post_meta_rows_direct( $post_id, (string) $meta_key, is_array( $values ) ? $values : array() );
+				$restored_meta[] = $post_id . ':' . $meta_key;
+			}
+		}
+	}
+
+	foreach ( array_unique( array_map( 'intval', (array) ( $snapshot['sibling_ids'] ?? array() ) ) ) as $post_id ) {
+		if ( $post_id > 0 ) {
+			clean_post_cache( $post_id );
+			wp_cache_delete( $post_id, 'post_meta' );
+		}
+	}
+
+	return array(
+		'protected_post_ids' => array_values( array_map( 'intval', (array) ( $snapshot['sibling_ids'] ?? array() ) ) ),
+		'protected_count'    => count( (array) ( $snapshot['sibling_ids'] ?? array() ) ),
+		'restored_post_ids'  => array_values( array_unique( $restored_posts ) ),
+		'restored_meta_keys' => $restored_meta,
+	);
+}
+
+/**
+ * Schedule a final translated sibling restore after late multilingual sync hooks.
+ *
+ * @param array $snapshot Snapshot from mcp_expose_capture_translation_sibling_state().
+ * @return bool
+ */
+function mcp_expose_schedule_translation_sibling_state_restore( array $snapshot ): bool {
+	if ( empty( $snapshot['sibling_ids'] ) ) {
+		return false;
+	}
+
+	register_shutdown_function(
+		static function () use ( $snapshot ): void {
+			mcp_expose_restore_translation_sibling_state( $snapshot );
+		}
+	);
+
+	return true;
 }
 
 /**
@@ -3470,10 +3691,11 @@ function mcp_register_content_abilities(): void {
 			'output_schema'       => array(
 				'type'       => 'object',
 				'properties' => array(
-					'success' => array( 'type' => 'boolean' ),
-					'id'      => array( 'type' => 'integer' ),
-					'link'    => array( 'type' => 'string' ),
-					'message' => array( 'type' => 'string' ),
+					'success'           => array( 'type' => 'boolean' ),
+					'id'                => array( 'type' => 'integer' ),
+					'link'              => array( 'type' => 'string' ),
+					'message'           => array( 'type' => 'string' ),
+					'translation_guard' => array( 'type' => 'object' ),
 				),
 			),
 			'execute_callback'    => function ( $input = array() ): array {
@@ -3544,9 +3766,11 @@ function mcp_register_content_abilities(): void {
 					$post_data['meta_input'] = $input['meta_input'];
 				}
 
+				$translation_guard_snapshot = mcp_expose_capture_translation_sibling_state( (int) $input['id'] );
 				$result = wp_update_post( $post_data, true );
 
 				if ( is_wp_error( $result ) ) {
+					mcp_expose_restore_translation_sibling_state( $translation_guard_snapshot );
 					return array( 'success' => false, 'message' => esc_html( $result->get_error_message() ) );
 				}
 
@@ -3561,18 +3785,22 @@ function mcp_register_content_abilities(): void {
 					if ( $featured_image_id > 0 ) {
 						$thumbnail_result = mcp_expose_set_featured_image( (int) $input['id'], $featured_image_id );
 						if ( is_wp_error( $thumbnail_result ) ) {
+							mcp_expose_restore_translation_sibling_state( $translation_guard_snapshot );
 							return array( 'success' => false, 'message' => esc_html( $thumbnail_result->get_error_message() ) );
 						}
 					} else {
 						delete_post_thumbnail( $input['id'] );
 					}
 				}
+				$translation_guard = mcp_expose_restore_translation_sibling_state( $translation_guard_snapshot );
+				$translation_guard['shutdown_restore_scheduled'] = mcp_expose_schedule_translation_sibling_state_restore( $translation_guard_snapshot );
 
 				return array(
-					'success' => true,
-					'id'      => $input['id'],
-					'link'    => get_permalink( $input['id'] ),
-					'message' => esc_html__( 'Post updated successfully', 'mcp-expose-abilities' ),
+					'success'           => true,
+					'id'                => $input['id'],
+					'link'              => get_permalink( $input['id'] ),
+					'message'           => esc_html__( 'Post updated successfully', 'mcp-expose-abilities' ),
+					'translation_guard' => $translation_guard,
 				);
 			},
 			'permission_callback' => function (): bool {
@@ -4358,6 +4586,7 @@ function mcp_register_content_abilities(): void {
 					'id'      => array( 'type' => 'integer' ),
 					'link'    => array( 'type' => 'string' ),
 					'message' => array( 'type' => 'string' ),
+					'translation_guard' => array( 'type' => 'object' ),
 				),
 			),
 			'execute_callback'    => function ( $input = array() ): array {
@@ -4691,9 +4920,11 @@ function mcp_register_content_abilities(): void {
 					$page_data['menu_order'] = (int) $input['menu_order'];
 				}
 
+				$translation_guard_snapshot = mcp_expose_capture_translation_sibling_state( (int) $input['id'] );
 				$result = wp_update_post( $page_data, true );
 
 				if ( is_wp_error( $result ) ) {
+					mcp_expose_restore_translation_sibling_state( $translation_guard_snapshot );
 					return array( 'success' => false, 'message' => esc_html( $result->get_error_message() ) );
 				}
 
@@ -4713,18 +4944,22 @@ function mcp_register_content_abilities(): void {
 					if ( $featured_image_id > 0 ) {
 						$thumbnail_result = mcp_expose_set_featured_image( (int) $input['id'], $featured_image_id );
 						if ( is_wp_error( $thumbnail_result ) ) {
+							mcp_expose_restore_translation_sibling_state( $translation_guard_snapshot );
 							return array( 'success' => false, 'message' => esc_html( $thumbnail_result->get_error_message() ) );
 						}
 					} else {
 						delete_post_thumbnail( $input['id'] );
 					}
 				}
+				$translation_guard = mcp_expose_restore_translation_sibling_state( $translation_guard_snapshot );
+				$translation_guard['shutdown_restore_scheduled'] = mcp_expose_schedule_translation_sibling_state_restore( $translation_guard_snapshot );
 
 				return array(
-					'success' => true,
-					'id'      => $input['id'],
-					'link'    => get_permalink( $input['id'] ),
-					'message' => esc_html__( 'Page updated successfully', 'mcp-expose-abilities' ),
+					'success'           => true,
+					'id'                => $input['id'],
+					'link'              => get_permalink( $input['id'] ),
+					'message'           => esc_html__( 'Page updated successfully', 'mcp-expose-abilities' ),
+					'translation_guard' => $translation_guard,
 				);
 			},
 			'permission_callback' => function (): bool {
