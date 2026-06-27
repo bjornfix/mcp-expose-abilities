@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.62
+ * Version: 3.0.63
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -785,6 +785,7 @@ function mcp_expose_release_post_write_lock( int $post_id, string $token ): void
 //   content/search                      Line 2794  - Search posts/pages
 //
 // META
+//   meta/get-post-meta                  - Read explicit post meta fields
 //   meta/update-post-meta               - Update post meta fields
 //   meta/delete-post-meta               - Delete post meta fields
 //   content/update-discussion-status    - Open/close comments and pings
@@ -3542,6 +3543,87 @@ function mcp_register_content_abilities(): void {
 			'meta'                => array(
 				'annotations' => array(
 					'readonly'    => false,
+					'destructive' => false,
+					'idempotent'  => true,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// POST META - Get
+	// =========================================================================
+	wp_register_ability(
+		'meta/get-post-meta',
+		array(
+			'label'               => 'Get Post Meta',
+			'description'         => 'Read explicit post meta fields. Params: post_id (required), keys (required array of meta keys).',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'required'             => array( 'post_id', 'keys' ),
+				'properties'           => array(
+					'post_id' => array(
+						'type'        => 'integer',
+						'description' => 'Post ID whose meta should be read.',
+					),
+					'keys'    => array(
+						'type'        => 'array',
+						'items'       => array( 'type' => 'string' ),
+						'minItems'    => 1,
+						'description' => 'Explicit meta keys to read.',
+					),
+				),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success' => array( 'type' => 'boolean' ),
+					'post_id' => array( 'type' => 'integer' ),
+					'meta'    => array( 'type' => 'object' ),
+					'message' => array( 'type' => 'string' ),
+				),
+			),
+			'execute_callback'    => function ( $input = array() ): array {
+				$input = is_array( $input ) ? $input : array();
+
+				if ( empty( $input['post_id'] ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Post ID is required', 'mcp-expose-abilities' ) );
+				}
+				if ( empty( $input['keys'] ) || ! is_array( $input['keys'] ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'keys must be a non-empty array.', 'mcp-expose-abilities' ) );
+				}
+
+				$post_id = (int) $input['post_id'];
+				$post    = get_post( $post_id );
+				if ( ! $post ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Post not found', 'mcp-expose-abilities' ) );
+				}
+				if ( ! current_user_can( 'edit_post', $post_id ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Permission denied to read this post meta.', 'mcp-expose-abilities' ) );
+				}
+
+				$meta = array();
+				$keys = array_values( array_unique( array_map( 'strval', $input['keys'] ) ) );
+				foreach ( $keys as $key ) {
+					$key          = sanitize_key( $key );
+					$meta[ $key ] = get_post_meta( $post_id, $key, false );
+				}
+
+				return array(
+					'success' => true,
+					'post_id' => $post_id,
+					'meta'    => $meta,
+					'message' => esc_html__( 'Post meta retrieved successfully', 'mcp-expose-abilities' ),
+				);
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'edit_posts' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => true,
 					'destructive' => false,
 					'idempotent'  => true,
 				),
