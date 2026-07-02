@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.66
+ * Version: 3.0.67
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -904,6 +904,102 @@ function mcp_expose_validate_content_design_markup_preserved( string $old_conten
 			__( 'Content update blocked because it would remove existing design markup (%s). Use a targeted patch or pass allow_design_markup_loss=true only when intentionally replacing the page design.', 'mcp-expose-abilities' ),
 			implode( ', ', $lost )
 		)
+	);
+}
+
+/**
+ * Whether an existing post is managed as a Devenia translation.
+ */
+function mcp_expose_is_devenia_translation_post( int $post_id ): bool {
+	if ( $post_id <= 0 ) {
+		return false;
+	}
+
+	return '' !== (string) get_post_meta( $post_id, '_devenia_translation_source_id', true )
+		|| '' !== (string) get_post_meta( $post_id, '_devenia_translation_language', true );
+}
+
+/**
+ * Whether proposed meta identifies a translated post.
+ *
+ * @param mixed $meta_input Ability meta input.
+ */
+function mcp_expose_meta_input_marks_devenia_translation( $meta_input ): bool {
+	if ( ! is_array( $meta_input ) ) {
+		return false;
+	}
+
+	return array_key_exists( '_devenia_translation_source_id', $meta_input )
+		|| array_key_exists( '_devenia_translation_language', $meta_input );
+}
+
+/**
+ * Guard Devenia source posts from being published or kept published without the
+ * approved editorial source-design contract.
+ *
+ * @param WP_Post|null $post          Existing post, when this is an update.
+ * @param string       $post_type     Target post type.
+ * @param string       $target_status Target post status after the write.
+ * @param string       $content       Proposed post content.
+ * @param array        $input         Ability input.
+ * @param string       $ability       Calling ability.
+ * @return true|WP_Error
+ */
+function mcp_expose_validate_devenia_editorial_source_post_gate( ?WP_Post $post, string $post_type, string $target_status, string $content, array $input, string $ability ) {
+	if ( 'post' !== $post_type || 'publish' !== $target_status ) {
+		return true;
+	}
+
+	if ( ! class_exists( 'Devenia_AI_Translations' ) ) {
+		return true;
+	}
+
+	if ( $post instanceof WP_Post && mcp_expose_is_devenia_translation_post( (int) $post->ID ) ) {
+		return true;
+	}
+
+	if ( mcp_expose_meta_input_marks_devenia_translation( $input['meta_input'] ?? null ) ) {
+		return true;
+	}
+
+	$validation = apply_filters(
+		'devenia_editorial_source_post_validation',
+		null,
+		$post,
+		$content,
+		array(
+			'caller'        => 'mcp-expose-abilities',
+			'ability'       => $ability,
+			'post_type'     => $post_type,
+			'target_status' => $target_status,
+		)
+	);
+
+	if ( ! is_array( $validation ) || empty( $validation['available'] ) ) {
+		return new WP_Error(
+			'devenia_editorial_source_gate_unavailable',
+			__( 'Devenia source-post editorial validation is unavailable. Activate the block-editor validation adapter before publishing source posts.', 'mcp-expose-abilities' )
+		);
+	}
+
+	if ( ! empty( $validation['passed'] ) ) {
+		return true;
+	}
+
+	$codes = array();
+	foreach ( $validation['issue_codes'] ?? array() as $code ) {
+		$codes[] = sanitize_key( (string) $code );
+	}
+	$codes = array_values( array_filter( array_unique( $codes ) ) );
+
+	return new WP_Error(
+		'devenia_editorial_source_gate_failed',
+		sprintf(
+			/* translators: %s: comma-separated validation issue codes. */
+			__( 'Published Devenia source posts must pass the editorial source-design gate before they can be saved or inherited into translations. Failed checks: %s', 'mcp-expose-abilities' ),
+			$codes ? implode( ', ', $codes ) : __( 'unknown', 'mcp-expose-abilities' )
+		),
+		$validation
 	);
 }
 
@@ -3491,13 +3587,13 @@ function mcp_register_content_abilities(): void {
 				}
 			}
 
-			$post_data = array(
-				'post_title'   => sanitize_text_field( $input['title'] ),
-				'post_content' => $input['content'] ?? '',
-				'post_excerpt' => $input['excerpt'] ?? '',
-				'post_status'  => $input['status'] ?? 'draft',
-				'post_type'    => $post_type,
-			);
+				$post_data = array(
+					'post_title'   => sanitize_text_field( $input['title'] ),
+					'post_content' => $input['content'] ?? '',
+					'post_excerpt' => $input['excerpt'] ?? '',
+					'post_status'  => $input['status'] ?? 'draft',
+					'post_type'    => $post_type,
+				);
 
 			if ( ! empty( $input['slug'] ) ) {
 				$post_data['post_name'] = sanitize_title( $input['slug'] );
@@ -3505,10 +3601,10 @@ function mcp_register_content_abilities(): void {
 			if ( ! empty( $input['date'] ) ) {
 				$post_data['post_date'] = $input['date'];
 			}
-			if ( ! empty( $input['author_id'] ) ) {
-				$post_data['post_author'] = intval( $input['author_id'] );
-			}
-			$meta_input = null;
+				if ( ! empty( $input['author_id'] ) ) {
+					$post_data['post_author'] = intval( $input['author_id'] );
+				}
+				$meta_input = null;
 			if ( isset( $input['meta_input'] ) ) {
 				if ( ! is_array( $input['meta_input'] ) ) {
 					return array( 'success' => false, 'message' => esc_html__( 'meta_input must be an object.', 'mcp-expose-abilities' ) );
@@ -3517,10 +3613,22 @@ function mcp_register_content_abilities(): void {
 				$meta_guard = mcp_expose_validate_post_meta_write_policy( $meta_input );
 				if ( is_wp_error( $meta_guard ) ) {
 					return array( 'success' => false, 'message' => esc_html( $meta_guard->get_error_message() ) );
+					}
 				}
-			}
 
-			$post_id = wp_insert_post( $post_data, true );
+				$source_design_gate = mcp_expose_validate_devenia_editorial_source_post_gate(
+					null,
+					$post_type,
+					(string) $post_data['post_status'],
+					(string) $post_data['post_content'],
+					$input,
+					'content/create-post'
+				);
+				if ( is_wp_error( $source_design_gate ) ) {
+					return array( 'success' => false, 'message' => esc_html( $source_design_gate->get_error_message() ) );
+				}
+
+				$post_id = wp_insert_post( $post_data, true );
 
 			if ( is_wp_error( $post_id ) ) {
 				return array( 'success' => false, 'message' => esc_html( $post_id->get_error_message() ) );
@@ -3722,13 +3830,13 @@ function mcp_register_content_abilities(): void {
 				if ( isset( $input['title'] ) ) {
 					$post_data['post_title'] = sanitize_text_field( $input['title'] );
 				}
-				if ( isset( $input['content'] ) ) {
-					$design_guard = mcp_expose_validate_content_design_markup_preserved( (string) $post->post_content, (string) $input['content'], $input );
-					if ( is_wp_error( $design_guard ) ) {
-						return array( 'success' => false, 'message' => esc_html( $design_guard->get_error_message() ) );
+					if ( isset( $input['content'] ) ) {
+						$design_guard = mcp_expose_validate_content_design_markup_preserved( (string) $post->post_content, (string) $input['content'], $input );
+						if ( is_wp_error( $design_guard ) ) {
+							return array( 'success' => false, 'message' => esc_html( $design_guard->get_error_message() ) );
+						}
+						$post_data['post_content'] = $input['content'];
 					}
-					$post_data['post_content'] = $input['content'];
-				}
 				if ( isset( $input['excerpt'] ) ) {
 					$post_data['post_excerpt'] = $input['excerpt'];
 				}
@@ -3756,19 +3864,33 @@ function mcp_register_content_abilities(): void {
 					}
 					$post_data['post_author'] = $author_id;
 				}
-				if ( isset( $input['meta_input'] ) ) {
-					if ( ! is_array( $input['meta_input'] ) ) {
-						return array( 'success' => false, 'message' => esc_html__( 'meta_input must be an object.', 'mcp-expose-abilities' ) );
-					}
-					$meta_permission = mcp_expose_validate_post_meta_write_policy( $input['meta_input'], (int) $post->ID );
+					if ( isset( $input['meta_input'] ) ) {
+						if ( ! is_array( $input['meta_input'] ) ) {
+							return array( 'success' => false, 'message' => esc_html__( 'meta_input must be an object.', 'mcp-expose-abilities' ) );
+						}
+						$meta_permission = mcp_expose_validate_post_meta_write_policy( $input['meta_input'], (int) $post->ID );
 					if ( is_wp_error( $meta_permission ) ) {
 						return array( 'success' => false, 'message' => esc_html( $meta_permission->get_error_message() ) );
+						}
+						$post_data['meta_input'] = $input['meta_input'];
 					}
-					$post_data['meta_input'] = $input['meta_input'];
-				}
 
-				$translation_guard_snapshot = mcp_expose_capture_translation_sibling_state( (int) $input['id'] );
-				$result = wp_update_post( $post_data, true );
+					if ( isset( $input['content'] ) ) {
+						$source_design_gate = mcp_expose_validate_devenia_editorial_source_post_gate(
+							$post,
+							(string) $post->post_type,
+							(string) ( $post_data['post_status'] ?? $post->post_status ),
+							(string) $post_data['post_content'],
+							$input,
+							'content/update-post'
+						);
+						if ( is_wp_error( $source_design_gate ) ) {
+							return array( 'success' => false, 'message' => esc_html( $source_design_gate->get_error_message() ) );
+						}
+					}
+
+					$translation_guard_snapshot = mcp_expose_capture_translation_sibling_state( (int) $input['id'] );
+					$result = wp_update_post( $post_data, true );
 
 				if ( is_wp_error( $result ) ) {
 					mcp_expose_restore_translation_sibling_state( $translation_guard_snapshot );
@@ -6356,12 +6478,24 @@ function mcp_register_content_abilities(): void {
 						);
 					}
 
-					$design_guard = mcp_expose_validate_content_design_markup_preserved( (string) $content, (string) $new_content, $input );
-					if ( is_wp_error( $design_guard ) ) {
-						return array( 'success' => false, 'message' => esc_html( $design_guard->get_error_message() ) );
-					}
+						$design_guard = mcp_expose_validate_content_design_markup_preserved( (string) $content, (string) $new_content, $input );
+						if ( is_wp_error( $design_guard ) ) {
+							return array( 'success' => false, 'message' => esc_html( $design_guard->get_error_message() ) );
+						}
 
-					$result = wp_update_post(
+						$source_design_gate = mcp_expose_validate_devenia_editorial_source_post_gate(
+							$post,
+							(string) $post->post_type,
+							(string) $post->post_status,
+							(string) $new_content,
+							$input,
+							'content/patch-post'
+						);
+						if ( is_wp_error( $source_design_gate ) ) {
+							return array( 'success' => false, 'message' => esc_html( $source_design_gate->get_error_message() ) );
+						}
+
+						$result = wp_update_post(
 						array(
 							'ID'           => $post_id,
 							'post_content' => $new_content,
