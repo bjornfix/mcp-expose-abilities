@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.67
+ * Version: 3.0.68
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -3537,6 +3537,11 @@ function mcp_register_content_abilities(): void {
 					'type'        => 'integer',
 					'description' => 'Attachment ID to set as featured image. Use 0 to leave empty.',
 				),
+				'dry_run'      => array(
+					'type'        => 'boolean',
+					'default'     => false,
+					'description' => 'Validate the requested create without writing the post.',
+				),
 			),
 			'additionalProperties' => false,
 		),
@@ -3547,6 +3552,7 @@ function mcp_register_content_abilities(): void {
 				'id'      => array( 'type' => 'integer' ),
 				'link'    => array( 'type' => 'string' ),
 				'message' => array( 'type' => 'string' ),
+				'dry_run' => array( 'type' => 'boolean' ),
 			),
 		),
 		'execute_callback'    => function ( $input = array() ): array {
@@ -3626,6 +3632,16 @@ function mcp_register_content_abilities(): void {
 				);
 				if ( is_wp_error( $source_design_gate ) ) {
 					return array( 'success' => false, 'message' => esc_html( $source_design_gate->get_error_message() ) );
+				}
+
+				if ( ! empty( $input['dry_run'] ) ) {
+					return array(
+						'success'       => true,
+						'dry_run'       => true,
+						'would_create'  => true,
+						'target_status' => (string) $post_data['post_status'],
+						'message'       => esc_html__( 'Dry run passed. Post was not created.', 'mcp-expose-abilities' ),
+					);
 				}
 
 				$post_id = wp_insert_post( $post_data, true );
@@ -3794,6 +3810,11 @@ function mcp_register_content_abilities(): void {
 						'type'        => 'integer',
 						'description' => 'Attachment ID to set as featured image. Use 0 to remove the current featured image.',
 					),
+					'dry_run'      => array(
+						'type'        => 'boolean',
+						'default'     => false,
+						'description' => 'Validate the requested update without writing changes.',
+					),
 				),
 				'additionalProperties' => false,
 			),
@@ -3805,6 +3826,7 @@ function mcp_register_content_abilities(): void {
 					'link'              => array( 'type' => 'string' ),
 					'message'           => array( 'type' => 'string' ),
 					'translation_guard' => array( 'type' => 'object' ),
+					'dry_run'           => array( 'type' => 'boolean' ),
 				),
 			),
 			'execute_callback'    => function ( $input = array() ): array {
@@ -3875,18 +3897,28 @@ function mcp_register_content_abilities(): void {
 						$post_data['meta_input'] = $input['meta_input'];
 					}
 
-					if ( isset( $input['content'] ) ) {
-						$source_design_gate = mcp_expose_validate_devenia_editorial_source_post_gate(
-							$post,
-							(string) $post->post_type,
-							(string) ( $post_data['post_status'] ?? $post->post_status ),
-							(string) $post_data['post_content'],
-							$input,
-							'content/update-post'
+					$source_design_gate = mcp_expose_validate_devenia_editorial_source_post_gate(
+						$post,
+						(string) $post->post_type,
+						(string) ( $post_data['post_status'] ?? $post->post_status ),
+						(string) ( $post_data['post_content'] ?? $post->post_content ),
+						$input,
+						'content/update-post'
+					);
+					if ( is_wp_error( $source_design_gate ) ) {
+						return array( 'success' => false, 'message' => esc_html( $source_design_gate->get_error_message() ) );
+					}
+
+					if ( ! empty( $input['dry_run'] ) ) {
+						return array(
+							'success'       => true,
+							'dry_run'       => true,
+							'would_update'  => true,
+							'id'            => (int) $input['id'],
+							'link'          => get_permalink( (int) $input['id'] ),
+							'target_status' => (string) ( $post_data['post_status'] ?? $post->post_status ),
+							'message'       => esc_html__( 'Dry run passed. Post was not updated.', 'mcp-expose-abilities' ),
 						);
-						if ( is_wp_error( $source_design_gate ) ) {
-							return array( 'success' => false, 'message' => esc_html( $source_design_gate->get_error_message() ) );
-						}
 					}
 
 					$translation_guard_snapshot = mcp_expose_capture_translation_sibling_state( (int) $input['id'] );
@@ -6400,6 +6432,11 @@ function mcp_register_content_abilities(): void {
 						'default'     => false,
 						'description' => 'Allow patching content even when existing GenerateBlocks/design markup would be removed. Defaults to false.',
 					),
+					'dry_run' => array(
+						'type'        => 'boolean',
+						'default'     => false,
+						'description' => 'Validate the patch and report replacements without writing content.',
+					),
 				),
 				'additionalProperties' => false,
 			),
@@ -6411,6 +6448,7 @@ function mcp_register_content_abilities(): void {
 					'replacements' => array( 'type' => 'integer' ),
 					'message'      => array( 'type' => 'string' ),
 					'link'         => array( 'type' => 'string' ),
+					'dry_run'      => array( 'type' => 'boolean' ),
 				),
 			),
 			'execute_callback'    => function ( $input = array() ): array {
@@ -6493,6 +6531,17 @@ function mcp_register_content_abilities(): void {
 						);
 						if ( is_wp_error( $source_design_gate ) ) {
 							return array( 'success' => false, 'message' => esc_html( $source_design_gate->get_error_message() ) );
+						}
+
+						if ( ! empty( $input['dry_run'] ) ) {
+							return array(
+								'success'      => true,
+								'dry_run'      => true,
+								'id'           => $post_id,
+								'replacements' => $count,
+								'message'      => "Dry run passed. Would replace {$count} occurrence(s).",
+								'link'         => get_permalink( $post_id ),
+							);
 						}
 
 						$result = wp_update_post(

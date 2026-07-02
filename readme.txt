@@ -3,7 +3,7 @@ Contributors: basicus
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.0
-Stable tag: 3.0.67
+Stable tag: 3.0.68
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -50,6 +50,10 @@ Install add-ons only when your site actually uses that product:
 * Store Locator: mcp-abilities-store-locator
 
 == Changelog ==
+
+= 3.0.68 =
+* Added: Dry-run support for MCP post create, update, and patch writes.
+* Fixed: Devenia source-post editorial gate now also blocks status-only publishes of invalid source drafts.
 
 = 3.0.67 =
 * Added: Devenia source-post editorial gate for MCP post create/update/patch writes, blocking published source posts that fail the shared editorial source-design validation.
