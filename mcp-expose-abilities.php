@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.65
+ * Version: 3.0.66
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -1038,6 +1038,7 @@ function mcp_expose_release_post_write_lock( int $post_id, string $token ): void
 //   content/update-category             Line 2280  - Update category
 //   content/list-tags                   Line 2308  - List tags
 //   content/create-tag                  Line 2374  - Create tag
+//   content/update-tag                  - Update tag
 //   content/list-media                  Line 2466  - List media attachments
 //   content/list-users                  Line 2566  - List users
 //   content/patch-post                  Line 2655  - Quick post edit
@@ -5898,6 +5899,134 @@ function mcp_register_content_abilities(): void {
 					'readonly'    => false,
 					'destructive' => false,
 					'idempotent'  => false,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// TAGS - Update
+	// =========================================================================
+	wp_register_ability(
+		'content/update-tag',
+		array(
+			'label'               => 'Update Tag',
+			'description'         => 'Update tag. Params: id (required), name, slug, description.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'required'             => array( 'id' ),
+				'properties'           => array(
+					'id'          => array(
+						'type'        => 'integer',
+						'description' => 'Tag ID to update.',
+					),
+					'name'        => array(
+						'type'        => 'string',
+						'description' => 'New tag name.',
+					),
+					'slug'        => array(
+						'type'        => 'string',
+						'description' => 'New tag slug.',
+					),
+					'description' => array(
+						'type'        => 'string',
+						'description' => 'New tag description. Pass empty string to clear.',
+					),
+				),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success'     => array( 'type' => 'boolean' ),
+					'id'          => array( 'type' => 'integer' ),
+					'name'        => array( 'type' => 'string' ),
+					'slug'        => array( 'type' => 'string' ),
+					'description' => array( 'type' => 'string' ),
+					'message'     => array( 'type' => 'string' ),
+				),
+			),
+			'execute_callback'    => function ( $input = array() ): array {
+				$input = is_array( $input ) ? $input : array();
+				$term_id = (int) ( $input['id'] ?? 0 );
+
+				if ( $term_id <= 0 ) {
+					return array(
+						'success' => false,
+						'message' => esc_html__( 'Valid tag ID is required.', 'mcp-expose-abilities' ),
+					);
+				}
+
+				$term = get_term( $term_id, 'post_tag' );
+				if ( ! $term || is_wp_error( $term ) ) {
+					return array(
+						'success' => false,
+						'message' => esc_html__( 'Tag not found.', 'mcp-expose-abilities' ),
+					);
+				}
+
+				$update_args = array();
+
+				if ( array_key_exists( 'name', $input ) ) {
+					$name = trim( (string) $input['name'] );
+					if ( '' === $name ) {
+						return array(
+							'success' => false,
+							'message' => esc_html__( 'Tag name cannot be empty.', 'mcp-expose-abilities' ),
+						);
+					}
+					$update_args['name'] = sanitize_text_field( $name );
+				}
+
+				if ( array_key_exists( 'slug', $input ) ) {
+					$update_args['slug'] = sanitize_title( (string) $input['slug'] );
+				}
+
+				if ( array_key_exists( 'description', $input ) ) {
+					$update_args['description'] = sanitize_textarea_field( (string) $input['description'] );
+				}
+
+				if ( empty( $update_args ) ) {
+					return array(
+						'success' => false,
+						'message' => esc_html__( 'No fields provided for update.', 'mcp-expose-abilities' ),
+					);
+				}
+
+				$result = wp_update_term( $term_id, 'post_tag', $update_args );
+				if ( is_wp_error( $result ) ) {
+					return array(
+						'success' => false,
+						'message' => esc_html( $result->get_error_message() ),
+					);
+				}
+
+				$updated = get_term( $term_id, 'post_tag' );
+				if ( ! $updated || is_wp_error( $updated ) ) {
+					return array(
+						'success' => false,
+						'message' => esc_html__( 'Tag update failed.', 'mcp-expose-abilities' ),
+					);
+				}
+
+				return array(
+					'success'     => true,
+					'id'          => $updated->term_id,
+					'name'        => $updated->name,
+					'slug'        => $updated->slug,
+					'description' => $updated->description,
+					'message'     => esc_html__( 'Tag updated successfully.', 'mcp-expose-abilities' ),
+				);
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'manage_categories' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => false,
+					'destructive' => false,
+					'idempotent'  => true,
 				),
 			),
 		)
