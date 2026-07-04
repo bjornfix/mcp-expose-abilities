@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.68
+ * Version: 3.0.69
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -3922,7 +3922,8 @@ function mcp_register_content_abilities(): void {
 					}
 
 					$translation_guard_snapshot = mcp_expose_capture_translation_sibling_state( (int) $input['id'] );
-					$result = wp_update_post( $post_data, true );
+					$requires_post_update = count( $post_data ) > 1;
+					$result = $requires_post_update ? wp_update_post( $post_data, true ) : (int) $input['id'];
 
 				if ( is_wp_error( $result ) ) {
 					mcp_expose_restore_translation_sibling_state( $translation_guard_snapshot );
@@ -5076,7 +5077,8 @@ function mcp_register_content_abilities(): void {
 				}
 
 				$translation_guard_snapshot = mcp_expose_capture_translation_sibling_state( (int) $input['id'] );
-				$result = wp_update_post( $page_data, true );
+				$requires_page_update = count( $page_data ) > 1;
+				$result = $requires_page_update ? wp_update_post( $page_data, true ) : (int) $input['id'];
 
 				if ( is_wp_error( $result ) ) {
 					mcp_expose_restore_translation_sibling_state( $translation_guard_snapshot );

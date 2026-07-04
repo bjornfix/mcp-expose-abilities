@@ -3,7 +3,7 @@ Contributors: basicus
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.0
-Stable tag: 3.0.68
+Stable tag: 3.0.69
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -50,6 +50,9 @@ Install add-ons only when your site actually uses that product:
 * Store Locator: mcp-abilities-store-locator
 
 == Changelog ==
+
+= 3.0.69 =
+* Fixed: `content/update-post` and `content/update-page` no longer call `wp_update_post()` for featured-image-only or taxonomy-only updates, avoiding unrelated publish/design hooks on partial updates.
 
 = 3.0.68 =
 * Added: Dry-run support for MCP post create, update, and patch writes.
