@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.71
+ * Version: 3.0.72
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -950,6 +950,51 @@ function mcp_expose_devenia_source_design_issue_codes( array $validation ): arra
 }
 
 /**
+ * Decide whether a source-design failure is still safe for a narrow neutral patch.
+ *
+ * @param WP_Post|null        $post           Existing post.
+ * @param string              $post_type      Target post type.
+ * @param string              $target_status  Target post status.
+ * @param array<string,mixed> $new_validation Validation payload for proposed content.
+ * @param array<string,mixed> $input          Ability input.
+ * @param string              $ability        Calling ability.
+ * @return true|false|WP_Error
+ */
+function mcp_expose_devenia_source_design_neutral_patch_approval( ?WP_Post $post, string $post_type, string $target_status, array $new_validation, array $input, string $ability ) {
+	if ( ! ( $post instanceof WP_Post ) || 'content/patch-post' !== $ability || empty( $input['allow_source_design_neutral_patch'] ) ) {
+		return false;
+	}
+
+	$reason = trim( sanitize_textarea_field( (string) ( $input['source_design_neutral_patch_reason'] ?? '' ) ) );
+	if ( strlen( $reason ) < 30 ) {
+		return new WP_Error(
+			'devenia_editorial_source_neutral_patch_reason_required',
+			__( 'A concrete source_design_neutral_patch_reason is required before patching a published source post that still fails the design gate.', 'mcp-expose-abilities' ),
+			$new_validation
+		);
+	}
+
+	$current_validation = apply_filters(
+		'devenia_editorial_source_post_validation',
+		null,
+		$post,
+		(string) $post->post_content,
+		array(
+			'caller'        => 'mcp-expose-abilities',
+			'ability'       => $ability,
+			'post_type'     => $post_type,
+			'target_status' => $target_status,
+			'neutral_patch' => true,
+		)
+	);
+
+	return is_array( $current_validation )
+		&& ! empty( $current_validation['available'] )
+		&& empty( $current_validation['passed'] )
+		&& mcp_expose_devenia_source_design_issue_codes( $current_validation ) === mcp_expose_devenia_source_design_issue_codes( $new_validation );
+}
+
+/**
  * Guard Devenia source posts from being published or kept published without the
  * approved editorial source-design contract.
  *
@@ -1004,38 +1049,12 @@ function mcp_expose_validate_devenia_editorial_source_post_gate( ?WP_Post $post,
 
 	$codes = mcp_expose_devenia_source_design_issue_codes( $validation );
 
-	if ( $post instanceof WP_Post && 'content/patch-post' === $ability && ! empty( $input['allow_source_design_neutral_patch'] ) ) {
-		$reason = trim( sanitize_textarea_field( (string) ( $input['source_design_neutral_patch_reason'] ?? '' ) ) );
-		if ( strlen( $reason ) < 30 ) {
-			return new WP_Error(
-				'devenia_editorial_source_neutral_patch_reason_required',
-				__( 'A concrete source_design_neutral_patch_reason is required before patching a published source post that still fails the design gate.', 'mcp-expose-abilities' ),
-				$validation
-			);
-		}
-
-		$current_validation = apply_filters(
-			'devenia_editorial_source_post_validation',
-			null,
-			$post,
-			(string) $post->post_content,
-			array(
-				'caller'        => 'mcp-expose-abilities',
-				'ability'       => $ability,
-				'post_type'     => $post_type,
-				'target_status' => $target_status,
-				'neutral_patch' => true,
-			)
-		);
-
-		if (
-			is_array( $current_validation )
-			&& ! empty( $current_validation['available'] )
-			&& empty( $current_validation['passed'] )
-			&& mcp_expose_devenia_source_design_issue_codes( $current_validation ) === $codes
-		) {
-			return true;
-		}
+	$neutral_patch_approval = mcp_expose_devenia_source_design_neutral_patch_approval( $post, $post_type, $target_status, $validation, $input, $ability );
+	if ( is_wp_error( $neutral_patch_approval ) ) {
+		return $neutral_patch_approval;
+	}
+	if ( true === $neutral_patch_approval ) {
+		return true;
 	}
 
 	return new WP_Error(
@@ -1061,6 +1080,39 @@ function mcp_expose_validate_devenia_editorial_source_post_gate( ?WP_Post $post,
  */
 function mcp_expose_with_devenia_source_design_neutral_patch_filter( int $post_id, string $new_content, array $input, callable $callback ) {
 	if ( empty( $input['allow_source_design_neutral_patch'] ) ) {
+		return $callback();
+	}
+
+	$post = get_post( $post_id );
+	if ( ! ( $post instanceof WP_Post ) ) {
+		return new WP_Error(
+			'devenia_editorial_source_neutral_patch_post_missing',
+			__( 'Post not found while preparing source-design neutral patch approval.', 'mcp-expose-abilities' )
+		);
+	}
+
+	$validation = apply_filters(
+		'devenia_editorial_source_post_validation',
+		null,
+		$post,
+		$new_content,
+		array(
+			'caller'        => 'mcp-expose-abilities',
+			'ability'       => 'content/patch-post',
+			'post_type'     => (string) $post->post_type,
+			'target_status' => (string) $post->post_status,
+			'neutral_patch' => true,
+		)
+	);
+	if ( ! is_array( $validation ) ) {
+		return $callback();
+	}
+
+	$approval = mcp_expose_devenia_source_design_neutral_patch_approval( $post, (string) $post->post_type, (string) $post->post_status, $validation, $input, 'content/patch-post' );
+	if ( is_wp_error( $approval ) ) {
+		return $approval;
+	}
+	if ( true !== $approval ) {
 		return $callback();
 	}
 

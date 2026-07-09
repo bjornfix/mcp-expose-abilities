@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 7.0
-**Stable tag:** 3.0.71
+**Stable tag:** 3.0.72
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -612,6 +612,10 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.72
+- Deepened design-neutral source patch approval so MCP preflight and the
+  downstream source publish gate filter share one approval path.
 
 ### 3.0.71
 - Fixed design-neutral `content/patch-post` writes so their hash-bound approval
