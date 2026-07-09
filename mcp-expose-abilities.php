@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.69
+ * Version: 3.0.70
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -934,6 +934,22 @@ function mcp_expose_meta_input_marks_devenia_translation( $meta_input ): bool {
 }
 
 /**
+ * Normalize source-design validation issue codes for equality checks.
+ *
+ * @param array<string,mixed> $validation Validation payload.
+ * @return array<int,string>
+ */
+function mcp_expose_devenia_source_design_issue_codes( array $validation ): array {
+	$codes = array();
+	foreach ( $validation['issue_codes'] ?? array() as $code ) {
+		$codes[] = sanitize_key( (string) $code );
+	}
+
+	sort( $codes );
+	return array_values( array_filter( array_unique( $codes ) ) );
+}
+
+/**
  * Guard Devenia source posts from being published or kept published without the
  * approved editorial source-design contract.
  *
@@ -986,11 +1002,41 @@ function mcp_expose_validate_devenia_editorial_source_post_gate( ?WP_Post $post,
 		return true;
 	}
 
-	$codes = array();
-	foreach ( $validation['issue_codes'] ?? array() as $code ) {
-		$codes[] = sanitize_key( (string) $code );
+	$codes = mcp_expose_devenia_source_design_issue_codes( $validation );
+
+	if ( $post instanceof WP_Post && 'content/patch-post' === $ability && ! empty( $input['allow_source_design_neutral_patch'] ) ) {
+		$reason = trim( sanitize_textarea_field( (string) ( $input['source_design_neutral_patch_reason'] ?? '' ) ) );
+		if ( strlen( $reason ) < 30 ) {
+			return new WP_Error(
+				'devenia_editorial_source_neutral_patch_reason_required',
+				__( 'A concrete source_design_neutral_patch_reason is required before patching a published source post that still fails the design gate.', 'mcp-expose-abilities' ),
+				$validation
+			);
+		}
+
+		$current_validation = apply_filters(
+			'devenia_editorial_source_post_validation',
+			null,
+			$post,
+			(string) $post->post_content,
+			array(
+				'caller'        => 'mcp-expose-abilities',
+				'ability'       => $ability,
+				'post_type'     => $post_type,
+				'target_status' => $target_status,
+				'neutral_patch' => true,
+			)
+		);
+
+		if (
+			is_array( $current_validation )
+			&& ! empty( $current_validation['available'] )
+			&& empty( $current_validation['passed'] )
+			&& mcp_expose_devenia_source_design_issue_codes( $current_validation ) === $codes
+		) {
+			return true;
+		}
 	}
-	$codes = array_values( array_filter( array_unique( $codes ) ) );
 
 	return new WP_Error(
 		'devenia_editorial_source_gate_failed',
@@ -6433,6 +6479,15 @@ function mcp_register_content_abilities(): void {
 						'type'        => 'boolean',
 						'default'     => false,
 						'description' => 'Allow patching content even when existing GenerateBlocks/design markup would be removed. Defaults to false.',
+					),
+					'allow_source_design_neutral_patch' => array(
+						'type'        => 'boolean',
+						'default'     => false,
+						'description' => 'Allow a narrow content/patch-post write on a published Devenia source post only when existing and proposed source-design validation issue codes are identical.',
+					),
+					'source_design_neutral_patch_reason' => array(
+						'type'        => 'string',
+						'description' => 'Concrete reason explaining why this patch is reader-useful and does not attempt to bypass source-design repair.',
 					),
 					'dry_run' => array(
 						'type'        => 'boolean',
