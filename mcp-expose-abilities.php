@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.70
+ * Version: 3.0.71
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -1047,6 +1047,46 @@ function mcp_expose_validate_devenia_editorial_source_post_gate( ?WP_Post $post,
 		),
 		$validation
 	);
+}
+
+/**
+ * Run one write while allowing the downstream Devenia source publish gate to
+ * accept the same design-neutral patch already approved by MCP preflight.
+ *
+ * @param int                  $post_id     Source post ID.
+ * @param string               $new_content Content being written.
+ * @param array<string,mixed>  $input       Ability input.
+ * @param callable             $callback    Write operation.
+ * @return mixed
+ */
+function mcp_expose_with_devenia_source_design_neutral_patch_filter( int $post_id, string $new_content, array $input, callable $callback ) {
+	if ( empty( $input['allow_source_design_neutral_patch'] ) ) {
+		return $callback();
+	}
+
+	$content_hash = hash( 'sha256', $new_content );
+	$allow_filter = static function ( $allowed, $context = array() ) use ( $post_id, $content_hash ) {
+		if ( ! is_array( $context ) ) {
+			return $allowed;
+		}
+
+		if (
+			(int) ( $context['post_id'] ?? 0 ) === $post_id
+			&& 'source_publish_design_gate' === (string) ( $context['guardrail'] ?? '' )
+			&& hash_equals( $content_hash, (string) ( $context['content_hash'] ?? '' ) )
+		) {
+			return true;
+		}
+
+		return $allowed;
+	};
+
+	add_filter( 'devenia_ai_translations_allow_source_publish_design_gate_failure', $allow_filter, 10, 2 );
+	try {
+		return $callback();
+	} finally {
+		remove_filter( 'devenia_ai_translations_allow_source_publish_design_gate_failure', $allow_filter, 10 );
+	}
 }
 
 /**
@@ -6601,13 +6641,20 @@ function mcp_register_content_abilities(): void {
 							);
 						}
 
-						$result = wp_update_post(
-						array(
-							'ID'           => $post_id,
-							'post_content' => $new_content,
-						),
-						true
-					);
+						$result = mcp_expose_with_devenia_source_design_neutral_patch_filter(
+							$post_id,
+							(string) $new_content,
+							$input,
+							static function () use ( $post_id, $new_content ) {
+								return wp_update_post(
+									array(
+										'ID'           => $post_id,
+										'post_content' => $new_content,
+									),
+									true
+								);
+							}
+						);
 
 					if ( is_wp_error( $result ) ) {
 						return array( 'success' => false, 'message' => esc_html( $result->get_error_message() ) );
