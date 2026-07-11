@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.72
+ * Version: 3.0.73
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -6698,10 +6698,14 @@ function mcp_register_content_abilities(): void {
 							(string) $new_content,
 							$input,
 							static function () use ( $post_id, $new_content ) {
+								// wp_update_post() expects slashed input. Passing raw block
+								// markup makes the downstream pre-insert guard unslash JSON
+								// escapes a second time, so its content hash no longer matches
+								// the design-neutral patch approved immediately above.
 								return wp_update_post(
 									array(
 										'ID'           => $post_id,
-										'post_content' => $new_content,
+										'post_content' => wp_slash( $new_content ),
 									),
 									true
 								);

@@ -3,7 +3,7 @@ Contributors: basicus
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.0
-Stable tag: 3.0.72
+Stable tag: 3.0.73
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -50,6 +50,9 @@ Install add-ons only when your site actually uses that product:
 * Store Locator: mcp-abilities-store-locator
 
 == Changelog ==
+
+= 3.0.73 =
+* Fixed: `content/patch-post` now passes correctly slashed Gutenberg content to WordPress, keeping design-neutral approval hashes stable through the downstream source publish gate.
 
 = 3.0.72 =
 * Deepened: design-neutral source patch approval now has one shared approval path for MCP preflight and the downstream source publish gate filter.
