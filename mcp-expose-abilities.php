@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.73
+ * Version: 3.0.74
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -7409,11 +7409,17 @@ function mcp_register_content_abilities(): void {
 		'plugins/list-updates',
 		array(
 			'label'               => 'List Plugin Updates',
-			'description'         => 'List available updates for installed plugins.',
+			'description'         => 'List available updates for installed plugins, optionally refreshing WordPress update data first.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => array( 'object', 'null' ),
-				'properties'           => (object) array(),
+				'properties'           => array(
+					'force_refresh' => array(
+						'type'        => 'boolean',
+						'default'     => false,
+						'description' => 'Clear cached update data and ask WordPress and registered update providers for current plugin updates before listing.',
+					),
+				),
 				'additionalProperties' => false,
 			),
 			'output_schema'       => array(
@@ -7423,15 +7429,23 @@ function mcp_register_content_abilities(): void {
 					'message' => array( 'type' => 'string' ),
 					'updates' => array( 'type' => 'array' ),
 					'total'   => array( 'type' => 'integer' ),
+					'refreshed' => array( 'type' => 'boolean' ),
 				),
 			),
 			'execute_callback'    => function ( $input = array() ): array {
+				$input = is_array( $input ) ? $input : (array) $input;
+				$refreshed = ! empty( $input['force_refresh'] );
+				if ( $refreshed ) {
+					wp_clean_update_cache();
+					wp_update_plugins();
+				}
 				$updates = mcp_expose_get_plugin_updates();
 				return array(
 					'success' => true,
 					'message' => '',
 					'updates' => $updates,
 					'total'   => count( $updates ),
+					'refreshed' => $refreshed,
 				);
 			},
 			'permission_callback' => function (): bool {
@@ -7439,7 +7453,7 @@ function mcp_register_content_abilities(): void {
 			},
 			'meta'                => array(
 				'annotations' => array(
-					'readonly'    => true,
+					'readonly'    => false,
 					'destructive' => false,
 					'idempotent'  => true,
 				),
