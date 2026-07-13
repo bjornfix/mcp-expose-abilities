@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.74
+ * Version: 3.0.75
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -1336,7 +1336,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.60');
+define('MCP_VERSION', '3.0.75');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -10579,6 +10579,127 @@ function mcp_register_content_abilities(): void {
 			'meta'                => array(
 				'annotations' => array(
 					'readonly'    => true,
+					'destructive' => false,
+					'idempotent'  => true,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// COMMENTS - Update Author URL
+	// =========================================================================
+	wp_register_ability(
+		'comments/update-author-url',
+		array(
+			'label'               => 'Update Comment Author URL',
+			'description'         => 'Updates or clears the author URL for one existing comment. Params: id and author_url (both required; author_url may be empty).',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'properties'           => array(
+					'id'         => array(
+						'type'        => 'integer',
+						'minimum'     => 1,
+						'description' => 'The comment ID.',
+					),
+					'author_url' => array(
+						'type'        => 'string',
+						'description' => 'The new absolute HTTP(S) author URL, or an empty string to clear it.',
+					),
+				),
+				'required'             => array( 'id', 'author_url' ),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success'      => array( 'type' => 'boolean' ),
+					'comment_id'   => array( 'type' => 'integer' ),
+					'previous_url' => array( 'type' => 'string' ),
+					'author_url'   => array( 'type' => 'string' ),
+					'changed'      => array( 'type' => 'boolean' ),
+					'message'      => array( 'type' => 'string' ),
+					'error'        => array( 'type' => 'string' ),
+				),
+			),
+			'execute_callback'    => function ( array $params ): array {
+				$comment = get_comment( $params['id'] );
+
+				if ( ! $comment ) {
+					return array(
+						'success' => false,
+						'error'   => 'Comment not found.',
+					);
+				}
+
+				if ( ! current_user_can( 'edit_comment', $comment->comment_ID ) ) {
+					return array(
+						'success' => false,
+						'error'   => 'You do not have permission to update this comment.',
+					);
+				}
+
+				$requested_url = trim( $params['author_url'] );
+				if ( '' !== $requested_url && ! wp_http_validate_url( $requested_url ) ) {
+					return array(
+						'success' => false,
+						'error'   => 'Author URL must be an absolute HTTP(S) URL or an empty string.',
+					);
+				}
+
+				$author_url   = '' === $requested_url ? '' : esc_url_raw( $requested_url, array( 'http', 'https' ) );
+				$previous_url = (string) $comment->comment_author_url;
+
+				if ( $previous_url === $author_url ) {
+					return array(
+						'success'      => true,
+						'comment_id'   => (int) $comment->comment_ID,
+						'previous_url' => $previous_url,
+						'author_url'   => $author_url,
+						'changed'      => false,
+						'message'      => 'Comment author URL already matched the requested value.',
+					);
+				}
+
+				$result = wp_update_comment(
+					array(
+						'comment_ID'         => (int) $comment->comment_ID,
+						'comment_author_url' => $author_url,
+					),
+					true
+				);
+
+				if ( is_wp_error( $result ) ) {
+					return array(
+						'success' => false,
+						'error'   => $result->get_error_message(),
+					);
+				}
+
+				$updated = get_comment( $comment->comment_ID );
+				if ( ! $updated || (string) $updated->comment_author_url !== $author_url ) {
+					return array(
+						'success' => false,
+						'error'   => 'Comment author URL write could not be verified.',
+					);
+				}
+
+				return array(
+					'success'      => true,
+					'comment_id'   => (int) $updated->comment_ID,
+					'previous_url' => $previous_url,
+					'author_url'   => (string) $updated->comment_author_url,
+					'changed'      => true,
+					'message'      => 'Comment author URL updated.',
+				);
+			},
+			'permission_callback' => function (): bool {
+				return current_user_can( 'moderate_comments' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => false,
 					'destructive' => false,
 					'idempotent'  => true,
 				),

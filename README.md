@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 7.0
-**Stable tag:** 3.0.74
+**Stable tag:** 3.0.75
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -175,7 +175,7 @@ Version 3.0 introduced a modular architecture. The core plugin provides WordPres
 | [MCP Abilities - Formidable](https://github.com/bjornfix/mcp-abilities-formidable) | 6 | Formidable Forms settings, usage tracing, styles, and CSS cache controls |
 | [MCP Abilities - Store Locator](https://github.com/bjornfix/mcp-abilities-store-locator) | 9 | Store Locator settings, templates, store records, categories, and transient cleanup |
 
-**Total ecosystem: 297 abilities**
+**Total ecosystem: 298 abilities**
 
 Install only what you need. Running GeneratePress? Install that add-on. Don't use Elementor? Skip it.
 
@@ -236,6 +236,10 @@ When something does not work, check in this order:
 6. Only then debug the specific add-on
 
 ## Recent Changes
+
+### 3.0.75
+
+- Added `comments/update-author-url` for narrowly updating or clearing one comment author URL with per-comment permission checks and write verification.
 
 ### 3.0.50
 
@@ -324,7 +328,7 @@ When something does not work, check in this order:
 - Validates local plugin ZIP signatures before unzip so corrupted `plugins/upload` or `plugins/upload-base64` payloads fail with a direct ZIP-validation error.
 - Intended to pair with the MCP proxy HTTP transport fix that raises the default JSON body limit for large base64 plugin uploads.
 
-## Core Plugin Abilities (68)
+## Core Plugin Abilities (69)
 
 ### Content Management (25)
 
@@ -412,12 +416,13 @@ When something does not work, check in this order:
 | `plugins/switch` | Activate one plugin and deactivate one or more others |
 | `plugins/delete` | Delete inactive plugin |
 
-### Comments (6)
+### Comments (7)
 
 | Ability | Description |
 |---------|-------------|
 | `comments/list` | List comments with filtering |
 | `comments/get` | Get single comment details |
+| `comments/update-author-url` | Update or clear one comment author URL |
 | `comments/create` | Create top-level comment |
 | `comments/reply` | Reply to existing comment |
 | `comments/update-status` | Update comment status (approve, spam, trash) |
@@ -612,6 +617,10 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.75
+
+- Added `comments/update-author-url` for narrowly updating or clearing one comment author URL with per-comment permission checks and write verification.
 
 ### 3.0.73
 - Fixed `content/patch-post` to pass correctly slashed Gutenberg content into
