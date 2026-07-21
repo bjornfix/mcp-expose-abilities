@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.76
+ * Version: 3.0.77
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -882,7 +882,7 @@ function mcp_expose_detect_design_markup_markers( string $content ): array {
  * @return true|WP_Error
  */
 function mcp_expose_validate_content_design_markup_preserved( string $old_content, string $new_content, array $input ) {
-	if ( ! empty( $input['allow_design_markup_loss'] ) ) {
+	if ( 'full_rebuild' === ( $input['content_write_mode'] ?? 'guarded' ) || ! empty( $input['allow_design_markup_loss'] ) ) {
 		return true;
 	}
 
@@ -901,7 +901,7 @@ function mcp_expose_validate_content_design_markup_preserved( string $old_conten
 		'mcp_design_markup_loss_blocked',
 		sprintf(
 			/* translators: %s: comma-separated marker names. */
-			__( 'Content update blocked because it would remove existing design markup (%s). Use a targeted patch or pass allow_design_markup_loss=true only when intentionally replacing the page design.', 'mcp-expose-abilities' ),
+			__( 'Content update blocked because it would remove existing design markup (%s). Use a targeted patch or set content_write_mode to full_rebuild when intentionally replacing the complete design.', 'mcp-expose-abilities' ),
 			implode( ', ', $lost )
 		)
 	);
@@ -1336,7 +1336,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.75');
+define('MCP_VERSION', '3.0.77');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -3886,7 +3886,7 @@ function mcp_register_content_abilities(): void {
 		'content/update-post',
 		array(
 			'label'               => 'Update Post',
-			'description'         => 'Update post. Params: id (required), title, content, excerpt, status, slug, date, category_ids, tag_ids, author_id, meta_input, featured_image_id.',
+			'description'         => 'Update post. Params: id (required), title, content, content_write_mode (guarded or full_rebuild), excerpt, status, slug, date, category_ids, tag_ids, author_id, meta_input, featured_image_id.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -3904,10 +3904,16 @@ function mcp_register_content_abilities(): void {
 						'type'        => 'string',
 						'description' => 'New post content.',
 					),
+					'content_write_mode' => array(
+						'type'        => 'string',
+						'enum'        => array( 'guarded', 'full_rebuild' ),
+						'default'     => 'guarded',
+						'description' => 'Content replacement intent. Use full_rebuild only when intentionally replacing the complete page or post design; ordinary guarded writes continue to block design-markup loss.',
+					),
 					'allow_design_markup_loss' => array(
 						'type'        => 'boolean',
 						'default'     => false,
-						'description' => 'Allow replacing content even when existing GenerateBlocks/design markup would be removed. Defaults to false.',
+						'description' => 'Deprecated compatibility flag. Prefer content_write_mode=full_rebuild for an intentional complete redesign.',
 					),
 					'excerpt'      => array(
 						'type'        => 'string',
@@ -5100,7 +5106,7 @@ function mcp_register_content_abilities(): void {
 		'content/update-page',
 		array(
 			'label'               => 'Update Page',
-			'description'         => 'Update page. Params: id (required), title, content, excerpt, status, slug, parent_id, menu_order, template, featured_image_id.',
+			'description'         => 'Update page. Params: id (required), title, content, content_write_mode (guarded or full_rebuild), excerpt, status, slug, parent, menu_order, template, featured_image_id.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -5118,10 +5124,16 @@ function mcp_register_content_abilities(): void {
 						'type'        => 'string',
 						'description' => 'New page content.',
 					),
+					'content_write_mode' => array(
+						'type'        => 'string',
+						'enum'        => array( 'guarded', 'full_rebuild' ),
+						'default'     => 'guarded',
+						'description' => 'Content replacement intent. Use full_rebuild only when intentionally replacing the complete page design; ordinary guarded writes continue to block design-markup loss.',
+					),
 					'allow_design_markup_loss' => array(
 						'type'        => 'boolean',
 						'default'     => false,
-						'description' => 'Allow replacing content even when existing GenerateBlocks/design markup would be removed. Defaults to false.',
+						'description' => 'Deprecated compatibility flag. Prefer content_write_mode=full_rebuild for an intentional complete redesign.',
 					),
 					'excerpt'    => array(
 						'type'        => 'string',

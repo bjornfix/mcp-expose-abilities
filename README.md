@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 7.0
-**Stable tag:** 3.0.76
+**Stable tag:** 3.0.77
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -237,6 +237,10 @@ When something does not work, check in this order:
 
 ## Recent Changes
 
+### 3.0.77
+
+- Added explicit `content_write_mode: "full_rebuild"` support to `content/update-post` and `content/update-page` for intentional complete design replacements. The default guarded mode still blocks accidental design-markup loss.
+
 ### 3.0.75
 
 - Added `comments/update-author-url` for narrowly updating or clearing one comment author URL with per-comment permission checks and write verification.
@@ -338,14 +342,14 @@ When something does not work, check in this order:
 | `content/get-post` | Get single post by ID or slug |
 | `content/get-next-post` | Find the next existing post after an ID, even when IDs have gaps |
 | `content/create-post` | Create new post, including `featured_image_id` |
-| `content/update-post` | Update existing post, including `featured_image_id` |
+| `content/update-post` | Update an existing post, including guarded or explicit full-rebuild content replacement and `featured_image_id` |
 | `content/delete-post` | Delete post (trash or permanent) |
 | `content/restore-post` | Restore a post, page, or custom post type from trash |
 | `content/patch-post` | Find/replace in post content |
 | `content/list-pages` | List pages with filtering |
 | `content/get-page` | Get single page by ID or slug |
 | `content/create-page` | Create new page, including `featured_image_id` |
-| `content/update-page` | Update existing page, including `featured_image_id` |
+| `content/update-page` | Update an existing page, including guarded or explicit full-rebuild content replacement and `featured_image_id` |
 | `content/update-discussion-status` | Open or close comments and pings for posts/pages |
 | `content/delete-page` | Delete page |
 | `content/patch-page` | Find/replace in page content |
@@ -617,6 +621,10 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.77
+
+- Added `content_write_mode: "full_rebuild"` to `content/update-post` and `content/update-page` so callers can intentionally replace a complete design while ordinary guarded writes still block accidental design-markup loss.
 
 ### 3.0.76
 
