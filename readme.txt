@@ -3,7 +3,7 @@ Contributors: basicus
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.0
-Stable tag: 3.0.77
+Stable tag: 3.0.78
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -51,6 +51,13 @@ Install add-ons only when your site actually uses that product:
 
 == Changelog ==
 
+= 3.0.78 =
+* Added: published source pages are validated through the canonical registered source-design Interface before `content/create-page` or `content/update-page` mutates WordPress.
+* Changed: explicit `full_rebuild` intent still permits complete replacement, but it no longer bypasses source-page design validation.
+* Added: neutral site adapters can extend guarded design markers and reject a proposed content write before mutation without adding site policy to this public plugin.
+* Changed: manifest-gated plugin-update decisions now use a neutral update-policy filter.
+* Fixed: `content/update-page` validates a requested template before changing page content, preventing an invalid template from leaving a partial update behind.
+
 = 3.0.77 =
 * Added: `content/update-post` and `content/update-page` accept an explicit `content_write_mode=full_rebuild` intent for complete design replacements while ordinary guarded writes still block accidental design-markup loss.
 
@@ -70,20 +77,20 @@ Install add-ons only when your site actually uses that product:
 * Deepened: design-neutral source patch approval now has one shared approval path for MCP preflight and the downstream source publish gate filter.
 
 = 3.0.71 =
-* Fixed: design-neutral `content/patch-post` writes now carry their hash-bound approval through the downstream Devenia source publish gate.
+* Fixed: design-neutral `content/patch-post` writes can carry hash-bound approval through registered site policy.
 
 = 3.0.70 =
-* Added: `content/patch-post` can perform an explicitly justified design-neutral patch on a published Devenia source post when the patch does not worsen source-design validation.
+* Added: `content/patch-post` can perform an explicitly justified design-neutral patch on source content when registered site policy confirms the patch does not worsen validation.
 
 = 3.0.69 =
 * Fixed: `content/update-post` and `content/update-page` no longer call `wp_update_post()` for featured-image-only or taxonomy-only updates, avoiding unrelated publish/design hooks on partial updates.
 
 = 3.0.68 =
 * Added: Dry-run support for MCP post create, update, and patch writes.
-* Fixed: Devenia source-post editorial gate now also blocks status-only publishes of invalid source drafts.
+* Fixed: registered source-content policy preflight now also blocks status-only publishes of invalid drafts.
 
 = 3.0.67 =
-* Added: Devenia source-post editorial gate for MCP post create/update/patch writes, blocking published source posts that fail the shared editorial source-design validation.
+* Added: optional site-policy preflight for MCP post create/update/patch writes.
 
 = 3.0.66 =
 * Added: `content/update-tag` for correcting tag names, slugs, and descriptions through MCP without direct REST or database access.
@@ -141,7 +148,7 @@ Install add-ons only when your site actually uses that product:
 * Fixed: `menus/update-item` now preserves existing menu item fields when only changing title, URL, parent, position, target, or classes.
 
 = 3.0.50 =
-* Security: `plugins/update` can run through MCP only for Devenia manifest-managed packages with explicit confirmation; generic plugin code writes remain disabled by default.
+* Security: `plugins/update` can run through MCP only with explicit confirmation and either the global code-write opt-in or approval from a registered update-policy adapter; generic plugin code writes remain disabled by default.
 
 = 3.0.49 =
 * Security: `options/update` now blocks theme bootstrap options `template` and `stylesheet`.

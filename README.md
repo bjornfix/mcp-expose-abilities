@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 7.0
-**Stable tag:** 3.0.77
+**Stable tag:** 3.0.78
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -237,6 +237,14 @@ When something does not work, check in this order:
 
 ## Recent Changes
 
+### 3.0.78
+
+- Validates proposed published source pages through the canonical registered source-design Interface before `content/create-page` or `content/update-page` mutates WordPress.
+- Keeps `content_write_mode: "full_rebuild"` as explicit replacement intent without letting it bypass page design validation.
+- Lets site adapters register additional protected design markers for ordinary guarded writes without adding site policy to this public plugin.
+- Runs optional site-owned content-write preflight through a neutral filter before mutation.
+- Validates requested page templates before content mutation so a rejected template cannot leave a partial update behind.
+
 ### 3.0.77
 
 - Added explicit `content_write_mode: "full_rebuild"` support to `content/update-post` and `content/update-page` for intentional complete design replacements. The default guarded mode still blocks accidental design-markup loss.
@@ -247,7 +255,7 @@ When something does not work, check in this order:
 
 ### 3.0.50
 
-- Security: `plugins/update` can run through MCP only for Devenia manifest-managed packages with explicit confirmation; generic plugin code writes remain disabled by default.
+- Security: `plugins/update` can run through MCP only with explicit confirmation and either the global code-write opt-in or approval from a registered update-policy adapter; generic plugin code writes remain disabled by default.
 
 ### 3.0.49
 
@@ -622,6 +630,14 @@ Three-plugin stack plus optional add-ons:
 
 ## Changelog
 
+### 3.0.78
+
+- Added published source-page design preflight to `content/create-page` and `content/update-page` through the canonical registered validation Interface.
+- Kept deliberate full rebuilds available while rejecting invalid replacement trees before mutation.
+- Added neutral site adapters for guarded design markers and content-write preflight; the public plugin contains no site-specific design, metadata, translation, or workflow policy.
+- Moved manifest-gated plugin-update decisions behind a neutral policy filter.
+- Validates a requested page template before changing page content, so an invalid template cannot leave a partial update behind.
+
 ### 3.0.77
 
 - Added `content_write_mode: "full_rebuild"` to `content/update-post` and `content/update-page` so callers can intentionally replace a complete design while ordinary guarded writes still block accidental design-markup loss.
@@ -647,12 +663,12 @@ Three-plugin stack plus optional add-ons:
   downstream source publish gate filter share one approval path.
 
 ### 3.0.71
-- Fixed design-neutral `content/patch-post` writes so their hash-bound approval
-  carries through the downstream Devenia source publish gate.
+- Fixed design-neutral `content/patch-post` writes so registered site policy can
+  carry hash-bound approval through downstream save guards.
 
 ### 3.0.70
 - Added `content/patch-post` support for an explicitly justified
-  design-neutral patch on a published Devenia source post when the patch does
+  design-neutral patch on source content when the registered site policy confirms it does
   not worsen source-design validation.
 
 ### 3.0.69
@@ -662,11 +678,11 @@ Three-plugin stack plus optional add-ons:
 
 ### 3.0.68
 - Added dry-run support for MCP post create, update, and patch writes.
-- Fixed the Devenia source-post editorial gate so status-only publishes of
-  invalid source drafts are blocked.
+- Fixed registered source-content policy preflight so status-only publishes of
+  invalid drafts are blocked.
 
 ### 3.0.67
-- Added a Devenia source-post editorial gate for MCP post create/update/patch writes, blocking published source posts that fail the shared editorial source-design validation.
+- Added optional site-policy preflight for MCP post create/update/patch writes.
 
 ### 3.0.66
 - Added `content/update-tag` for correcting tag names, slugs, and descriptions through MCP without direct REST or database access.
@@ -736,7 +752,7 @@ Three-plugin stack plus optional add-ons:
 - Fixed: `menus/update-item` now preserves existing menu item fields when only changing title, URL, parent, position, target, or classes.
 
 ### 3.0.50
-- Security: `plugins/update` can run through MCP only for Devenia manifest-managed packages with explicit confirmation; generic plugin code writes remain disabled by default.
+- Security: `plugins/update` can run through MCP only with explicit confirmation and either the global code-write opt-in or a registered update-policy approval; generic plugin code writes remain disabled by default.
 
 ### 3.0.49
 - Security: `options/update` now blocks theme bootstrap options `template` and `stylesheet`.

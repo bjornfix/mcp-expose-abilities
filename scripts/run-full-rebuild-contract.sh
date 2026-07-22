@@ -4,8 +4,8 @@ set -euo pipefail
 PROXY_DIR="${PROXY_DIR:-/media/bjorn/Stuff/Prosjekter/wordpress-mcp-proxy}"
 VPS="${VPS:-hetzner-vps}"
 DEV_PATH="${DEV_PATH:-/var/www/dev.devenia.com}"
-OLD_CONTENT='<!-- wp:generateblocks/container {"className":"dv-page-999-legacy"} --><div class="wp-block-generateblocks-container dv-page-999-legacy"><p>Old design</p></div><!-- /wp:generateblocks/container -->'
-NEW_CONTENT='<!-- wp:generateblocks/container {"className":"dv-surface dv-surface--brand"} --><div class="wp-block-generateblocks-container dv-surface dv-surface--brand"><p>New design</p></div><!-- /wp:generateblocks/container -->'
+OLD_CONTENT='<!-- wp:generateblocks/container {"className":"fixture-designed-page"} --><div class="wp-block-generateblocks-container fixture-designed-page"><p>Old design</p></div><!-- /wp:generateblocks/container -->'
+NEW_CONTENT='<!-- wp:generateblocks/container {"className":"fixture-rebuilt-page"} --><div class="wp-block-generateblocks-container fixture-rebuilt-page"><p>New design</p></div><!-- /wp:generateblocks/container -->'
 PLAIN_CONTENT='<!-- wp:paragraph --><p>Accidental flattening</p><!-- /wp:paragraph -->'
 
 old_content_b64="$(printf '%s' "$OLD_CONTENT" | base64 -w0)"
