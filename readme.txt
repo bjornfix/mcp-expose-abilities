@@ -3,7 +3,7 @@ Contributors: basicus
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.0
-Stable tag: 3.0.78
+Stable tag: 3.0.79
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -50,6 +50,10 @@ Install add-ons only when your site actually uses that product:
 * Store Locator: mcp-abilities-store-locator
 
 == Changelog ==
+
+= 3.0.79 =
+* Route create, update, patch, and revision restore through one vendor-neutral Content Write Gate.
+* Keep only vendor-neutral Core layout markers in the public plugin and union Adapter markers.
 
 = 3.0.78 =
 * Added: published source pages are validated through the canonical registered source-design Interface before `content/create-page` or `content/update-page` mutates WordPress.

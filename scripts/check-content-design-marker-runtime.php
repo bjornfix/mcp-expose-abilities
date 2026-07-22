@@ -10,7 +10,7 @@ define( 'ABSPATH', __DIR__ . '/' );
 function add_action( ...$args ): void { unset( $args ); }
 function add_filter( ...$args ): void { unset( $args ); }
 function apply_filters( string $name, $value, ...$args ) {
-	if ( 'mcp_expose_design_markup_markers' === $name ) {
+	if ( 'mcp_content_design_markup_markers' === $name ) {
 		$content = (string) ( $args[0] ?? '' );
 		if ( false !== strpos( $content, 'invalid-adapter-output' ) ) {
 			return new WP_Error( 'invalid_adapter_output', 'Fixture invalid marker response.' );
@@ -20,7 +20,7 @@ function apply_filters( string $name, $value, ...$args ) {
 		}
 		return $value;
 	}
-	if ( 'mcp_expose_content_write_preflight' === $name && ! empty( $GLOBALS['site_write_policy_enabled'] ) ) {
+	if ( 'mcp_content_write_preflight' === $name && ! empty( $GLOBALS['site_write_policy_enabled'] ) ) {
 		$GLOBALS['site_write_policy_calls']++;
 		$context = is_array( $args[0] ?? null ) ? $args[0] : array();
 		if ( 'page' !== (string) ( $context['post_type'] ?? '' ) || 'content/create-page' !== (string) ( $context['ability'] ?? '' ) ) {
@@ -65,8 +65,8 @@ if ( ! $marker_result instanceof WP_Error || 'mcp_design_markup_loss_blocked' !=
 	throw new RuntimeException( 'Guarded mode did not reject site-supplied design marker removal.' );
 }
 
-$built_in_markers = mcp_expose_detect_design_markup_markers( '<!-- wp:generateblocks/container --><div>invalid-adapter-output</div><!-- /wp:generateblocks/container -->' );
-if ( ! in_array( 'generateblocks', $built_in_markers, true ) ) {
+$built_in_markers = mcp_expose_detect_design_markup_markers( '<!-- wp:columns --><div>invalid-adapter-output</div><!-- /wp:columns -->' );
+if ( ! in_array( 'core-layout', $built_in_markers, true ) ) {
 	throw new RuntimeException( 'Invalid Adapter output discarded built-in guarded design evidence.' );
 }
 

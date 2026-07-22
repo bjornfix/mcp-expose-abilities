@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.78
+ * Version: 3.0.79
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -824,14 +824,12 @@ function mcp_expose_validate_post_meta_write_policy( array $meta, ?int $post_id 
  */
 function mcp_expose_detect_design_markup_markers( string $content ): array {
 	$markers = array();
-
-	if ( false !== strpos( $content, '<!-- wp:generateblocks/' ) || false !== strpos( $content, 'gb-container-' ) || false !== strpos( $content, 'gb-grid-wrapper-' ) || false !== strpos( $content, 'gb-headline-' ) || false !== strpos( $content, 'gb-button-' ) ) {
-		$markers[] = 'generateblocks';
+	if ( preg_match( '/<!--\s+wp:(?:group|columns|cover|media-text)\b/', $content ) ) {
+		$markers[] = 'core-layout';
 	}
-
-	$filtered_markers = apply_filters( 'mcp_expose_design_markup_markers', $markers, $content );
+	$filtered_markers = apply_filters( 'mcp_content_design_markup_markers', array(), $content );
 	if ( is_array( $filtered_markers ) ) {
-		$markers = $filtered_markers;
+		$markers = array_merge( $markers, $filtered_markers );
 	}
 
 	return array_values( array_unique( array_filter( array_map( 'sanitize_key', $markers ) ) ) );
@@ -887,8 +885,10 @@ function mcp_expose_validate_content_design_markup_preserved( string $old_conten
  * @return true|WP_Error
  */
 function mcp_expose_validate_content_write_policy( ?WP_Post $post, string $post_type, string $target_status, string $content, array $input, string $ability ) {
+	$operation = sanitize_key( (string) ( $input['content_write_operation'] ?? ( null === $post ? 'create' : 'update' ) ) );
+	$write_mode = sanitize_key( (string) ( $input['content_write_mode'] ?? 'guarded' ) );
 	$result = apply_filters(
-		'mcp_expose_content_write_preflight',
+		'mcp_content_write_preflight',
 		true,
 		array(
 			'post'          => $post,
@@ -897,6 +897,8 @@ function mcp_expose_validate_content_write_policy( ?WP_Post $post, string $post_
 			'content'       => $content,
 			'input'         => $input,
 			'ability'       => $ability,
+			'operation'     => $operation,
+			'write_mode'    => $write_mode,
 		)
 	);
 
@@ -1105,7 +1107,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.78');
+define('MCP_VERSION', '3.0.79');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -4287,6 +4289,26 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'message' => esc_html__( 'Permission denied to restore this post.', 'mcp-expose-abilities' ) );
 				}
 
+				$previous_status = (string) get_post_meta( $post_id, '_wp_trash_meta_status', true );
+				$target_status   = isset( $input['status'] ) ? (string) $input['status'] : ( $previous_status ?: 'draft' );
+				$post_type       = get_post_type_object( (string) $post->post_type );
+				$publish_cap     = $post_type && ! empty( $post_type->cap->publish_posts ) ? (string) $post_type->cap->publish_posts : 'publish_posts';
+				if ( in_array( $target_status, array( 'publish', 'future', 'private' ), true ) && ! current_user_can( $publish_cap ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Permission denied to publish this post.', 'mcp-expose-abilities' ) );
+				}
+
+				$policy = mcp_expose_validate_content_write_policy(
+					$post,
+					(string) $post->post_type,
+					$target_status,
+					(string) $post->post_content,
+					array_merge( $input, array( 'content_write_operation' => 'restore' ) ),
+					'content/restore-post'
+				);
+				if ( is_wp_error( $policy ) ) {
+					return array( 'success' => false, 'message' => esc_html( $policy->get_error_message() ) );
+				}
+
 				$lock_token = mcp_expose_acquire_post_write_lock( $post_id, 'content/restore-post' );
 				if ( is_wp_error( $lock_token ) ) {
 					return array( 'success' => false, 'message' => esc_html( $lock_token->get_error_message() ) );
@@ -4337,7 +4359,17 @@ function mcp_register_content_abilities(): void {
 					return current_user_can( 'edit_posts' ) || current_user_can( 'edit_pages' );
 				}
 
-				return current_user_can( 'edit_post', (int) $input['id'] );
+				$post = get_post( (int) $input['id'] );
+				if ( ! $post || ! current_user_can( 'edit_post', (int) $input['id'] ) ) {
+					return false;
+				}
+				$target_status = isset( $input['status'] ) ? (string) $input['status'] : ( (string) get_post_meta( (int) $input['id'], '_wp_trash_meta_status', true ) ?: 'draft' );
+				if ( ! in_array( $target_status, array( 'publish', 'future', 'private' ), true ) ) {
+					return true;
+				}
+				$post_type = get_post_type_object( (string) $post->post_type );
+				$cap       = $post_type && ! empty( $post_type->cap->publish_posts ) ? (string) $post_type->cap->publish_posts : 'publish_posts';
+				return current_user_can( $cap );
 			},
 			'meta'                => array(
 				'annotations' => array(
@@ -5313,6 +5345,12 @@ function mcp_register_content_abilities(): void {
 						'type'        => 'integer',
 						'description' => 'Revision ID to restore.',
 					),
+					'content_write_mode' => array(
+						'type'        => 'string',
+						'enum'        => array( 'guarded', 'full_rebuild' ),
+						'default'     => 'guarded',
+						'description' => 'Use full_rebuild only when the revision intentionally replaces the complete design.',
+					),
 				),
 				'additionalProperties' => false,
 			),
@@ -5346,6 +5384,27 @@ function mcp_register_content_abilities(): void {
 
 				if ( ! current_user_can( 'edit_post', (int) $parent->ID ) ) {
 					return array( 'success' => false, 'message' => esc_html__( 'Current user cannot edit the revision parent', 'mcp-expose-abilities' ) );
+				}
+
+				$restore_input = array_merge( $input, array( 'content_write_operation' => 'restore' ) );
+				$design_guard = mcp_expose_validate_content_design_markup_preserved(
+					(string) $parent->post_content,
+					(string) $revision->post_content,
+					$restore_input
+				);
+				if ( is_wp_error( $design_guard ) ) {
+					return array( 'success' => false, 'message' => esc_html( $design_guard->get_error_message() ) );
+				}
+				$content_write_preflight = mcp_expose_validate_content_write_policy(
+					$parent,
+					(string) $parent->post_type,
+					(string) $parent->post_status,
+					(string) $revision->post_content,
+					$restore_input,
+					'content/restore-revision'
+				);
+				if ( is_wp_error( $content_write_preflight ) ) {
+					return array( 'success' => false, 'message' => esc_html( $content_write_preflight->get_error_message() ) );
 				}
 
 				$lock_token = mcp_expose_acquire_post_write_lock( (int) $parent->ID, 'content/restore-revision' );
@@ -5437,6 +5496,14 @@ function mcp_register_content_abilities(): void {
 						'default'     => false,
 						'description' => 'Allow patching content even when existing GenerateBlocks/design markup would be removed. Defaults to false.',
 					),
+					'content_write_mode' => array(
+						'type'        => 'string',
+						'enum'        => array( 'guarded', 'full_rebuild' ),
+						'default'     => 'guarded',
+						'description' => 'Use full_rebuild only when intentionally replacing the complete page design.',
+					),
+					'allow_source_design_neutral_patch' => array( 'type' => 'boolean', 'default' => false ),
+					'source_design_neutral_patch_reason' => array( 'type' => 'string' ),
 				),
 				'additionalProperties' => false,
 			),
@@ -5508,6 +5575,19 @@ function mcp_register_content_abilities(): void {
 					$design_guard = mcp_expose_validate_content_design_markup_preserved( (string) $content, (string) $new_content, $input );
 					if ( is_wp_error( $design_guard ) ) {
 						return array( 'success' => false, 'message' => esc_html( $design_guard->get_error_message() ) );
+					}
+
+					$patch_input = array_merge( $input, array( 'content_write_operation' => 'patch' ) );
+					$content_write_preflight = mcp_expose_validate_content_write_policy(
+						$page,
+						'page',
+						(string) $page->post_status,
+						(string) $new_content,
+						$patch_input,
+						'content/patch-page'
+					);
+					if ( is_wp_error( $content_write_preflight ) ) {
+						return array( 'success' => false, 'message' => esc_html( $content_write_preflight->get_error_message() ) );
 					}
 
 					mcp_expose_normalize_assigned_template( $post_id, (string) $page->post_type );
@@ -6383,6 +6463,7 @@ function mcp_register_content_abilities(): void {
 						'default'     => false,
 						'description' => 'Allow patching content even when existing GenerateBlocks/design markup would be removed. Defaults to false.',
 					),
+					'content_write_mode' => array( 'type' => 'string', 'enum' => array( 'guarded', 'full_rebuild' ), 'default' => 'guarded' ),
 					'allow_source_design_neutral_patch' => array(
 						'type'        => 'boolean',
 						'default'     => false,
@@ -6486,7 +6567,7 @@ function mcp_register_content_abilities(): void {
 							(string) $post->post_type,
 							(string) $post->post_status,
 							(string) $new_content,
-							$input,
+							array_merge( $input, array( 'content_write_operation' => 'patch' ) ),
 							'content/patch-post'
 						);
 						if ( is_wp_error( $content_write_preflight ) ) {

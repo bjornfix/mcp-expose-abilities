@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROXY_DIR="${PROXY_DIR:-/media/bjorn/Stuff/Prosjekter/wordpress-mcp-proxy}"
-SITE="${SITE:-dev}"
+CLI_CALL="${CLI_CALL:-/media/bjorn/Stuff/Prosjekter/plugins/wordpress-plugins/scripts/dev-wp-cli-call-ability.sh}"
 PAGE_ID=""
 ORIGINAL_CONTENT='<!-- wp:paragraph --><p>Original atomic content.</p><!-- /wp:paragraph -->'
 REPLACEMENT_CONTENT='<!-- wp:paragraph --><p>This must not persist.</p><!-- /wp:paragraph -->'
@@ -10,7 +9,7 @@ REPLACEMENT_CONTENT='<!-- wp:paragraph --><p>This must not persist.</p><!-- /wp:
 call_ability() {
 	local ability="$1"
 	local params="$2"
-	(cd "$PROXY_DIR" && node scripts/http-call.mjs execute_ability --site "$SITE" --ability "$ability" --params "$params")
+	"$CLI_CALL" "$ability" "$params"
 }
 
 cleanup() {
