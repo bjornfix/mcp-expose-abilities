@@ -7,12 +7,16 @@ declare( strict_types=1 );
 
 define( 'ABSPATH', __DIR__ . '/' );
 
+final class WP_User {
+	public function __construct( public int $ID, public array $allcaps ) {}
+}
+
 $GLOBALS['registered_abilities'] = array();
 $GLOBALS['editable_user_ids']    = array( 194, 195 );
-$GLOBALS['global_caps']          = array( 'edit_users' );
+$GLOBALS['global_caps']          = array( 'read', 'edit_users' );
 $GLOBALS['fixture_users']        = array(
-	194 => (object) array( 'ID' => 194, 'allcaps' => array( 'read' => true ) ),
-	195 => (object) array( 'ID' => 195, 'allcaps' => array( 'read' => true, 'assign_terms' => true ) ),
+	194 => new WP_User( 194, array( 'read' => true ) ),
+	195 => new WP_User( 195, array( 'read' => true, 'assign_terms' => true ) ),
 );
 
 function add_action( ...$args ): void { unset( $args ); }
@@ -32,6 +36,7 @@ function current_user_can( string $capability, ...$args ): bool {
 function get_user_by( string $field, $value ) {
 	return 'id' === $field ? ( $GLOBALS['fixture_users'][ (int) $value ] ?? false ) : false;
 }
+function get_current_user_id(): int { return 194; }
 function wp_is_application_passwords_available_for_user( $user ): bool { return 194 === (int) ( $user->ID ?? 0 ); }
 function wp_is_uuid( $value ): bool { return 1 === preg_match( '/^[a-f0-9-]{36}$/i', (string) $value ); }
 function wp_register_ability( string $name, array $args ): void { $GLOBALS['registered_abilities'][ $name ] = $args; }
@@ -56,6 +61,14 @@ final class WP_Error {
 final class WP_Application_Passwords {
 	public static array $calls = array();
 	public static array $deletions = array();
+	public static array $passwords = array(
+		194 => array(
+			'44444444-4444-4444-8444-444444444444' => array(
+				'uuid' => '44444444-4444-4444-8444-444444444444',
+				'name' => 'Broad legacy credential',
+			),
+		),
+	);
 	public static string $mode = 'success';
 	public static $delete_result = true;
 	public static function create_new_application_password( int $user_id, array $args ) {
@@ -78,7 +91,13 @@ final class WP_Application_Passwords {
 	}
 	public static function delete_application_password( int $user_id, string $uuid ) {
 		self::$deletions[] = array( $user_id, $uuid );
+		if ( true === self::$delete_result ) {
+			unset( self::$passwords[ $user_id ][ $uuid ] );
+		}
 		return self::$delete_result;
+	}
+	public static function get_user_application_password( int $user_id, string $uuid ) {
+		return self::$passwords[ $user_id ][ $uuid ] ?? null;
 	}
 }
 
@@ -90,6 +109,60 @@ $ability = $GLOBALS['registered_abilities']['users/create-restricted-application
 if ( ! is_array( $ability ) ) {
 	throw new RuntimeException( 'Application Password provisioning ability was not registered.' );
 }
+
+$revoke_ability = $GLOBALS['registered_abilities']['users/revoke-current-application-password'] ?? null;
+if ( ! is_array( $revoke_ability ) || true !== ( $revoke_ability['meta']['annotations']['destructive'] ?? null ) ) {
+	throw new RuntimeException( 'Current Application Password revocation ability was not registered as destructive.' );
+}
+$revoke_permission = $revoke_ability['permission_callback'];
+if ( false !== $revoke_permission() ) {
+	throw new RuntimeException( 'Revocation accepted a request without Application Password authentication.' );
+}
+
+$revoke_execute = $revoke_ability['execute_callback'];
+$unconfirmed_revoke = $revoke_execute( array() );
+if ( false !== ( $unconfirmed_revoke['success'] ?? null ) || 'Exact confirmation is required to revoke the current Application Password.' !== ( $unconfirmed_revoke['message'] ?? '' ) || array() !== WP_Application_Passwords::$deletions ) {
+	throw new RuntimeException( 'Revocation proceeded without exact confirmation.' );
+}
+$not_authenticated = $revoke_execute( array( 'confirm' => 'revoke_current_application_password' ) );
+if ( false !== ( $not_authenticated['success'] ?? null ) || 'The current request was not authenticated with an Application Password.' !== ( $not_authenticated['message'] ?? '' ) || array() !== WP_Application_Passwords::$deletions ) {
+	throw new RuntimeException( 'Revocation invented a current credential identity.' );
+}
+
+mcp_expose_capture_current_application_password( (object) array( 'ID' => 194 ), array( 'uuid' => '44444444-4444-4444-8444-444444444444' ) );
+if ( false !== $revoke_permission() ) {
+	throw new RuntimeException( 'Revocation accepted a non-WP_User hook value.' );
+}
+mcp_expose_capture_current_application_password( $GLOBALS['fixture_users'][195], array( 'uuid' => '44444444-4444-4444-8444-444444444444' ) );
+if ( false !== $revoke_permission() ) {
+	throw new RuntimeException( 'Revocation accepted a credential belonging to a different current user.' );
+}
+mcp_expose_capture_current_application_password( $GLOBALS['fixture_users'][194], array( 'uuid' => '44444444-4444-4444-8444-444444444444' ) );
+if ( true !== $revoke_permission() ) {
+	throw new RuntimeException( 'Revocation rejected the exact authenticated current credential.' );
+}
+
+$GLOBALS['global_caps'] = array();
+$unauthorized_revoke = $revoke_execute( array( 'confirm' => 'revoke_current_application_password' ) );
+if ( false !== ( $unauthorized_revoke['success'] ?? null ) || 'Permission denied to revoke the current Application Password.' !== ( $unauthorized_revoke['message'] ?? '' ) || array() !== WP_Application_Passwords::$deletions ) {
+	throw new RuntimeException( 'Revocation bypassed execution-time read authority.' );
+}
+$GLOBALS['global_caps'] = array( 'read', 'edit_users' );
+$revoked = $revoke_execute( array( 'confirm' => 'revoke_current_application_password' ) );
+if ( array( 'success', 'user_id', 'uuid', 'message' ) !== array_keys( $revoked ) || true !== $revoked['success'] || array( array( 194, '44444444-4444-4444-8444-444444444444' ) ) !== WP_Application_Passwords::$deletions || null !== WP_Application_Passwords::get_user_application_password( 194, '44444444-4444-4444-8444-444444444444' ) || false !== $revoke_permission() ) {
+	throw new RuntimeException( 'Revocation did not delete, verify, and forget the exact current Application Password.' );
+}
+WP_Application_Passwords::$deletions = array();
+
+WP_Application_Passwords::$passwords[194]['66666666-6666-4666-8666-666666666666'] = array( 'uuid' => '66666666-6666-4666-8666-666666666666' );
+WP_Application_Passwords::$delete_result = new WP_Error( 'delete_failed', 'Fixture revocation failed.' );
+mcp_expose_capture_current_application_password( $GLOBALS['fixture_users'][194], array( 'uuid' => '66666666-6666-4666-8666-666666666666' ) );
+$failed_revoke = $revoke_execute( array( 'confirm' => 'revoke_current_application_password' ) );
+if ( false !== ( $failed_revoke['success'] ?? null ) || 'Fixture revocation failed.' !== ( $failed_revoke['message'] ?? '' ) || ! is_array( WP_Application_Passwords::get_user_application_password( 194, '66666666-6666-4666-8666-666666666666' ) ) ) {
+	throw new RuntimeException( 'Revocation reported a failed Core deletion as successful.' );
+}
+WP_Application_Passwords::$delete_result = true;
+WP_Application_Passwords::$deletions = array();
 
 $permission = $ability['permission_callback'];
 if ( true !== $permission( array( 'user_id' => 194 ) ) || false !== $permission( array( 'user_id' => 195 ) ) ) {
@@ -215,4 +288,4 @@ if ( true !== array_key_exists( 'success', $missing ) || false !== $missing['suc
 	throw new RuntimeException( 'A failed provisioning attempt exposed a credential field.' );
 }
 
-fwrite( STDOUT, "Application Password provisioning ability runtime passed.\n" );
+fwrite( STDOUT, "Application Password provisioning and revocation ability runtime passed.\n" );

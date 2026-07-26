@@ -8,7 +8,7 @@ Let AI assistants edit your WordPress site via MCP.
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 7.0
-**Stable tag:** 3.0.80
+**Stable tag:** 3.0.81
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -160,7 +160,7 @@ Version 3.0 introduced a modular architecture. The core plugin provides WordPres
 
 | Plugin | Abilities | Description |
 |--------|-----------|-------------|
-| **MCP Expose Abilities** (core) | 70 | WordPress core: content, menus, users, media, widgets, plugins, options, comments, taxonomy, system |
+| **MCP Expose Abilities** (core) | 79 | WordPress core: content, menus, users, media, widgets, plugins, options, comments, taxonomy, system |
 | [MCP Abilities - Filesystem](https://github.com/bjornfix/mcp-abilities-filesystem) | 11 | File operations with security hardening |
 | [MCP Abilities - Elementor](https://github.com/bjornfix/mcp-abilities-elementor) | 40 | Elementor page builder integration |
 | [MCP Abilities - GeneratePress](https://github.com/bjornfix/mcp-abilities-generatepress) | 26 | GeneratePress theme + GenerateBlocks |
@@ -175,7 +175,7 @@ Version 3.0 introduced a modular architecture. The core plugin provides WordPres
 | [MCP Abilities - Formidable](https://github.com/bjornfix/mcp-abilities-formidable) | 6 | Formidable Forms settings, usage tracing, styles, and CSS cache controls |
 | [MCP Abilities - Store Locator](https://github.com/bjornfix/mcp-abilities-store-locator) | 9 | Store Locator settings, templates, store records, categories, and transient cleanup |
 
-**Total ecosystem: 303 abilities**
+**Total ecosystem: 312 abilities**
 
 Install only what you need. Running GeneratePress? Install that add-on. Don't use Elementor? Skip it.
 
@@ -236,6 +236,11 @@ When something does not work, check in this order:
 6. Only then debug the specific add-on
 
 ## Recent Changes
+
+### 3.0.81
+
+- Added `users/revoke-current-application-password` for revoking only the Application Password that authenticated the current request.
+- Requires exact `revoke_current_application_password` confirmation, accepts no credential selector, and verifies deletion before reporting success.
 
 ### 3.0.80
 
@@ -350,9 +355,9 @@ When something does not work, check in this order:
 - Validates local plugin ZIP signatures before unzip so corrupted `plugins/upload` or `plugins/upload-base64` payloads fail with a direct ZIP-validation error.
 - Intended to pair with the MCP proxy HTTP transport fix that raises the default JSON body limit for large base64 plugin uploads.
 
-## Core Plugin Abilities (70)
+## Core Plugin Abilities (79)
 
-### Content Management (25)
+### Content Management (27)
 
 | Ability | Description |
 |---------|-------------|
@@ -381,6 +386,8 @@ When something does not work, check in this order:
 | `content/search` | Search across posts, pages, media |
 | `content/list-revisions` | List revisions for a post/page |
 | `content/get-revision` | Get specific revision details |
+| `content/restore-revision` | Restore one exact post or page revision |
+| `content/update-tag` | Update an existing tag name, slug, or description |
 
 ### Menu Management (8)
 
@@ -395,7 +402,7 @@ When something does not work, check in this order:
 | `menus/delete-item` | Delete menu item |
 | `menus/assign-location` | Assign menu to theme location |
 
-### User Management (6)
+### User Management (7)
 
 | Ability | Description |
 |---------|-------------|
@@ -405,15 +412,25 @@ When something does not work, check in this order:
 | `users/update` | Update user |
 | `users/delete` | Delete user (can reassign content) |
 | `users/create-restricted-application-password` | Create one sealed Application Password after explicit confirmation for an exact editable user without generic WordPress Core write authority |
+| `users/revoke-current-application-password` | Revoke only the Application Password authenticating the current request after explicit confirmation and deletion readback |
 
-### Media Library (4)
+### Media Library (5)
 
 | Ability | Description |
 |---------|-------------|
 | `media/upload` | Upload media from URL |
+| `media/upload-base64` | Upload media from base64-encoded bytes |
 | `media/get` | Get media item details and sizes |
 | `media/update` | Update title, alt, caption |
 | `media/delete` | Delete media item |
+
+### Post Meta (3)
+
+| Ability | Description |
+|---------|-------------|
+| `meta/get-post-meta` | Read one exact post meta key |
+| `meta/update-post-meta` | Update one permitted post meta key |
+| `meta/delete-post-meta` | Delete one permitted post meta key |
 
 ### Widget Management (3)
 
@@ -640,6 +657,10 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.81
+
+- Added `users/revoke-current-application-password` with Core authentication-hook binding, no caller-selected credential identity, explicit confirmation, and deletion readback before success.
 
 ### 3.0.80
 

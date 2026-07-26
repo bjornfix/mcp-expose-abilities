@@ -1,9 +1,9 @@
 <?php
 /**
  * Plugin Name: MCP Expose Abilities
- * Plugin URI: https://devenia.com
+ * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.80
+ * Version: 3.0.81
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -1107,7 +1107,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.80');
+define('MCP_VERSION', '3.0.81');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -2951,6 +2951,42 @@ function mcp_expose_cleanup_failed_application_password_creation( int $user_id, 
 	}
 
 	return array( 'success' => false, 'message' => esc_html( $message ) );
+}
+
+/**
+ * Capture the exact Application Password that authenticated this request.
+ *
+ * Core may pass unexpected values through hooks, so the callback deliberately
+ * avoids a WP_User parameter type and validates both values at runtime.
+ *
+ * @param mixed $user Authenticated user candidate.
+ * @param mixed $item Authenticated Application Password item candidate.
+ */
+function mcp_expose_capture_current_application_password( $user, $item ): void {
+	if ( ! $user instanceof WP_User || ! is_array( $item ) || ! is_string( $item['uuid'] ?? null ) || ! wp_is_uuid( $item['uuid'] ) ) {
+		return;
+	}
+	$GLOBALS['mcp_expose_current_application_password'] = array(
+		'user_id' => (int) $user->ID,
+		'uuid'    => $item['uuid'],
+	);
+}
+add_action( 'application_password_did_authenticate', 'mcp_expose_capture_current_application_password', 10, 2 );
+
+/**
+ * Return the current request's verified Application Password identity.
+ *
+ * @return array{user_id:int,uuid:string}|null
+ */
+function mcp_expose_get_current_application_password(): ?array {
+	$authenticated = $GLOBALS['mcp_expose_current_application_password'] ?? null;
+	if ( ! is_array( $authenticated ) || (int) ( $authenticated['user_id'] ?? 0 ) !== get_current_user_id() || ! is_string( $authenticated['uuid'] ?? null ) || ! wp_is_uuid( $authenticated['uuid'] ) ) {
+		return null;
+	}
+	return array(
+		'user_id' => (int) $authenticated['user_id'],
+		'uuid'    => $authenticated['uuid'],
+	);
 }
 
 /**
@@ -9286,6 +9322,83 @@ function mcp_register_content_abilities(): void {
 				$user_id = (int) ( $input['user_id'] ?? 0 );
 				$user = $user_id > 0 ? get_user_by( 'id', $user_id ) : false;
 				return $user_id > 0 && $user && ! mcp_expose_user_has_core_write_authority( $user ) && current_user_can( 'edit_users' ) && current_user_can( 'edit_user', $user_id );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => false,
+					'destructive' => true,
+					'idempotent'  => false,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// USERS - Revoke Current Application Password
+	// =========================================================================
+	wp_register_ability(
+		'users/revoke-current-application-password',
+		array(
+			'label'               => 'Revoke Current Application Password',
+			'description'         => 'Revokes only the WordPress Application Password that authenticated the current request.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'required'             => array( 'confirm' ),
+				'properties'           => array(
+					'confirm' => array(
+						'type'        => 'string',
+						'enum'        => array( 'revoke_current_application_password' ),
+						'description' => 'Exact confirmation required because revocation cannot be undone.',
+					),
+				),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success' => array( 'type' => 'boolean' ),
+					'user_id' => array( 'type' => 'integer' ),
+					'uuid'    => array( 'type' => 'string' ),
+					'message' => array( 'type' => 'string' ),
+				),
+			),
+			'execute_callback'    => function ( $input = array() ): array {
+				$input = is_array( $input ) ? $input : array();
+				if ( 'revoke_current_application_password' !== (string) ( $input['confirm'] ?? '' ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Exact confirmation is required to revoke the current Application Password.', 'mcp-expose-abilities' ) );
+				}
+				$authenticated = mcp_expose_get_current_application_password();
+				if ( null === $authenticated ) {
+					return array( 'success' => false, 'message' => esc_html__( 'The current request was not authenticated with an Application Password.', 'mcp-expose-abilities' ) );
+				}
+				if ( ! current_user_can( 'read' ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Permission denied to revoke the current Application Password.', 'mcp-expose-abilities' ) );
+				}
+				$user_id = $authenticated['user_id'];
+				$uuid    = $authenticated['uuid'];
+				if ( ! is_array( WP_Application_Passwords::get_user_application_password( $user_id, $uuid ) ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Current Application Password not found.', 'mcp-expose-abilities' ) );
+				}
+
+				$deleted = WP_Application_Passwords::delete_application_password( $user_id, $uuid );
+				if ( is_wp_error( $deleted ) ) {
+					return array( 'success' => false, 'message' => esc_html( $deleted->get_error_message() ) );
+				}
+				if ( true !== $deleted || null !== WP_Application_Passwords::get_user_application_password( $user_id, $uuid ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Current Application Password revocation could not be verified.', 'mcp-expose-abilities' ) );
+				}
+				unset( $GLOBALS['mcp_expose_current_application_password'] );
+
+				return array(
+					'success' => true,
+					'user_id' => $user_id,
+					'uuid'    => $uuid,
+					'message' => esc_html__( 'Current Application Password revoked successfully.', 'mcp-expose-abilities' ),
+				);
+			},
+			'permission_callback' => function (): bool {
+				return null !== mcp_expose_get_current_application_password() && current_user_can( 'read' );
 			},
 			'meta'                => array(
 				'annotations' => array(

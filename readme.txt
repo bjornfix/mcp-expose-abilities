@@ -3,7 +3,7 @@ Contributors: basicus
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.0
-Stable tag: 3.0.80
+Stable tag: 3.0.81
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -50,6 +50,10 @@ Install add-ons only when your site actually uses that product:
 * Store Locator: mcp-abilities-store-locator
 
 == Changelog ==
+
+= 3.0.81 =
+* Added: an Application Password-authenticated caller can revoke only the credential authenticating its current request.
+* Security: self-revocation requires explicit confirmation, takes no user ID or UUID input, and reads the captured Core UUID back as absent before reporting success.
 
 = 3.0.80 =
 * Added: callers who can manage users and edit the exact target user can create one WordPress Application Password through `users/create-restricted-application-password`, but only for a user without generic WordPress Core write authority.
