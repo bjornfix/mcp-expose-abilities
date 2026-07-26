@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.79
+ * Version: 3.0.80
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -1107,7 +1107,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.79');
+define('MCP_VERSION', '3.0.80');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -2898,6 +2898,60 @@ function mcp_get_optimized_query_args( array $args, array $pagination = array(),
 // ============================================================================
 // REGISTER ABILITY CATEGORIES
 // ============================================================================
+
+/**
+ * Whether a user carries generic WordPress Core mutation authority.
+ *
+ * Restricted Application Password provisioning is intentionally unavailable
+ * for administrator, editor, author, or custom generic-write principals.
+ *
+ * @param mixed $user Candidate WP_User-like value.
+ * @return bool
+ */
+function mcp_expose_user_has_core_write_authority( $user ): bool {
+	if ( ! is_object( $user ) || ! isset( $user->allcaps ) || ! is_array( $user->allcaps ) ) {
+		return true;
+	}
+
+	foreach ( $user->allcaps as $capability => $granted ) {
+		if ( ! $granted || ! is_string( $capability ) ) {
+			continue;
+		}
+		if ( preg_match( '/(^|_)(edit|publish|delete|manage|activate|install|update|upload|create|promote|remove|assign)(_|$)/', $capability ) ) {
+			return true;
+		}
+		if ( in_array( $capability, array( 'unfiltered_html', 'customize', 'switch_themes', 'import', 'export', 'moderate_comments' ), true ) ) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/**
+ * Fail a post-creation operation without silently leaving an unknown credential.
+ *
+ * @param int    $user_id User ID.
+ * @param string $uuid Created credential UUID, when available.
+ * @param string $message Safe failure message.
+ * @return array
+ */
+function mcp_expose_cleanup_failed_application_password_creation( int $user_id, string $uuid, string $message ): array {
+	if ( '' !== $uuid && wp_is_uuid( $uuid ) ) {
+		$deleted = WP_Application_Passwords::delete_application_password( $user_id, $uuid );
+		if ( true !== $deleted ) {
+			return array(
+				'success'          => false,
+				'user_id'          => $user_id,
+				'uuid'             => $uuid,
+				'cleanup_required' => true,
+				'message'          => esc_html__( 'Credential creation failed and automatic cleanup failed. Delete the reported UUID before retrying.', 'mcp-expose-abilities' ),
+			);
+		}
+	}
+
+	return array( 'success' => false, 'message' => esc_html( $message ) );
+}
 
 /**
  * Register content management abilities.
@@ -9078,6 +9132,160 @@ function mcp_register_content_abilities(): void {
 			},
 			'permission_callback' => function (): bool {
 				return current_user_can( 'delete_users' );
+			},
+			'meta'                => array(
+				'annotations' => array(
+					'readonly'    => false,
+					'destructive' => true,
+					'idempotent'  => false,
+				),
+			),
+		)
+	);
+
+	// =========================================================================
+	// USERS - Create Application Password
+	// =========================================================================
+	wp_register_ability(
+		'users/create-restricted-application-password',
+		array(
+			'label'               => 'Create Restricted User Application Password',
+			'description'         => 'Creates one WordPress Application Password for an exact user without generic WordPress Core write authority. The secret is returned only as a sealed box for the supplied recipient key.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => 'object',
+				'required'             => array( 'user_id', 'name', 'recipient_public_key', 'confirm' ),
+				'properties'           => array(
+					'user_id' => array(
+						'type'        => 'integer',
+						'minimum'     => 1,
+						'description' => 'Exact WordPress user ID that will own the credential.',
+					),
+					'name'    => array(
+						'type'        => 'string',
+						'minLength'   => 1,
+						'maxLength'   => 255,
+						'description' => 'Human-readable credential name.',
+					),
+					'app_id'  => array(
+						'type'        => 'string',
+						'pattern'     => '^[a-fA-F0-9-]{36}$',
+						'description' => 'Optional application UUID for stable external identification.',
+					),
+					'recipient_public_key' => array(
+						'type'        => 'string',
+						'minLength'   => 44,
+						'maxLength'   => 44,
+						'description' => 'Base64-encoded 32-byte Curve25519 public key for a libsodium sealed box.',
+					),
+					'confirm' => array(
+						'type'        => 'string',
+						'enum'        => array( 'create_restricted_application_password' ),
+						'description' => 'Exact confirmation required because creation returns a new authentication secret.',
+					),
+				),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success'       => array( 'type' => 'boolean' ),
+					'user_id'       => array( 'type' => 'integer' ),
+					'uuid'          => array( 'type' => 'string' ),
+					'app_id'        => array( 'type' => 'string' ),
+					'name'          => array( 'type' => 'string' ),
+					'password_ciphertext' => array( 'type' => 'string' ),
+					'password_hash' => array( 'type' => 'string' ),
+					'created'       => array( 'type' => 'integer' ),
+					'cleanup_required' => array( 'type' => 'boolean' ),
+					'message'       => array( 'type' => 'string' ),
+				),
+			),
+			'execute_callback'    => function ( $input = array() ): array {
+				$input   = is_array( $input ) ? $input : array();
+				$user_id = (int) ( $input['user_id'] ?? 0 );
+				$name    = sanitize_text_field( (string) ( $input['name'] ?? '' ) );
+				$app_id  = sanitize_text_field( (string) ( $input['app_id'] ?? '' ) );
+
+				if ( 'create_restricted_application_password' !== (string) ( $input['confirm'] ?? '' ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Exact confirmation is required to create an Application Password.', 'mcp-expose-abilities' ) );
+				}
+				if ( $user_id < 1 || '' === $name ) {
+					return array( 'success' => false, 'message' => esc_html__( 'A valid user ID and credential name are required.', 'mcp-expose-abilities' ) );
+				}
+
+				$user = get_user_by( 'id', $user_id );
+				if ( ! $user ) {
+					return array( 'success' => false, 'message' => esc_html__( 'User not found', 'mcp-expose-abilities' ) );
+				}
+				if ( ! current_user_can( 'edit_users' ) || ! current_user_can( 'edit_user', $user_id ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Permission denied to create an Application Password for this user.', 'mcp-expose-abilities' ) );
+				}
+				if ( mcp_expose_user_has_core_write_authority( $user ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Application Passwords created through this ability are limited to users without generic WordPress Core write authority.', 'mcp-expose-abilities' ) );
+				}
+				if ( ! wp_is_application_passwords_available_for_user( $user ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Application Passwords are unavailable for this user.', 'mcp-expose-abilities' ) );
+				}
+				if ( '' !== $app_id && ! wp_is_uuid( $app_id ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Application ID must be a valid UUID.', 'mcp-expose-abilities' ) );
+				}
+				if ( ! function_exists( 'sodium_crypto_box_seal' ) || ! defined( 'SODIUM_CRYPTO_BOX_PUBLICKEYBYTES' ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Libsodium sealed-box support is unavailable.', 'mcp-expose-abilities' ) );
+				}
+				$recipient_public_key = base64_decode( (string) ( $input['recipient_public_key'] ?? '' ), true );
+				if ( ! is_string( $recipient_public_key ) || SODIUM_CRYPTO_BOX_PUBLICKEYBYTES !== strlen( $recipient_public_key ) ) {
+					return array( 'success' => false, 'message' => esc_html__( 'Recipient public key must encode one 32-byte Curve25519 public key.', 'mcp-expose-abilities' ) );
+				}
+
+				$args = array( 'name' => $name );
+				if ( '' !== $app_id ) {
+					$args['app_id'] = $app_id;
+				}
+				$created = WP_Application_Passwords::create_new_application_password( $user_id, $args );
+				if ( is_wp_error( $created ) ) {
+					return array( 'success' => false, 'message' => esc_html( $created->get_error_message() ) );
+				}
+				$item = is_array( $created ) && is_array( $created[1] ?? null ) ? $created[1] : array();
+				if ( ! is_array( $created ) || 2 !== count( $created ) || ! is_string( $created[0] ?? null ) || ! is_string( $item['uuid'] ?? null ) || ! is_string( $item['password'] ?? null ) || '' === $item['uuid'] || '' === $item['password'] ) {
+					$uuid = is_string( $item['uuid'] ?? null ) ? $item['uuid'] : '';
+					return mcp_expose_cleanup_failed_application_password_creation( $user_id, $uuid, __( 'WordPress returned incomplete Application Password metadata.', 'mcp-expose-abilities' ) );
+				}
+
+				$plaintext = $created[0];
+				unset( $created[0] );
+				try {
+					$password_ciphertext = sodium_crypto_box_seal( $plaintext, $recipient_public_key );
+				} catch ( Throwable $exception ) {
+					unset( $exception );
+					$password_ciphertext = false;
+				} finally {
+					if ( function_exists( 'sodium_memzero' ) ) {
+						sodium_memzero( $plaintext );
+					} else {
+						$plaintext = '';
+					}
+				}
+				if ( ! is_string( $password_ciphertext ) || '' === $password_ciphertext ) {
+					return mcp_expose_cleanup_failed_application_password_creation( $user_id, $item['uuid'], __( 'Application Password encryption failed.', 'mcp-expose-abilities' ) );
+				}
+
+				return array(
+					'success'       => true,
+					'user_id'       => $user_id,
+					'uuid'          => $item['uuid'],
+					'app_id'        => (string) ( $item['app_id'] ?? '' ),
+					'name'          => (string) ( $item['name'] ?? $name ),
+					'password_ciphertext' => base64_encode( $password_ciphertext ),
+					'password_hash' => $item['password'],
+					'created'       => (int) ( $item['created'] ?? 0 ),
+				);
+			},
+			'permission_callback' => function ( $input = array() ): bool {
+				$input   = is_array( $input ) ? $input : array();
+				$user_id = (int) ( $input['user_id'] ?? 0 );
+				$user = $user_id > 0 ? get_user_by( 'id', $user_id ) : false;
+				return $user_id > 0 && $user && ! mcp_expose_user_has_core_write_authority( $user ) && current_user_can( 'edit_users' ) && current_user_can( 'edit_user', $user_id );
 			},
 			'meta'                => array(
 				'annotations' => array(
