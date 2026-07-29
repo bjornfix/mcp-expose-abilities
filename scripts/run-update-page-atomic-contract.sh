@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CLI_CALL="${CLI_CALL:-/media/bjorn/Stuff/Prosjekter/plugins/wordpress-plugins/scripts/dev-wp-cli-call-ability.sh}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGINS_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+CLI_CALL="${CLI_CALL:-${PLUGINS_ROOT}/scripts/dev-wp-cli-call-ability.sh}"
 PAGE_ID=""
 ORIGINAL_CONTENT='<!-- wp:paragraph --><p>Original atomic content.</p><!-- /wp:paragraph -->'
 REPLACEMENT_CONTENT='<!-- wp:paragraph --><p>This must not persist.</p><!-- /wp:paragraph -->'

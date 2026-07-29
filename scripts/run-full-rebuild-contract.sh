@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROXY_DIR="${PROXY_DIR:-/media/bjorn/Stuff/Prosjekter/wordpress-mcp-proxy}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORKSPACE_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
+PROXY_DIR="${PROXY_DIR:-${WORKSPACE_ROOT}/wordpress-mcp-proxy}"
 VPS="${VPS:-hetzner-vps}"
 DEV_PATH="${DEV_PATH:-/var/www/dev.devenia.com}"
 OLD_CONTENT='<!-- wp:generateblocks/container {"className":"fixture-designed-page"} --><div class="wp-block-generateblocks-container fixture-designed-page"><p>Old design</p></div><!-- /wp:generateblocks/container -->'
