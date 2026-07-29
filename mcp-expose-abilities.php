@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.81
+ * Version: 3.0.82
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -1107,7 +1107,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.81');
+define('MCP_VERSION', '3.0.82');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -1278,6 +1278,144 @@ function mcp_expose_normalize_base64( string $base64 ): string {
 	}
 
 	return preg_replace( '/\s+/', '', $base64 ) ?? '';
+}
+
+/**
+ * Return the file types accepted by the base64 media upload Ability.
+ *
+ * SVG is deliberately absent because this plugin does not own an SVG
+ * sanitization implementation.
+ *
+ * @return array<string,string>
+ */
+function mcp_expose_media_upload_mimes(): array {
+	return array(
+		'jpg|jpeg|jpe' => 'image/jpeg',
+		'png'          => 'image/png',
+		'webp'         => 'image/webp',
+		'gif'          => 'image/gif',
+		'pdf'          => 'application/pdf',
+	);
+}
+
+/**
+ * Upload one validated base64 file to the WordPress media library.
+ *
+ * @param mixed $input Ability input.
+ * @return array<string,mixed>
+ */
+function mcp_expose_upload_base64_media( $input = array() ): array {
+	$input = is_array( $input ) ? $input : array();
+
+	$filename  = isset( $input['filename'] ) ? sanitize_file_name( (string) $input['filename'] ) : '';
+	$mime_type = isset( $input['mime_type'] ) ? sanitize_mime_type( (string) $input['mime_type'] ) : '';
+	$base64    = isset( $input['base64'] ) ? mcp_expose_normalize_base64( (string) $input['base64'] ) : '';
+	$post_id   = isset( $input['post_id'] ) ? absint( $input['post_id'] ) : 0;
+
+	if ( '' === $filename || '' === $mime_type || '' === $base64 ) {
+		return array( 'success' => false, 'message' => esc_html__( 'filename, mime_type, and base64 are required.', 'mcp-expose-abilities' ) );
+	}
+	if ( $post_id > 0 && ( ! get_post( $post_id ) || ! current_user_can( 'edit_post', $post_id ) ) ) {
+		return array( 'success' => false, 'message' => esc_html__( 'The target post is unavailable or cannot be edited by the current user.', 'mcp-expose-abilities' ) );
+	}
+
+	$allowed_mimes = mcp_expose_media_upload_mimes();
+	$expected      = wp_check_filetype( $filename, $allowed_mimes );
+	if ( ! in_array( $mime_type, array_values( $allowed_mimes ), true ) || empty( $expected['ext'] ) || empty( $expected['type'] ) || $mime_type !== (string) $expected['type'] ) {
+		return array( 'success' => false, 'message' => esc_html__( 'Filename extension and MIME type do not match an allowed file type.', 'mcp-expose-abilities' ) );
+	}
+
+	$max_encoded_size = (int) ceil( MCP_EXPOSE_MAX_MEDIA_BASE64_BYTES / 3 ) * 4;
+	if ( strlen( $base64 ) > $max_encoded_size ) {
+		return array(
+			'success' => false,
+			'message' => sprintf( 'Media exceeds limit of %d bytes.', MCP_EXPOSE_MAX_MEDIA_BASE64_BYTES ),
+		);
+	}
+
+	$file_data = base64_decode( $base64, true );
+	if ( false === $file_data || '' === $file_data ) {
+		return array( 'success' => false, 'message' => esc_html__( 'Invalid base64 content.', 'mcp-expose-abilities' ) );
+	}
+	if ( strlen( $file_data ) > MCP_EXPOSE_MAX_MEDIA_BASE64_BYTES ) {
+		return array(
+			'success' => false,
+			'message' => sprintf( 'Media exceeds limit of %d bytes.', MCP_EXPOSE_MAX_MEDIA_BASE64_BYTES ),
+		);
+	}
+
+	$upload = wp_upload_bits( $filename, null, $file_data );
+	if ( ! empty( $upload['error'] ) ) {
+		return array( 'success' => false, 'message' => esc_html( (string) $upload['error'] ) );
+	}
+
+	$file_path = (string) ( $upload['file'] ?? '' );
+	$file_url  = (string) ( $upload['url'] ?? '' );
+	if ( '' === $file_path || '' === $file_url ) {
+		if ( '' !== $file_path ) {
+			wp_delete_file( $file_path );
+		}
+		return array( 'success' => false, 'message' => esc_html__( 'WordPress did not return a complete upload result.', 'mcp-expose-abilities' ) );
+	}
+
+	$detected = wp_check_filetype_and_ext( $file_path, $filename, $allowed_mimes );
+	if ( empty( $detected['ext'] ) || empty( $detected['type'] ) || $mime_type !== (string) $detected['type'] ) {
+		wp_delete_file( $file_path );
+		return array( 'success' => false, 'message' => esc_html__( 'Uploaded bytes do not match the declared filename and MIME type.', 'mcp-expose-abilities' ) );
+	}
+
+	$file_size = file_exists( $file_path ) ? (int) filesize( $file_path ) : strlen( $file_data );
+	$title     = isset( $input['title'] ) && '' !== trim( (string) $input['title'] )
+		? sanitize_text_field( (string) $input['title'] )
+		: preg_replace( '/\.[^.]+$/', '', $filename );
+
+	$attachment_id = wp_insert_attachment(
+		array(
+			'post_mime_type' => (string) $detected['type'],
+			'post_title'     => $title,
+			'post_excerpt'   => isset( $input['caption'] ) ? sanitize_text_field( (string) $input['caption'] ) : '',
+			'post_content'   => isset( $input['description'] ) ? sanitize_textarea_field( (string) $input['description'] ) : '',
+			'post_status'    => 'inherit',
+		),
+		$file_path,
+		$post_id,
+		true
+	);
+
+	if ( is_wp_error( $attachment_id ) || (int) $attachment_id <= 0 ) {
+		wp_delete_file( $file_path );
+		$message = is_wp_error( $attachment_id ) ? $attachment_id->get_error_message() : esc_html__( 'WordPress did not create the media attachment.', 'mcp-expose-abilities' );
+		return array( 'success' => false, 'message' => esc_html( $message ) );
+	}
+
+	if ( ! function_exists( 'wp_generate_attachment_metadata' ) ) {
+		require_once ABSPATH . 'wp-admin/includes/image.php';
+	}
+	$metadata = wp_generate_attachment_metadata( $attachment_id, $file_path );
+	if ( str_starts_with( (string) $detected['type'], 'image/' ) && ! is_array( $metadata ) ) {
+		wp_delete_attachment( $attachment_id, true );
+		return array( 'success' => false, 'message' => esc_html__( 'WordPress could not generate image metadata.', 'mcp-expose-abilities' ) );
+	}
+	if ( is_array( $metadata ) ) {
+		wp_update_attachment_metadata( $attachment_id, $metadata );
+	}
+
+	if ( isset( $input['alt_text'] ) ) {
+		update_post_meta( $attachment_id, '_wp_attachment_image_alt', sanitize_text_field( (string) $input['alt_text'] ) );
+	}
+
+	$width  = is_array( $metadata ) && isset( $metadata['width'] ) ? (int) $metadata['width'] : 0;
+	$height = is_array( $metadata ) && isset( $metadata['height'] ) ? (int) $metadata['height'] : 0;
+
+	return array(
+		'success'  => true,
+		'id'       => (int) $attachment_id,
+		'url'      => $file_url,
+		'width'    => $width,
+		'height'   => $height,
+		'filesize' => $file_size,
+		'message'  => esc_html__( 'Media uploaded successfully', 'mcp-expose-abilities' ),
+	);
 }
 
 /**
@@ -9617,90 +9755,7 @@ function mcp_register_content_abilities(): void {
 					'message'  => array( 'type' => 'string' ),
 				),
 			),
-			'execute_callback'    => function ( $input = array() ): array {
-				$input = is_array( $input ) ? $input : array();
-
-				$filename  = isset( $input['filename'] ) ? sanitize_file_name( (string) $input['filename'] ) : '';
-				$mime_type = isset( $input['mime_type'] ) ? sanitize_mime_type( (string) $input['mime_type'] ) : '';
-				$base64    = isset( $input['base64'] ) ? mcp_expose_normalize_base64( (string) $input['base64'] ) : '';
-				$post_id   = isset( $input['post_id'] ) ? absint( $input['post_id'] ) : 0;
-
-				if ( '' === $filename || '' === $mime_type || '' === $base64 ) {
-					return array( 'success' => false, 'message' => esc_html__( 'filename, mime_type, and base64 are required.', 'mcp-expose-abilities' ) );
-				}
-
-				$allowed_mimes = array( 'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml', 'application/pdf' );
-				if ( ! in_array( $mime_type, $allowed_mimes, true ) ) {
-					return array( 'success' => false, 'message' => esc_html__( 'MIME type is not allowed.', 'mcp-expose-abilities' ) );
-				}
-
-				$file_type = wp_check_filetype( $filename );
-				if ( empty( $file_type['type'] ) || $file_type['type'] !== $mime_type ) {
-					return array( 'success' => false, 'message' => esc_html__( 'Filename extension and MIME type do not match.', 'mcp-expose-abilities' ) );
-				}
-
-				$file_data = base64_decode( $base64, true );
-				if ( false === $file_data ) {
-					return array( 'success' => false, 'message' => esc_html__( 'Invalid base64 content.', 'mcp-expose-abilities' ) );
-				}
-
-				if ( strlen( $file_data ) > MCP_EXPOSE_MAX_MEDIA_BASE64_BYTES ) {
-					return array(
-						'success' => false,
-						'message' => sprintf( 'Media exceeds limit of %d bytes.', MCP_EXPOSE_MAX_MEDIA_BASE64_BYTES ),
-					);
-				}
-
-				$upload = wp_upload_bits( $filename, null, $file_data );
-				if ( ! empty( $upload['error'] ) ) {
-					return array( 'success' => false, 'message' => esc_html( (string) $upload['error'] ) );
-				}
-
-				$file_path = (string) $upload['file'];
-				$file_url  = (string) $upload['url'];
-				$file_size = file_exists( $file_path ) ? (int) filesize( $file_path ) : strlen( $file_data );
-
-				$title = isset( $input['title'] ) && '' !== trim( (string) $input['title'] )
-					? sanitize_text_field( (string) $input['title'] )
-					: preg_replace( '/\.[^.]+$/', '', $filename );
-
-				$attachment_id = wp_insert_attachment(
-					array(
-						'post_mime_type' => $mime_type,
-						'post_title'     => $title,
-						'post_excerpt'   => isset( $input['caption'] ) ? sanitize_text_field( (string) $input['caption'] ) : '',
-						'post_content'   => isset( $input['description'] ) ? sanitize_textarea_field( (string) $input['description'] ) : '',
-						'post_status'    => 'inherit',
-					),
-					$file_path,
-					$post_id
-				);
-
-				if ( is_wp_error( $attachment_id ) ) {
-					wp_delete_file( $file_path );
-					return array( 'success' => false, 'message' => esc_html( $attachment_id->get_error_message() ) );
-				}
-
-				$metadata = wp_generate_attachment_metadata( $attachment_id, $file_path );
-				wp_update_attachment_metadata( $attachment_id, $metadata );
-
-				if ( isset( $input['alt_text'] ) ) {
-					update_post_meta( $attachment_id, '_wp_attachment_image_alt', sanitize_text_field( (string) $input['alt_text'] ) );
-				}
-
-				$width  = isset( $metadata['width'] ) ? (int) $metadata['width'] : 0;
-				$height = isset( $metadata['height'] ) ? (int) $metadata['height'] : 0;
-
-				return array(
-					'success'  => true,
-					'id'       => (int) $attachment_id,
-					'url'      => $file_url,
-					'width'    => $width,
-					'height'   => $height,
-					'filesize' => $file_size,
-					'message'  => esc_html__( 'Media uploaded successfully', 'mcp-expose-abilities' ),
-				);
-			},
+			'execute_callback'    => 'mcp_expose_upload_base64_media',
 			'permission_callback' => function (): bool {
 				return current_user_can( 'upload_files' );
 			},
