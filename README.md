@@ -88,6 +88,8 @@ If you want the more specific buyer case, start here:
 
 ## Documentation
 
+- [Download the stable plugin ZIP](https://downloads.devenia.com/mcp-expose-abilities.zip)
+
 For setup and troubleshooting beyond the quick start, use the wiki:
 
 - [Why Teams Use It](https://github.com/bjornfix/mcp-expose-abilities/wiki/Why-Teams-Use-It)
