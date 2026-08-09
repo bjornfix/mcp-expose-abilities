@@ -112,8 +112,8 @@ If you are using an AI agent, the simplest instruction is often just:
 
 If you are new to the stack, use this order:
 
-1. Install **Abilities API**
-2. Install **MCP Adapter**
+1. Use **WordPress 6.9 or later**, which provides the WordPress Abilities API
+2. Install **WordPress MCP Adapter**
 3. Install **MCP Expose Abilities** (this plugin)
 4. Confirm you can list and execute core abilities
 5. Add only the vendor-specific plugins you actually need
@@ -126,20 +126,17 @@ For a minimal working setup, you only need:
 
 - WordPress 6.9+
 - PHP 8.0+
-- [Abilities API](https://github.com/WordPress/abilities-api)
-- [MCP Adapter](https://github.com/WordPress/mcp-adapter)
+- [WordPress Abilities API](https://developer.wordpress.org/apis/abilities-api/)
+- [WordPress MCP Adapter](https://github.com/WordPress/mcp-adapter/)
 - **MCP Expose Abilities** (this plugin)
 
 Everything else in the ecosystem is optional.
 
 ## 5-Minute Setup
 
-1. Install and activate the required plugins:
-   - Abilities API: https://github.com/WordPress/abilities-api/releases/latest
-   - MCP Adapter: https://github.com/WordPress/mcp-adapter
-   - MCP Expose Abilities: download the latest release from this repo
-2. Verify the Abilities API plugin is installed as `wp-content/plugins/abilities-api/abilities-api.php`
-3. Activate all three plugins in WordPress
+1. Confirm WordPress 6.9 or later provides the WordPress Abilities API
+2. Install and activate WordPress MCP Adapter from https://github.com/WordPress/mcp-adapter/
+3. Install and activate MCP Expose Abilities from https://downloads.devenia.com/mcp-expose-abilities.zip
 4. Confirm the MCP adapter route is reachable on your site
 5. Run a simple read-only ability first, such as listing posts or reading a page
 
@@ -185,9 +182,8 @@ Install only what you need. Running GeneratePress? Install that add-on. Don't us
 
 - WordPress 6.9+
 - PHP 8.0+
-- [Abilities API](https://github.com/WordPress/abilities-api) plugin (WordPress core team)
-- [MCP Adapter](https://github.com/WordPress/mcp-adapter) plugin (WordPress core team)
-- Use the official Abilities API release ZIP (`abilities-api.zip`) so it installs as `wp-content/plugins/abilities-api/abilities-api.php`
+- [WordPress Abilities API](https://developer.wordpress.org/apis/abilities-api/)
+- [WordPress MCP Adapter](https://github.com/WordPress/mcp-adapter/)
 
 ## WordPress Compatibility
 
@@ -198,13 +194,12 @@ Install only what you need. Running GeneratePress? Install that add-on. Don't us
 
 ## Installation
 
-1. Install and activate the required plugins:
-   - Abilities API (official release ZIP): https://github.com/WordPress/abilities-api/releases/latest
-   - MCP Adapter: https://github.com/WordPress/mcp-adapter
-2. Download the latest release from [Releases](https://github.com/bjornfix/mcp-expose-abilities/releases)
-3. Upload via WordPress Admin → Plugins → Add New → Upload Plugin
-4. Activate the plugin
-5. (Optional) Install add-on plugins for vendor-specific features
+1. Confirm WordPress 6.9 or later is active
+2. Install and activate WordPress MCP Adapter from https://github.com/WordPress/mcp-adapter/
+3. Download https://downloads.devenia.com/mcp-expose-abilities.zip
+4. Upload the ZIP through WordPress Admin > Plugins > Add New > Upload Plugin
+5. Activate the plugin
+6. Optionally install add-on plugins for vendor-specific features
 
 ## Which Add-On Should I Install?
 
@@ -230,7 +225,7 @@ The most common onboarding mistake is treating this like one plugin instead of a
 
 When something does not work, check in this order:
 
-1. Is Abilities API active?
+1. Does WordPress 6.9 or later provide the Abilities API?
 2. Is MCP Adapter active?
 3. Is MCP Expose Abilities active?
 4. Does the core plugin work without any add-ons?
