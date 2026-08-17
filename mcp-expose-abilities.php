@@ -22,6 +22,58 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
+ * Bind the generic execute Ability to the standalone MCP Adapter.
+ *
+ * Some plugins bundle a private MCP Adapter copy under the same namespace. A
+ * later Composer autoloader can otherwise claim this shared class and change
+ * the public parameter contract for every exposed WordPress Ability.
+ *
+ * @return bool
+ */
+function mcp_expose_load_canonical_execute_adapter(): bool {
+	static $ready = null;
+
+	if ( null !== $ready ) {
+		return $ready;
+	}
+
+	$symbols = array(
+		'WP\\MCP\\Abilities\\McpAbilityHelperTrait' => WP_PLUGIN_DIR . '/mcp-adapter/includes/Abilities/McpAbilityHelperTrait.php',
+		'WP\\MCP\\Abilities\\ExecuteAbilityAbility' => WP_PLUGIN_DIR . '/mcp-adapter/includes/Abilities/ExecuteAbilityAbility.php',
+	);
+
+	foreach ( $symbols as $symbol => $file ) {
+		$loaded = class_exists( $symbol, false ) || trait_exists( $symbol, false );
+
+		if ( ! $loaded ) {
+			if ( ! is_readable( $file ) ) {
+				$ready = false;
+				return $ready;
+			}
+
+			require_once $file;
+			$loaded = class_exists( $symbol, false ) || trait_exists( $symbol, false );
+		}
+
+		if ( ! $loaded ) {
+			$ready = false;
+			return $ready;
+		}
+
+		$reflection = new ReflectionClass( $symbol );
+		if ( wp_normalize_path( (string) $reflection->getFileName() ) !== wp_normalize_path( $file ) ) {
+			$ready = false;
+			return $ready;
+		}
+	}
+
+	$ready = true;
+	return $ready;
+}
+
+mcp_expose_load_canonical_execute_adapter();
+
+/**
  * Return the minimum WordPress capability required to reach MCP transport and
  * generic execute-ability entrypoints.
  *
@@ -46,8 +98,21 @@ function mcp_expose_filter_mcp_transport_capability(): string {
 	return mcp_expose_get_mcp_transport_capability();
 }
 
+/**
+ * Require canonical execute-Adapter ownership before generic execution.
+ *
+ * @return string
+ */
+function mcp_expose_filter_mcp_execute_ability_capability(): string {
+	if ( ! mcp_expose_load_canonical_execute_adapter() ) {
+		return 'mcp_expose_canonical_execute_adapter_unavailable';
+	}
+
+	return mcp_expose_get_mcp_transport_capability();
+}
+
 add_filter( 'mcp_adapter_default_transport_permission_user_capability', 'mcp_expose_filter_mcp_transport_capability', 20 );
-add_filter( 'mcp_adapter_execute_ability_capability', 'mcp_expose_filter_mcp_transport_capability', 20 );
+add_filter( 'mcp_adapter_execute_ability_capability', 'mcp_expose_filter_mcp_execute_ability_capability', 20 );
 
 /**
  * Watch MCP HTTP requests from below the adapter layer.
