@@ -3,8 +3,6 @@
  * WordPress runtime contract for the official directory install policy.
  */
 
-declare( strict_types=1 );
-
 if ( ! defined( 'ABSPATH' ) ) {
 	fwrite( STDERR, "Run through wp eval-file.\n" );
 	exit( 1 );
