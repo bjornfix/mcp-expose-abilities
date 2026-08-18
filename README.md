@@ -2,13 +2,13 @@
 
 Let AI assistants edit your WordPress site via MCP.
 
-[![Release 3.0.82](https://img.shields.io/badge/release-3.0.82-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
+[![Release 3.0.83](https://img.shields.io/badge/release-3.0.83-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
 [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://www.gnu.org/licenses/gpl-2.0)
 [![WordPress](https://img.shields.io/badge/WordPress-6.9%2B-blue.svg)](https://wordpress.org)
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 7.0
-**Stable tag:** 3.0.82
+**Stable tag:** 3.0.83
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -233,6 +233,11 @@ When something does not work, check in this order:
 6. Only then debug the specific add-on
 
 ## Recent Changes
+
+### 3.0.83
+
+- Restored normal `plugins/install-directory` use for confirmed installs from the official WordPress.org directory without requiring the global arbitrary-code opt-in.
+- Kept URL/base64 plugin uploads and plugin deletion behind the server-side code-write gate; plugin updates retain their existing signed-policy or global opt-in requirement.
 
 ### 3.0.82
 
@@ -658,6 +663,11 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.83
+
+- Restored confirmed plugin installation by slug from the official WordPress.org directory without enabling arbitrary plugin uploads.
+- URL/base64 plugin uploads and plugin deletion remain disabled unless the site owner enables them in server configuration.
 
 ### 3.0.82
 

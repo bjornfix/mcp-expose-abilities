@@ -97,10 +97,6 @@ expect_plugin_code_write_disabled \
   "plugins/upload-base64" \
   '{"content_base64":"eA==","filename":"mcp-guard-contract-test.zip","activate":false,"overwrite":false,"confirm_dangerous_action":"plugins/upload-base64"}'
 
-expect_plugin_code_write_disabled \
-  "plugins/install-directory" \
-  '{"slug":"hello-dolly","activate":false,"overwrite":false,"confirm_dangerous_action":"plugins/install-directory"}'
-
 expect_dangerous_action_block \
   "plugins/update" \
   '{"plugin":"hello.php"}'

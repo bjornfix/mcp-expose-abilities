@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.82
+ * Version: 3.0.83
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -361,9 +361,11 @@ function mcp_expose_dangerous_action_error_response( $result, string $ability_na
 /**
  * Check whether MCP plugin code writes are explicitly enabled on this site.
  *
- * Plugin install/update/delete abilities can execute attacker-controlled PHP if
- * an MCP admin credential is stolen, so they require a server-side opt-in in
- * addition to per-call confirmation.
+ * Arbitrary plugin-package installs, unrestricted updates, and plugin deletion
+ * can execute attacker-controlled PHP if an MCP admin credential is stolen, so
+ * they require a server-side opt-in in addition to per-call confirmation.
+ * WordPress.org directory installation stays inside WordPress' publisher
+ * Adapter and uses exact per-call confirmation instead of this global gate.
  *
  * @param string              $ability_name Ability name currently being checked.
  * @param array<string,mixed> $input        Ability input.
@@ -396,7 +398,7 @@ function mcp_expose_plugin_code_writes_enabled( string $ability_name = '', array
 }
 
 /**
- * Require server-side opt-in for plugin install/update/delete abilities.
+ * Require server-side opt-in for arbitrary plugin upload and deletion abilities.
  *
  * @param string              $ability_name Ability name.
  * @param array<string,mixed> $input        Ability input.
@@ -1172,7 +1174,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.82');
+define('MCP_VERSION', '3.0.83');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -7438,13 +7440,6 @@ function mcp_register_content_abilities(): void {
 			),
 			'execute_callback'    => function ( $input = array() ): array {
 				$input = is_array( $input ) ? $input : array();
-				$code_write_error = mcp_expose_plugin_code_write_error_response(
-					mcp_expose_require_plugin_code_write_enabled( 'plugins/install-directory', $input ),
-					'plugins/install-directory'
-				);
-				if ( null !== $code_write_error ) {
-					return $code_write_error;
-				}
 				$confirmation_error = mcp_expose_dangerous_action_error_response(
 					mcp_expose_confirm_dangerous_action( $input, 'plugins/install-directory' ),
 					'plugins/install-directory'
