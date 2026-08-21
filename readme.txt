@@ -3,7 +3,7 @@ Contributors: basicus
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.1
-Stable tag: 3.0.85
+Stable tag: 3.0.86
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -49,6 +49,9 @@ Install add-ons only when your site actually uses that product:
 * Store Locator: mcp-abilities-store-locator
 
 == Changelog ==
+
+= 3.0.86 =
+* Fixed: content create and update abilities now read back the persisted WordPress status and report blocked publication instead of false success when a policy keeps the object as a draft.
 
 = 3.0.85 =
 * Fixed: `content/update-page` now requires page edit permission, not delete permission, for ordinary page updates.

@@ -2,13 +2,13 @@
 
 Let AI assistants edit your WordPress site via MCP.
 
-[![Release 3.0.85](https://img.shields.io/badge/release-3.0.85-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
+[![Release 3.0.86](https://img.shields.io/badge/release-3.0.86-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
 [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://www.gnu.org/licenses/gpl-2.0)
 [![WordPress](https://img.shields.io/badge/WordPress-6.9%2B-blue.svg)](https://wordpress.org)
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://php.net)
 
 **Tested up to:** 7.1
-**Stable tag:** 3.0.85
+**Stable tag:** 3.0.86
 **License:** GPLv2 or later
 **License URI:** https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -233,6 +233,10 @@ When something does not work, check in this order:
 6. Only then debug the specific add-on
 
 ## Recent Changes
+
+### 3.0.86
+
+- Fixed content create and update abilities so they read back the persisted WordPress status and report a blocked publication instead of false success when a policy keeps the object as a draft.
 
 ### 3.0.85
 
@@ -671,6 +675,10 @@ Three-plugin stack plus optional add-ons:
 4. **Add-on plugins** (optional) - Vendor-specific abilities
 
 ## Changelog
+
+### 3.0.86
+
+- Fixed content create and update abilities so they read back the persisted WordPress status and report a blocked publication instead of false success when a policy keeps the object as a draft.
 
 ### 3.0.85
 

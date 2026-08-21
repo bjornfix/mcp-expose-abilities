@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.85
+ * Version: 3.0.86
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -980,6 +980,53 @@ function mcp_expose_validate_content_write_policy( ?WP_Post $post, string $post_
 }
 
 /**
+ * Read back the post status after a content write.
+ *
+ * A storage policy may intentionally change the requested status, for example
+ * by keeping an unapproved source candidate as a draft. The public content
+ * ability must report that result instead of claiming that the requested
+ * publication succeeded.
+ *
+ * @param int    $post_id          Post ID to read back.
+ * @param string $requested_status Status the caller requested.
+ * @param string $object_label     Human-readable post/page label.
+ * @return array<string,mixed>
+ */
+function mcp_expose_read_back_content_write_status( int $post_id, string $requested_status, string $object_label ): array {
+	$post             = get_post( $post_id );
+	$requested_status = sanitize_key( $requested_status );
+	$actual_status    = $post instanceof WP_Post ? (string) $post->post_status : '';
+	$result           = array(
+		'requested_status' => $requested_status,
+		'status'           => $actual_status,
+	);
+
+	if ( ! $post instanceof WP_Post ) {
+		return array_merge(
+			array(
+				'success' => false,
+				/* translators: %s: object label. */
+				'message' => sprintf( __( '%s write completed without a readable WordPress object.', 'mcp-expose-abilities' ), $object_label ),
+			),
+			$result
+		);
+	}
+
+	if ( $requested_status !== $actual_status ) {
+		return array_merge(
+			array(
+				'success' => false,
+				/* translators: 1: object label, 2: requested status, 3: actual status. */
+				'message' => sprintf( __( '%1$s write did not persist the requested status "%2$s"; WordPress kept "%3$s".', 'mcp-expose-abilities' ), $object_label, $requested_status, $actual_status ),
+			),
+			$result
+		);
+	}
+
+	return array_merge( array( 'success' => true ), $result );
+}
+
+/**
  * Acquire a short-lived per-post write lock for read-modify-write abilities.
  *
  * This prevents concurrent patch calls from reading the same old content and
@@ -1177,7 +1224,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.85');
+define('MCP_VERSION', '3.0.86');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -3759,6 +3806,8 @@ function mcp_register_content_abilities(): void {
 				'id'      => array( 'type' => 'integer' ),
 				'link'    => array( 'type' => 'string' ),
 				'message' => array( 'type' => 'string' ),
+				'status'  => array( 'type' => 'string' ),
+				'requested_status' => array( 'type' => 'string' ),
 				'dry_run' => array( 'type' => 'boolean' ),
 			),
 		),
@@ -3857,6 +3906,11 @@ function mcp_register_content_abilities(): void {
 				return array( 'success' => false, 'message' => esc_html( $post_id->get_error_message() ) );
 			}
 
+			$status_readback = mcp_expose_read_back_content_write_status( (int) $post_id, (string) $post_data['post_status'], 'Post' );
+			if ( empty( $status_readback['success'] ) ) {
+				return array_merge( $status_readback, array( 'id' => (int) $post_id, 'link' => get_permalink( (int) $post_id ) ) );
+			}
+
 			if ( null !== $meta_input ) {
 				$meta_permission = mcp_expose_validate_post_meta_write_policy( $meta_input, (int) $post_id );
 				if ( is_wp_error( $meta_permission ) ) {
@@ -3919,6 +3973,8 @@ function mcp_register_content_abilities(): void {
 				'success' => true,
 				'id'      => $post_id,
 				'link'    => get_permalink( $post_id ),
+				'status'  => $status_readback['status'],
+				'requested_status' => $status_readback['requested_status'],
 				'message' => esc_html__( 'Post created successfully', 'mcp-expose-abilities' ),
 			);
 		},
@@ -4038,6 +4094,8 @@ function mcp_register_content_abilities(): void {
 					'id'                => array( 'type' => 'integer' ),
 					'link'              => array( 'type' => 'string' ),
 					'message'           => array( 'type' => 'string' ),
+					'status'            => array( 'type' => 'string' ),
+					'requested_status'  => array( 'type' => 'string' ),
 					'translation_guard' => array( 'type' => 'object' ),
 					'dry_run'           => array( 'type' => 'boolean' ),
 				),
@@ -4143,6 +4201,20 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'message' => esc_html( $result->get_error_message() ) );
 				}
 
+				$status_readback = mcp_expose_read_back_content_write_status( (int) $input['id'], (string) ( $post_data['post_status'] ?? $post->post_status ), 'Post' );
+				if ( empty( $status_readback['success'] ) ) {
+					$translation_guard = mcp_expose_restore_translation_sibling_state( $translation_guard_snapshot );
+					$translation_guard['shutdown_restore_scheduled'] = mcp_expose_schedule_translation_sibling_state_restore( $translation_guard_snapshot );
+					return array_merge(
+						$status_readback,
+						array(
+							'id'                => (int) $input['id'],
+							'link'              => get_permalink( (int) $input['id'] ),
+							'translation_guard' => $translation_guard,
+						)
+					);
+				}
+
 				if ( isset( $input['category_ids'] ) ) {
 					wp_set_post_categories( $input['id'], array_map( 'intval', $input['category_ids'] ) );
 				}
@@ -4168,6 +4240,8 @@ function mcp_register_content_abilities(): void {
 					'success'           => true,
 					'id'                => $input['id'],
 					'link'              => get_permalink( $input['id'] ),
+					'status'            => $status_readback['status'],
+					'requested_status'  => $status_readback['requested_status'],
 					'message'           => esc_html__( 'Post updated successfully', 'mcp-expose-abilities' ),
 					'translation_guard' => $translation_guard,
 				);
@@ -4985,6 +5059,8 @@ function mcp_register_content_abilities(): void {
 					'id'      => array( 'type' => 'integer' ),
 					'link'    => array( 'type' => 'string' ),
 					'message' => array( 'type' => 'string' ),
+					'status'  => array( 'type' => 'string' ),
+					'requested_status' => array( 'type' => 'string' ),
 					'translation_guard' => array( 'type' => 'object' ),
 				),
 			),
@@ -5033,6 +5109,11 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'message' => esc_html( $page_id->get_error_message() ) );
 				}
 
+				$status_readback = mcp_expose_read_back_content_write_status( (int) $page_id, (string) $page_data['post_status'], 'Page' );
+				if ( empty( $status_readback['success'] ) ) {
+					return array_merge( $status_readback, array( 'id' => (int) $page_id, 'link' => get_permalink( (int) $page_id ) ) );
+				}
+
 				if ( isset( $input['template'] ) ) {
 					$template_slug = (string) $input['template'];
 
@@ -5061,6 +5142,8 @@ function mcp_register_content_abilities(): void {
 					'success' => true,
 					'id'      => $page_id,
 					'link'    => get_permalink( $page_id ),
+					'status'  => $status_readback['status'],
+					'requested_status' => $status_readback['requested_status'],
 					'message' => esc_html__( 'Page created successfully', 'mcp-expose-abilities' ),
 				);
 			},
@@ -5285,6 +5368,8 @@ function mcp_register_content_abilities(): void {
 					'id'      => array( 'type' => 'integer' ),
 					'link'    => array( 'type' => 'string' ),
 					'message' => array( 'type' => 'string' ),
+					'status'  => array( 'type' => 'string' ),
+					'requested_status' => array( 'type' => 'string' ),
 				),
 			),
 			'execute_callback'    => function ( $input = array() ): array {
@@ -5360,6 +5445,20 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'message' => esc_html( $result->get_error_message() ) );
 				}
 
+				$status_readback = mcp_expose_read_back_content_write_status( (int) $input['id'], (string) ( $page_data['post_status'] ?? $page->post_status ), 'Page' );
+				if ( empty( $status_readback['success'] ) ) {
+					$translation_guard = mcp_expose_restore_translation_sibling_state( $translation_guard_snapshot );
+					$translation_guard['shutdown_restore_scheduled'] = mcp_expose_schedule_translation_sibling_state_restore( $translation_guard_snapshot );
+					return array_merge(
+						$status_readback,
+						array(
+							'id'                => (int) $input['id'],
+							'link'              => get_permalink( (int) $input['id'] ),
+							'translation_guard' => $translation_guard,
+						)
+					);
+				}
+
 				if ( isset( $input['template'] ) ) {
 					$template_slug = (string) $input['template'];
 
@@ -5388,6 +5487,8 @@ function mcp_register_content_abilities(): void {
 					'success'           => true,
 					'id'                => $input['id'],
 					'link'              => get_permalink( $input['id'] ),
+					'status'            => $status_readback['status'],
+					'requested_status'  => $status_readback['requested_status'],
 					'message'           => esc_html__( 'Page updated successfully', 'mcp-expose-abilities' ),
 					'translation_guard' => $translation_guard,
 				);
