@@ -3,6 +3,9 @@
 if ( ! defined( 'ABSPATH' ) || ! current_user_can( 'edit_pages' ) || ! current_user_can( 'edit_posts' ) ) {
 	throw new RuntimeException( 'Run with a WordPress editor on the authorised validation site.' );
 }
+if ( ! WP_Block_Type_Registry::get_instance()->is_registered( 'generateblocks/text' ) ) {
+	throw new RuntimeException( 'GenerateBlocks must be active for the native validation fixture.' );
+}
 $ids = array();
 $prefix = 'MCP content contract ' . wp_generate_uuid4();
 add_action( 'wp_insert_post', static function ( $id, $post ) use ( &$ids, $prefix ) {
@@ -26,7 +29,7 @@ try {
 		$changed = $paragraph( 'Updated "label"', 'A corrected paragraph.' );
 		$check_success( wp_get_ability( 'content/update-' . $type )->execute( array( 'id' => $id, 'content' => $changed ) ), 'Update ' . $type );
 		if ( $changed !== get_post( $id )->post_content ) { throw new RuntimeException( 'Update lost escaped block attributes: ' . $type ); }
-		$invalid = '<!-- wp:paragraph --><h2>Not a paragraph</h2><!-- /wp:paragraph -->';
+		$invalid = '<!-- wp:generateblocks/text {"uniqueId":"testnative","tagName":"h2"} --><p class="gb-text">Wrong saved tag</p><!-- /wp:generateblocks/text -->';
 		$r = wp_get_ability( 'content/update-' . $type )->execute( array( 'id' => $id, 'content' => $invalid, 'content_write_mode' => 'full_rebuild' ) );
 		if ( ! is_wp_error( $r ) && true === ( $r['success'] ?? false ) ) { throw new RuntimeException( 'Invalid Gutenberg content was accepted: ' . $type ); }
 		if ( $changed !== get_post( $id )->post_content ) { throw new RuntimeException( 'Rejected content changed stored bytes: ' . $type ); }

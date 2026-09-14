@@ -3,7 +3,7 @@ Contributors: basicus
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.1
-Stable tag: 3.0.87
+Stable tag: 3.0.88
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -21,7 +21,7 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 * Requires WordPress 6.9 or newer
 * Tested up to WordPress 7.1
 * Requires PHP 8.0 or newer
-* Gutenberg block-content writes require MCP Abilities Block Editor and native registrations for the blocks used. Invalid block content or an unavailable validator blocks the write.
+* Page and post writes require MCP Abilities Block Editor 0.20.40 or newer with its local validation runtime and native registrations for the blocks used. Invalid block content or an unavailable validator blocks the write.
 
 == Installation ==
 
@@ -52,8 +52,13 @@ Install add-ons only when your site actually uses that product:
 
 == Changelog ==
 
+= 3.0.88 =
+
+* Require the installed Gutenberg JavaScript validator before page and post content writes.
+* Reject a missing or older validator and preserve stored content when validation fails.
+
 = 3.0.87 =
-* Applied native Gutenberg validation to generic block-content writes and preserved escaped block attributes through storage.
+* Added syntax checks to generic block-content writes and preserved escaped block attributes through storage.
 * Preserved menu targets and positions during label-only updates and upserts.
 * Fixed explicit menu movement and custom-link readback checks.
 * Allowed MCP requests to use WordPress's admin memory allowance.

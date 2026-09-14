@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.87
+ * Version: 3.0.88
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -958,18 +958,16 @@ function mcp_expose_validate_content_design_markup_preserved( string $old_conten
 function mcp_expose_validate_content_write_policy( ?WP_Post $post, string $post_type, string $target_status, string $content, array $input, string $ability ) {
 	$operation = sanitize_key( (string) ( $input['content_write_operation'] ?? ( null === $post ? 'create' : 'update' ) ) );
 	$write_mode = sanitize_key( (string) ( $input['content_write_mode'] ?? 'guarded' ) );
-	// Generic content writes must not bypass the native Block Editor syntax
-	// guard. Without this check, a translation writer can persist malformed
-	// Gutenberg HTML and make visible headings/CTAs disappear in the frontend.
-	if ( function_exists( 'has_blocks' ) && has_blocks( $content ) ) {
-		if ( ! function_exists( 'mcp_abilities_gutenberg_assert_valid_gutenberg_content' ) ) {
+	// Use the installed editor's validator for every page/post write.
+	if ( in_array( $post_type, array( 'page', 'post' ), true ) ) {
+		if ( ! defined( 'MCP_Abilities_Gutenberg_Native_Validation::PROTOCOL_VERSION' ) || 1 !== MCP_Abilities_Gutenberg_Native_Validation::PROTOCOL_VERSION ) {
 			return new WP_Error(
 				'mcp_gutenberg_validator_unavailable',
-				__( 'Blocked Gutenberg content write because the native Block Editor validator is unavailable.', 'mcp-expose-abilities' )
+				__( 'Blocked content write because native Block Editor validation is unavailable.', 'mcp-expose-abilities' )
 			);
 		}
-
-		$gutenberg_guard = mcp_abilities_gutenberg_assert_valid_gutenberg_content( $content );
+		$validation_post = $post ?? new WP_Post( (object) array( 'ID' => 0, 'post_type' => $post_type ) );
+		$gutenberg_guard = MCP_Abilities_Gutenberg_Native_Validation::validate( $content, $validation_post );
 		if ( is_wp_error( $gutenberg_guard ) ) {
 			return $gutenberg_guard;
 		}

@@ -2,12 +2,12 @@
 
 Give an AI assistant WordPress tools it can use to finish real site work: inspect pages, correct selected content, organise media, update menus and check installed plugins.
 
-[![Release 3.0.87](https://img.shields.io/badge/release-3.0.87-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
+[![Release 3.0.88](https://img.shields.io/badge/release-3.0.88-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
 [![License](https://img.shields.io/badge/license-GPL--2.0--or--later-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![WordPress](https://img.shields.io/badge/WordPress-6.9%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://www.php.net/)
 
-**Stable tag:** 3.0.87<br>
+**Stable tag:** 3.0.88<br>
 **Tested up to:** 7.1<br>
 **License:** GPL-2.0-or-later<br>
 **Tags:** mcp, ai, automation, content, rest-api
@@ -65,7 +65,7 @@ WordPress MCP Adapter carries requests from the client to WordPress. The Abiliti
 - PHP 8.0 or later.
 - The standalone [WordPress MCP Adapter](https://github.com/WordPress/mcp-adapter/).
 - An MCP-compatible client with an authenticated connection to your WordPress site.
-- For Gutenberg block-content writes, [MCP Abilities Block Editor](https://devenia.com/plugins/mcp-abilities-block-editor/) and the native editor registrations for the blocks being used. A missing validator or invalid block content blocks the write.
+- For page and post writes, [MCP Abilities Block Editor](https://devenia.com/plugins/mcp-abilities-block-editor/) 0.20.40 or newer with its local validation runtime, and native editor registrations for the blocks being used. A missing validator or invalid block content blocks the write.
 
 MCP transport access defaults to the WordPress `manage_options` capability. Each requested operation also checks its own permissions. Changing the transport capability with `mcp_expose_mcp_transport_capability` does not grant the underlying WordPress permissions.
 
@@ -296,9 +296,14 @@ wp plugin install mcp-expose-abilities.zip --activate
 
 ## Recent Changes
 
+### 3.0.88
+
+- Require the installed Gutenberg JavaScript validator before page and post content writes.
+- Reject a missing or older validator and preserve stored content when validation fails.
+
 ### 3.0.87
 
-- Applied native Gutenberg validation to generic block-content writes and preserved escaped block attributes through WordPress storage.
+- Added syntax checks to generic block-content writes and preserved escaped block attributes through WordPress storage.
 - Preserved menu targets and stored positions during label-only updates, including upserts.
 - Made explicit menu-position changes move the surrounding items and corrected custom-link readback checks.
 - Allowed MCP requests to use WordPress's admin memory allowance.
