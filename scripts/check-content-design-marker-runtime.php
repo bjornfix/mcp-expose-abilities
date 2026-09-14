@@ -37,17 +37,11 @@ function apply_filters( string $name, $value, ...$args ) {
 function __( string $text, string $domain = '' ): string { unset( $domain ); return $text; }
 function sanitize_key( $value ): string { return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( (string) $value ) ) ?: ''; }
 function has_blocks( string $content ): bool { return false !== strpos( $content, '<!-- wp:' ); }
-final class WP_Post {
-	public function __construct( public object $properties ) {}
-}
-final class MCP_Abilities_Gutenberg_Native_Validation {
-	public const PROTOCOL_VERSION = 1;
-	public static function validate( string $content, WP_Post $post ) {
-		if ( false !== strpos( $content, 'malformed-block' ) ) {
-			return new WP_Error( 'mcp_gutenberg_invalid_block_content', 'Fixture malformed Gutenberg content.' );
-		}
-		return true;
+function mcp_abilities_gutenberg_assert_valid_gutenberg_content( string $content ) {
+	if ( false !== strpos( $content, 'malformed-block' ) ) {
+		return new WP_Error( 'mcp_gutenberg_invalid_block_content', 'Fixture malformed Gutenberg content.' );
 	}
+	return true;
 }
 function is_wp_error( $value ): bool { return $value instanceof WP_Error; }
 function WP_Filesystem(): bool { return true; }
