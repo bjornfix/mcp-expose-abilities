@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.86
+ * Version: 3.0.87
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -80,6 +80,10 @@ mcp_expose_load_canonical_execute_adapter();
  * @return string
  */
 function mcp_expose_get_mcp_transport_capability(): string {
+	if ( function_exists( 'wp_raise_memory_limit' ) ) {
+		wp_raise_memory_limit( 'admin' );
+	}
+
 	$capability = apply_filters( 'mcp_expose_mcp_transport_capability', 'manage_options' );
 
 	if ( ! is_string( $capability ) || '' === trim( $capability ) ) {
@@ -954,6 +958,23 @@ function mcp_expose_validate_content_design_markup_preserved( string $old_conten
 function mcp_expose_validate_content_write_policy( ?WP_Post $post, string $post_type, string $target_status, string $content, array $input, string $ability ) {
 	$operation = sanitize_key( (string) ( $input['content_write_operation'] ?? ( null === $post ? 'create' : 'update' ) ) );
 	$write_mode = sanitize_key( (string) ( $input['content_write_mode'] ?? 'guarded' ) );
+	// Generic content writes must not bypass the native Block Editor syntax
+	// guard. Without this check, a translation writer can persist malformed
+	// Gutenberg HTML and make visible headings/CTAs disappear in the frontend.
+	if ( function_exists( 'has_blocks' ) && has_blocks( $content ) ) {
+		if ( ! function_exists( 'mcp_abilities_gutenberg_assert_valid_gutenberg_content' ) ) {
+			return new WP_Error(
+				'mcp_gutenberg_validator_unavailable',
+				__( 'Blocked Gutenberg content write because the native Block Editor validator is unavailable.', 'mcp-expose-abilities' )
+			);
+		}
+
+		$gutenberg_guard = mcp_abilities_gutenberg_assert_valid_gutenberg_content( $content );
+		if ( is_wp_error( $gutenberg_guard ) ) {
+			return $gutenberg_guard;
+		}
+	}
+
 	$result = apply_filters(
 		'mcp_content_write_preflight',
 		true,
@@ -1856,14 +1877,23 @@ function mcp_expose_build_nav_menu_item_payload( array $input, ?array $existing 
 		return new WP_Error( 'mcp_menu_title_required', __( 'Title is required', 'mcp-expose-abilities' ) );
 	}
 
-	$object = array_key_exists( 'object', $input )
-		? sanitize_key( (string) $input['object'] )
-		: (string) ( $existing['object'] ?? 'custom' );
-	$object_id = array_key_exists( 'object_id', $input )
-		? absint( $input['object_id'] )
-		: (int) ( $existing['object_id'] ?? 0 );
+	$has_target_input = array_key_exists( 'object', $input ) || array_key_exists( 'object_id', $input );
+	if ( $existing && ! $has_target_input ) {
+		$target = array(
+			'object'    => (string) ( $existing['object'] ?? 'custom' ),
+			'object_id' => (int) ( $existing['object_id'] ?? 0 ),
+			'type'      => (string) ( $existing['type'] ?? 'custom' ),
+		);
+	} else {
+		$object = array_key_exists( 'object', $input )
+			? sanitize_key( (string) $input['object'] )
+			: (string) ( $existing['object'] ?? 'custom' );
+		$object_id = array_key_exists( 'object_id', $input )
+			? absint( $input['object_id'] )
+			: (int) ( $existing['object_id'] ?? 0 );
 
-	$target = mcp_expose_resolve_nav_menu_item_target( $object, $object_id );
+		$target = mcp_expose_resolve_nav_menu_item_target( $object, $object_id );
+	}
 	if ( is_wp_error( $target ) ) {
 		return $target;
 	}
@@ -1895,14 +1925,96 @@ function mcp_expose_build_nav_menu_item_payload( array $input, ?array $existing 
 }
 
 /**
+ * Make room for an existing item when its flat menu order changes.
+ *
+ * WordPress stores menu order globally and wp_update_nav_menu_item() updates
+ * only the requested item. Shift the intervening items so the requested order
+ * remains a real move when callers change one item's position.
+ *
+ * @param int $menu_id          Menu ID.
+ * @param int $item_id          Existing menu item ID.
+ * @param int $target_position  Requested flat menu order.
+ * @return true|WP_Error
+ */
+function mcp_expose_resequence_nav_menu_items( int $menu_id, int $item_id, int $target_position ) {
+	if ( ! $menu_id || ! $item_id || ! $target_position ) {
+		return true;
+	}
+
+	$items = wp_get_nav_menu_items( $menu_id, array( 'post_status' => 'publish,draft' ) );
+	if ( ! $items ) {
+		return true;
+	}
+
+	$current_position = null;
+	foreach ( $items as $item ) {
+		if ( (int) $item->ID === $item_id ) {
+			$current_position = (int) $item->menu_order;
+			break;
+		}
+	}
+
+	if ( null === $current_position || $current_position === $target_position ) {
+		return true;
+	}
+
+	foreach ( $items as $item ) {
+		$other_id = (int) $item->ID;
+		$order    = (int) $item->menu_order;
+		$new_order = null;
+
+		if ( $current_position > $target_position && $order >= $target_position && $order < $current_position ) {
+			$new_order = $order + 1;
+		} elseif ( $current_position < $target_position && $order > $current_position && $order <= $target_position ) {
+			$new_order = $order - 1;
+		}
+
+		if ( $other_id === $item_id || null === $new_order ) {
+			continue;
+		}
+
+		$result = wp_update_post(
+			array(
+				'ID'         => $other_id,
+				'menu_order' => $new_order,
+			),
+			true
+		);
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+	}
+
+	return true;
+}
+
+/**
  * Write a nav menu item and verify the normalized readback.
  *
  * @param int   $menu_id Menu ID.
  * @param int   $item_id Existing item ID, or 0 to create.
  * @param array $payload Complete WordPress nav menu item payload.
+ * @param bool  $resequence Whether the caller explicitly requested a position.
  * @return array|WP_Error
  */
-function mcp_expose_write_nav_menu_item( int $menu_id, int $item_id, array $payload ) {
+function mcp_expose_write_nav_menu_item( int $menu_id, int $item_id, array $payload, bool $resequence = false ) {
+	// Menu lists can expose normalized positions while the post stores gaps.
+	// A label-only write must preserve the stored position, including upserts.
+	if ( $item_id && ! $resequence ) {
+		$stored_item = get_post( $item_id );
+		if ( $stored_item ) {
+			$payload['menu-item-position'] = (int) $stored_item->menu_order;
+		}
+	}
+	$position_result = $resequence ? mcp_expose_resequence_nav_menu_items(
+		$menu_id,
+		$item_id,
+		(int) ( $payload['menu-item-position'] ?? 0 )
+	) : true;
+	if ( is_wp_error( $position_result ) ) {
+		return $position_result;
+	}
+
 	$result = wp_update_nav_menu_item( $menu_id, $item_id, $payload );
 	if ( is_wp_error( $result ) ) {
 		return $result;
@@ -1928,7 +2040,12 @@ function mcp_expose_write_nav_menu_item( int $menu_id, int $item_id, array $payl
 		return new WP_Error( 'mcp_menu_item_readback_failed', __( 'Menu item was written but could not be read back', 'mcp-expose-abilities' ) );
 	}
 
-	foreach ( array( 'object', 'object_id', 'type', 'parent' ) as $field ) {
+	// WordPress exposes the nav item ID as `object_id` for custom links,
+	// although the write contract correctly sends zero because custom links
+	// have no linked post/term. Compare the linked-object identity only for
+	// native post/term items; otherwise a successful custom-link write is
+	// reported as a failure after it has already been persisted.
+	foreach ( array( 'object', 'type', 'parent' ) as $field ) {
 		$payload_key = array(
 			'object'    => 'menu-item-object',
 			'object_id' => 'menu-item-object-id',
@@ -1939,6 +2056,10 @@ function mcp_expose_write_nav_menu_item( int $menu_id, int $item_id, array $payl
 		if ( (string) $model[ $field ] !== (string) $payload[ $payload_key ] ) {
 			return new WP_Error( 'mcp_menu_item_readback_mismatch', __( 'Menu item readback did not match the requested object, type, or parent', 'mcp-expose-abilities' ) );
 		}
+	}
+
+	if ( 'custom' !== (string) $payload['menu-item-object'] && (string) $model['object_id'] !== (string) $payload['menu-item-object-id'] ) {
+		return new WP_Error( 'mcp_menu_item_readback_mismatch', __( 'Menu item readback did not match the requested object, type, or parent', 'mcp-expose-abilities' ) );
 	}
 
 	return $model;
@@ -3900,7 +4021,9 @@ function mcp_register_content_abilities(): void {
 					);
 				}
 
-				$post_id = wp_insert_post( $post_data, true );
+				// wp_insert_post() expects slashed input. Preserve Gutenberg block
+				// attribute escapes across the pre-insert and storage hooks.
+				$post_id = wp_insert_post( wp_slash( $post_data ), true );
 
 			if ( is_wp_error( $post_id ) ) {
 				return array( 'success' => false, 'message' => esc_html( $post_id->get_error_message() ) );
@@ -4194,7 +4317,9 @@ function mcp_register_content_abilities(): void {
 
 					$translation_guard_snapshot = mcp_expose_capture_translation_sibling_state( (int) $input['id'] );
 					$requires_post_update = count( $post_data ) > 1;
-					$result = $requires_post_update ? wp_update_post( $post_data, true ) : (int) $input['id'];
+					// wp_update_post() expects slashed input. Preserve Gutenberg block
+					// attribute escapes across the pre-insert and storage hooks.
+					$result = $requires_post_update ? wp_update_post( wp_slash( $post_data ), true ) : (int) $input['id'];
 
 				if ( is_wp_error( $result ) ) {
 					mcp_expose_restore_translation_sibling_state( $translation_guard_snapshot );
@@ -5103,7 +5228,9 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'message' => esc_html( $content_write_preflight->get_error_message() ) );
 				}
 
-				$page_id = wp_insert_post( $page_data, true );
+					// wp_insert_post() expects slashed input. Preserve Gutenberg block
+					// attribute escapes across the pre-insert and storage hooks.
+					$page_id = wp_insert_post( wp_slash( $page_data ), true );
 
 				if ( is_wp_error( $page_id ) ) {
 					return array( 'success' => false, 'message' => esc_html( $page_id->get_error_message() ) );
@@ -5438,7 +5565,9 @@ function mcp_register_content_abilities(): void {
 
 				$translation_guard_snapshot = mcp_expose_capture_translation_sibling_state( (int) $input['id'] );
 				$requires_page_update = count( $page_data ) > 1;
-				$result = $requires_page_update ? wp_update_post( $page_data, true ) : (int) $input['id'];
+					// wp_update_post() expects slashed input. Preserve Gutenberg block
+					// attribute escapes across the pre-insert and storage hooks.
+					$result = $requires_page_update ? wp_update_post( wp_slash( $page_data ), true ) : (int) $input['id'];
 
 				if ( is_wp_error( $result ) ) {
 					mcp_expose_restore_translation_sibling_state( $translation_guard_snapshot );
@@ -5987,9 +6116,12 @@ function mcp_register_content_abilities(): void {
 
 					mcp_expose_normalize_assigned_template( $post_id, (string) $page->post_type );
 
+					// wp_update_post() expects slashed input. Passing raw block
+					// markup makes downstream pre-insert guards see a different
+					// content hash from the write preflight above.
 					$result = wp_update_post( array(
 						'ID'           => $post_id,
-						'post_content' => $new_content,
+						'post_content' => wp_slash( $new_content ),
 					), true );
 
 					if ( is_wp_error( $result ) ) {
@@ -8492,7 +8624,7 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'message' => esc_html( $item_data->get_error_message() ), 'code' => $item_data->get_error_code() );
 				}
 
-				$updated = mcp_expose_write_nav_menu_item( (int) $input['menu_id'], (int) $input['item_id'], $item_data );
+				$updated = mcp_expose_write_nav_menu_item( (int) $input['menu_id'], (int) $input['item_id'], $item_data, array_key_exists( 'position', $input ) );
 				if ( is_wp_error( $updated ) ) {
 					return array( 'success' => false, 'message' => esc_html( $updated->get_error_message() ), 'code' => $updated->get_error_code() );
 				}
@@ -8605,7 +8737,8 @@ function mcp_register_content_abilities(): void {
 				$item = mcp_expose_write_nav_menu_item(
 					(int) $input['menu_id'],
 					$existing ? (int) $existing['id'] : 0,
-					$payload
+					$payload,
+					array_key_exists( 'position', $input )
 				);
 				if ( is_wp_error( $item ) ) {
 					return array( 'success' => false, 'message' => esc_html( $item->get_error_message() ), 'code' => $item->get_error_code() );

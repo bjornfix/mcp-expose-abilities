@@ -6,6 +6,7 @@
 declare( strict_types=1 );
 
 define( 'ABSPATH', __DIR__ . '/' );
+define( 'WP_PLUGIN_DIR', __DIR__ . '/nonexistent-plugins' );
 
 function add_action( ...$args ): void { unset( $args ); }
 function add_filter( ...$args ): void { unset( $args ); }
@@ -35,6 +36,13 @@ function apply_filters( string $name, $value, ...$args ) {
 }
 function __( string $text, string $domain = '' ): string { unset( $domain ); return $text; }
 function sanitize_key( $value ): string { return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( (string) $value ) ) ?: ''; }
+function has_blocks( string $content ): bool { return false !== strpos( $content, '<!-- wp:' ); }
+function mcp_abilities_gutenberg_assert_valid_gutenberg_content( string $content ) {
+	if ( false !== strpos( $content, 'malformed-block' ) ) {
+		return new WP_Error( 'mcp_gutenberg_invalid_block_content', 'Fixture malformed Gutenberg content.' );
+	}
+	return true;
+}
 function is_wp_error( $value ): bool { return $value instanceof WP_Error; }
 function WP_Filesystem(): bool { return true; }
 function plugins_api() {}
@@ -42,6 +50,7 @@ function activate_plugin() {}
 function wp_update_plugins() {}
 function wp_generate_attachment_metadata() {}
 function wp_create_user() {}
+function get_current_screen() {}
 
 final class Plugin_Upgrader {}
 final class WP_Ajax_Upgrader_Skin {}
@@ -80,6 +89,18 @@ $GLOBALS['site_write_policy_calls']   = 0;
 $without_adapter = mcp_expose_validate_content_write_policy( null, 'page', 'publish', $designed_content, array(), 'content/create-page' );
 if ( true !== $without_adapter || 0 !== $GLOBALS['site_write_policy_calls'] ) {
 	throw new RuntimeException( 'The public write Module is not neutral without a site Adapter.' );
+}
+
+$invalid_gutenberg = mcp_expose_validate_content_write_policy(
+	null,
+	'page',
+	'publish',
+	'<!-- wp:paragraph --><p class="malformed-block">Broken</p><!-- /wp:paragraph -->',
+	array(),
+	'content/update-page'
+);
+if ( ! $invalid_gutenberg instanceof WP_Error || 'mcp_gutenberg_invalid_block_content' !== $invalid_gutenberg->get_error_code() ) {
+	throw new RuntimeException( 'Generic page writes did not reject malformed Gutenberg content.' );
 }
 
 $GLOBALS['site_write_policy_enabled'] = true;

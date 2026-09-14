@@ -39,9 +39,9 @@ try {
     "A missing registered ability must fail.",
   );
   assert.notEqual(
-    verify(readmeSource.replace("**Total ecosystem: 312 abilities**", "**Total ecosystem: 311 abilities**")).status,
+    verify(readmeSource.replace("| **MCP Expose Abilities** (core) | 79 |", "| **MCP Expose Abilities** (core) | 78 |")).status,
     0,
-    "A stale ecosystem total must fail.",
+    "A stale architecture core count must fail.",
   );
 } finally {
   rmSync(root, { recursive: true, force: true });

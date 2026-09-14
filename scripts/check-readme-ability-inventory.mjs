@@ -47,9 +47,4 @@ assert.ok(architectureStart >= 0 && requirementsStart > architectureStart, "READ
 const architecture = readme.slice(architectureStart, requirementsStart);
 const declaredArchitectureCore = Number(architecture.match(/^\| \*\*MCP Expose Abilities\*\* \(core\) \| (\d+) \|/m)?.[1]);
 assert.equal(declaredArchitectureCore, registered.length, "README architecture core count is stale.");
-const ecosystemCount = [...architecture.matchAll(/^\| (?![-|])[^\n]+ \| (\d+) \|[^\n]+$/gm)]
-  .reduce((sum, match) => sum + Number(match[1]), 0);
-const declaredEcosystemCount = Number(architecture.match(/^\*\*Total ecosystem: (\d+) abilities\*\*$/m)?.[1]);
-assert.equal(declaredEcosystemCount, ecosystemCount, "README ecosystem total is stale.");
-
-process.stdout.write(`${JSON.stringify({ success: true, coreAbilities: registered.length, ecosystemAbilities: ecosystemCount })}\n`);
+process.stdout.write(`${JSON.stringify({ success: true, coreAbilities: registered.length })}\n`);

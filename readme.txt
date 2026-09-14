@@ -3,7 +3,7 @@ Contributors: basicus
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.1
-Stable tag: 3.0.86
+Stable tag: 3.0.87
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -12,16 +12,16 @@ Let AI assistants edit your WordPress site via MCP.
 
 == Description ==
 
-This plugin exposes WordPress functionality through MCP (Model Context Protocol), enabling AI assistants to directly interact with your WordPress site. No more copy-pasting between chat and admin.
+Give a connected AI assistant native WordPress tools to inspect pages, correct selected content, organise media, update menus and check installed plugins. Your client handles the conversation and reviews the requested work.
 
 Core WordPress abilities for content, menus, users, media, widgets, plugins, options, and system management.
 
 = Compatibility =
 
 * Requires WordPress 6.9 or newer
-* Tested up to WordPress 7.0
+* Tested up to WordPress 7.1
 * Requires PHP 8.0 or newer
-* Maintained against the WordPress 6.9 release line together with the supported add-on plugins
+* Gutenberg block-content writes require MCP Abilities Block Editor and native registrations for the blocks used. Invalid block content or an unavailable validator blocks the write.
 
 == Installation ==
 
@@ -30,7 +30,9 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 3. Download https://downloads.devenia.com/mcp-expose-abilities.zip
 4. Upload the ZIP through WordPress Admin > Plugins > Add New > Upload Plugin
 5. Activate the plugin
-6. Optionally install add-on plugins for vendor-specific features
+6. Install MCP Abilities Block Editor for block-content editing, then add tools for the builders and plugins used by your site.
+
+Documentation: https://devenia.com/plugins/mcp-expose-abilities/
 
 = Supported Add-ons =
 
@@ -49,6 +51,13 @@ Install add-ons only when your site actually uses that product:
 * Store Locator: mcp-abilities-store-locator
 
 == Changelog ==
+
+= 3.0.87 =
+* Applied native Gutenberg validation to generic block-content writes and preserved escaped block attributes through storage.
+* Preserved menu targets and positions during label-only updates and upserts.
+* Fixed explicit menu movement and custom-link readback checks.
+* Allowed MCP requests to use WordPress's admin memory allowance.
+* Updated connection requirements and practical usage guidance.
 
 = 3.0.86 =
 * Fixed: content create and update abilities now read back the persisted WordPress status and report blocked publication instead of false success when a policy keeps the object as a draft.
