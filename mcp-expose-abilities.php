@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.90
+ * Version: 3.0.91
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -1245,7 +1245,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.90');
+define('MCP_VERSION', '3.0.91');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -10704,7 +10704,7 @@ function mcp_register_content_abilities(): void {
 				'properties' => array(
 					'success' => array( 'type' => 'boolean' ),
 					'name'    => array( 'type' => 'string' ),
-					'value'   => array( 'description' => 'The option value (type varies)' ),
+					'value'   => array( 'type' => array( 'string', 'number', 'integer', 'boolean', 'array', 'object', 'null' ), 'description' => 'The option value (type varies)' ),
 					'type'    => array( 'type' => 'string', 'description' => 'PHP type of the value' ),
 				),
 			),
@@ -10776,6 +10776,7 @@ function mcp_register_content_abilities(): void {
 						'description' => 'The option name to update.',
 					),
 					'value' => array(
+						'type' => array( 'string', 'number', 'integer', 'boolean', 'array', 'object', 'null' ),
 						'description' => 'The new value (can be string, number, boolean, array, or object).',
 					),
 					'key'   => array(
@@ -10793,8 +10794,8 @@ function mcp_register_content_abilities(): void {
 					'success'   => array( 'type' => 'boolean' ),
 					'name'      => array( 'type' => 'string' ),
 					'message'   => array( 'type' => 'string' ),
-					'old_value' => array( 'description' => 'Previous value (for verification)' ),
-					'new_value' => array( 'description' => 'New value after update' ),
+					'old_value' => array( 'type' => array( 'string', 'number', 'integer', 'boolean', 'array', 'object', 'null' ), 'description' => 'Previous value (for verification)' ),
+					'new_value' => array( 'type' => array( 'string', 'number', 'integer', 'boolean', 'array', 'object', 'null' ), 'description' => 'New value after update' ),
 				),
 			),
 			'execute_callback'    => function ( $input = array() ): array {
