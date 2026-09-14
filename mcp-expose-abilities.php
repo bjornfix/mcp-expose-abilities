@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.89
+ * Version: 3.0.90
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -1245,7 +1245,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.86');
+define('MCP_VERSION', '3.0.90');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -3013,15 +3013,16 @@ function mcp_expose_protected_option_names(): array {
  * @return bool
  */
 function mcp_expose_is_sensitive_option_name( string $option_name ): bool {
-	$option_name = sanitize_key( $option_name );
+	$option_name = strtolower( trim( $option_name ) );
+	$protected = array_map( 'strtolower', mcp_expose_protected_option_names() );
 
-	if ( in_array( $option_name, mcp_expose_protected_option_names(), true ) ) {
+	if ( in_array( $option_name, $protected, true ) ) {
 		return true;
 	}
 
 	$sensitive_patterns = array(
-		'/(?:^|_)(api_?key|token|secret|private_?key|password|client_?secret)(?:$|_)/i',
-		'/(?:^|_)auth(?:$|_)/i',
+		'/(?:^|[^a-z0-9])(api_?key|token|secret|private_?key|password|client_?secret)(?:$|[^a-z0-9])/i',
+		'/(?:^|[^a-z0-9])auth(?:$|[^a-z0-9])/i',
 	);
 
 	foreach ( $sensitive_patterns as $pattern ) {
@@ -10714,7 +10715,7 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'name' => '', 'value' => null, 'type' => 'null' );
 				}
 
-					$name = sanitize_key( $input['name'] );
+					$name = trim( $input['name'] );
 
 					if ( mcp_expose_is_sensitive_option_name( $name ) ) {
 						return array(
@@ -10810,7 +10811,7 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'name' => '', 'message' => esc_html__( 'Missing required parameter: name', 'mcp-expose-abilities' ) );
 				}
 
-				$name = sanitize_key( $input['name'] );
+				$name = trim( $input['name'] );
 
 					if ( mcp_expose_is_sensitive_option_name( $name ) ) {
 						return array(
