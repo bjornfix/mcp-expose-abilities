@@ -3,7 +3,7 @@ Contributors: basicus
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.1
-Stable tag: 3.0.91
+Stable tag: 3.0.92
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -24,6 +24,8 @@ Core WordPress abilities for content, menus, users, media, widgets, plugins, opt
 * Gutenberg block-content writes require MCP Abilities Block Editor for syntax checks. These checks do not replace validation in the native Gutenberg editor.
 
 == Installation ==
+
+For update notifications in WordPress, install [Devenia MCP Updater](https://downloads.devenia.com/devenia-mcp-updater.zip). The updater is optional. You choose which plugins update automatically through WordPress.
 
 1. Confirm WordPress 6.9 or later is active and provides the WordPress Abilities API
 2. Install and activate WordPress MCP Adapter from https://github.com/WordPress/mcp-adapter/
@@ -51,6 +53,9 @@ Install add-ons only when your site actually uses that product:
 * Store Locator: mcp-abilities-store-locator
 
 == Changelog ==
+
+= 3.0.92 =
+* Add one dismissible Plugins-screen reminder when Devenia MCP Updater is missing or inactive, with persistent install or activate links. Automatic updates remain your choice in WordPress.
 
 = 3.0.91 =
 * Preserve exact WordPress option names, including dots and letter case, when reading or updating settings.
