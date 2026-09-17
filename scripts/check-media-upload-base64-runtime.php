@@ -6,6 +6,7 @@
 declare( strict_types=1 );
 
 define( 'ABSPATH', __DIR__ . '/' );
+define( 'WP_PLUGIN_DIR', __DIR__ . '/fixtures' );
 
 $GLOBALS['registered_abilities'] = array();
 $GLOBALS['media_fixture'] = array(
@@ -41,6 +42,7 @@ function get_post_types( array $args = array(), string $output = 'names' ): arra
 function get_taxonomies( array $args = array(), string $output = 'names' ): array { unset( $args, $output ); return array(); }
 function get_object_taxonomies( string $post_type, string $output = 'names' ): array { unset( $post_type, $output ); return array(); }
 function get_option( string $name, $default = false ) { unset( $name ); return $default; }
+function get_current_screen() { return null; }
 function WP_Filesystem(): bool { return true; }
 function plugins_api() {}
 function activate_plugin() {}
@@ -50,7 +52,7 @@ function wp_register_ability( string $name, array $args ): void { $GLOBALS['regi
 function wp_check_filetype( string $filename, ?array $mimes = null ): array {
 	unset( $mimes );
 	$extension = strtolower( pathinfo( $filename, PATHINFO_EXTENSION ) );
-	$types = array( 'svg' => 'image/svg+xml', 'webp' => 'image/webp' );
+	$types = array( 'svg' => 'image/svg+xml', 'webp' => 'image/webp', 'mp4' => 'video/mp4' );
 	return isset( $types[ $extension ] ) ? array( 'ext' => $extension, 'type' => $types[ $extension ] ) : array( 'ext' => false, 'type' => false );
 }
 function wp_check_filetype_and_ext( string $path, string $filename, array $mimes ): array { unset( $path, $filename, $mimes ); return $GLOBALS['media_fixture']['detected']; }
@@ -117,6 +119,18 @@ $GLOBALS['media_fixture']['metadata'] = false;
 $metadata_failure = $execute( array( 'filename' => 'third.webp', 'mime_type' => 'image/webp', 'base64' => base64_encode( 'bytes' ) ) );
 if ( false !== ( $metadata_failure['success'] ?? null ) || array( 102 ) !== $GLOBALS['media_fixture']['deleted_attachments'] ) {
 	throw new RuntimeException( 'An image metadata failure left an orphaned attachment.' );
+}
+
+$GLOBALS['media_fixture']['detected'] = array( 'ext' => 'mp4', 'type' => 'video/mp4' );
+$GLOBALS['media_fixture']['metadata'] = array( 'width' => 1280, 'height' => 720 );
+$video = $execute( array( 'filename' => 'demonstration.mp4', 'mime_type' => 'video/mp4', 'base64' => base64_encode( 'video-bytes' ) ) );
+if ( true !== ( $video['success'] ?? null ) || 1280 !== ( $video['width'] ?? null ) || 720 !== ( $video['height'] ?? null ) ) {
+	throw new RuntimeException( 'A WordPress-validated MP4 upload must return its native attachment dimensions.' );
+}
+$GLOBALS['media_fixture']['detected'] = array( 'ext' => false, 'type' => false );
+$invalid_video = $execute( array( 'filename' => 'invalid.mp4', 'mime_type' => 'video/mp4', 'base64' => base64_encode( 'not-a-video' ) ) );
+if ( false !== ( $invalid_video['success'] ?? null ) || ! in_array( '/tmp/invalid.mp4', $GLOBALS['media_fixture']['deleted_files'], true ) ) {
+	throw new RuntimeException( 'An invalid MP4 must still be rejected and cleaned up.' );
 }
 
 fwrite( STDOUT, "Base64 media upload runtime passed.\n" );
