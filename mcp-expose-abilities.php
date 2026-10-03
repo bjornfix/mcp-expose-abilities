@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.95
+ * Version: 3.0.96
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -810,6 +810,8 @@ function mcp_expose_restore_translation_sibling_state( array $snapshot ): array 
 function mcp_expose_schedule_translation_sibling_state_restore( array $snapshot, int $target_post_id = 0, array $post_fields = array(), array $meta_keys = array() ): bool {
 	static $pending    = array( 'sibling_ids' => array(), 'posts' => array(), 'meta' => array() );
 	static $registered = false;
+	static $auto_translate_targets = array();
+	static $auto_translate_filter_registered = false;
 
 	foreach ( array( 'posts', 'meta' ) as $kind ) {
 		foreach ( (array) ( $snapshot[ $kind ] ?? array() ) as $post_id => $fields ) {
@@ -833,6 +835,24 @@ function mcp_expose_schedule_translation_sibling_state_restore( array $snapshot,
 		}
 		foreach ( array_intersect( $meta_keys, mcp_expose_get_translation_sibling_guard_meta_keys() ) as $key ) {
 			$pending['meta'][ $target_post_id ][ $key ] = get_post_meta( $target_post_id, $key, false );
+		}
+
+		// A later ATE request cannot be restored by this request's shutdown guard.
+		// Preserve existing translations by excluding only this successful MCP
+		// target from automatic job creation for the remainder of this request.
+		if ( ! empty( $snapshot['posts'] ) && ( array_intersect( $post_fields, $allowed_fields ) || array_intersect( $meta_keys, mcp_expose_get_translation_sibling_guard_meta_keys() ) ) ) {
+			$auto_translate_targets[ $target_post_id ] = true;
+			if ( ! $auto_translate_filter_registered ) {
+				$auto_translate_filter_registered = true;
+				add_filter(
+					'wpml_exclude_post_from_auto_translate',
+					static function ( $excluded, $post_id ) use ( &$auto_translate_targets ) {
+						return $excluded || isset( $auto_translate_targets[ (int) $post_id ] );
+					},
+					10,
+					2
+				);
+			}
 		}
 	}
 
@@ -1296,7 +1316,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.95');
+define('MCP_VERSION', '3.0.96');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS

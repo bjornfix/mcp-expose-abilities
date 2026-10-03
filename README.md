@@ -2,12 +2,12 @@
 
 Give an AI assistant WordPress tools it can use to finish real site work: inspect pages, correct selected content, organise media, update menus and check installed plugins.
 
-[![Release 3.0.95](https://img.shields.io/badge/release-3.0.95-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
+[![Release 3.0.96](https://img.shields.io/badge/release-3.0.96-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
 [![License](https://img.shields.io/badge/license-GPL--2.0--or--later-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![WordPress](https://img.shields.io/badge/WordPress-6.9%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://www.php.net/)
 
-**Stable tag:** 3.0.95<br>
+**Stable tag:** 3.0.96<br>
 **Tested up to:** 7.1<br>
 **License:** GPL-2.0-or-later<br>
 **Tags:** mcp, ai, automation, content, rest-api
@@ -298,6 +298,10 @@ wp plugin install mcp-expose-abilities.zip --activate
 ```
 
 ## Recent Changes
+
+### 3.0.96
+
+- Successful content and builder updates preserve existing translations when automatic translation would otherwise start a later background job. Other posts keep their normal translation behavior.
 
 ### 3.0.95
 
