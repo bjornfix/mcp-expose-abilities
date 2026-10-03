@@ -3,7 +3,7 @@ Contributors: basicus
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.1
-Stable tag: 3.0.93
+Stable tag: 3.0.94
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -53,6 +53,9 @@ Install add-ons only when your site actually uses that product:
 * Store Locator: mcp-abilities-store-locator
 
 == Changelog ==
+
+= 3.0.94 =
+* Keep successful translated Content edits when mixed with native builder saves. Restore only protected fields while retaining later explicit target changes.
 
 = 3.0.93 =
 * Upload MP4 videos through media/upload-base64, with native WordPress file validation and attachment metadata.

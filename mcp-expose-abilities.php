@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.93
+ * Version: 3.0.94
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -786,22 +786,58 @@ function mcp_expose_restore_translation_sibling_state( array $snapshot ): array 
 }
 
 /**
- * Schedule a final translated sibling restore after late multilingual sync hooks.
+ * Schedule one final restore and record successful explicit target fields.
  *
- * @param array $snapshot Snapshot from mcp_expose_capture_translation_sibling_state().
+ * Keep the first protected value per field. Content and builder adapters share
+ * this pending state so a later explicit write replaces only its owned fields.
+ *
+ * @param array    $snapshot Snapshot from mcp_expose_capture_translation_sibling_state().
+ * @param int      $target_post_id Successfully written target, if any.
+ * @param string[] $post_fields Explicitly written post fields.
+ * @param string[] $meta_keys Explicitly written protected metadata keys.
  * @return bool
  */
-function mcp_expose_schedule_translation_sibling_state_restore( array $snapshot ): bool {
-	if ( empty( $snapshot['sibling_ids'] ) ) {
-		return false;
+function mcp_expose_schedule_translation_sibling_state_restore( array $snapshot, int $target_post_id = 0, array $post_fields = array(), array $meta_keys = array() ): bool {
+	static $pending    = array( 'sibling_ids' => array(), 'posts' => array(), 'meta' => array() );
+	static $registered = false;
+
+	foreach ( array( 'posts', 'meta' ) as $kind ) {
+		foreach ( (array) ( $snapshot[ $kind ] ?? array() ) as $post_id => $fields ) {
+			if ( ! is_array( $fields ) ) {
+				continue;
+			}
+			$pending[ $kind ][ $post_id ] = $pending[ $kind ][ $post_id ] ?? array();
+			foreach ( $fields as $key => $value ) {
+				if ( ! array_key_exists( $key, $pending[ $kind ][ $post_id ] ) ) {
+					$pending[ $kind ][ $post_id ][ $key ] = $value;
+				}
+			}
+		}
 	}
 
-	register_shutdown_function(
-		static function () use ( $snapshot ): void {
-			mcp_expose_restore_translation_sibling_state( $snapshot );
+	$target = $target_post_id > 0 ? get_post( $target_post_id ) : null;
+	if ( $target ) {
+		$allowed_fields = array( 'post_title', 'post_content', 'post_excerpt', 'post_name', 'post_status', 'post_parent', 'menu_order' );
+		foreach ( array_intersect( $post_fields, $allowed_fields ) as $field ) {
+			$pending['posts'][ $target_post_id ][ $field ] = $target->{$field};
 		}
-	);
+		foreach ( array_intersect( $meta_keys, mcp_expose_get_translation_sibling_guard_meta_keys() ) as $key ) {
+			$pending['meta'][ $target_post_id ][ $key ] = get_post_meta( $target_post_id, $key, false );
+		}
+	}
 
+	$pending['sibling_ids'] = array_values( array_unique( array_merge( array_keys( $pending['posts'] ), array_keys( $pending['meta'] ) ) ) );
+	if ( empty( $pending['sibling_ids'] ) ) {
+		return false;
+	}
+	if ( ! $registered ) {
+		$registered = true;
+		register_shutdown_function(
+			static function () use ( &$pending ): void {
+				mcp_expose_restore_translation_sibling_state( $pending );
+			}
+		);
+	}
 	return true;
 }
 
@@ -1250,7 +1286,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.93');
+define('MCP_VERSION', '3.0.94');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -4366,7 +4402,12 @@ function mcp_register_content_abilities(): void {
 					}
 				}
 				$translation_guard = mcp_expose_restore_translation_sibling_state( $translation_guard_snapshot );
-				$translation_guard['shutdown_restore_scheduled'] = mcp_expose_schedule_translation_sibling_state_restore( $translation_guard_snapshot );
+				$translation_guard['shutdown_restore_scheduled'] = mcp_expose_schedule_translation_sibling_state_restore(
+					$translation_guard_snapshot,
+					(int) $input['id'],
+					array_keys( $post_data ),
+					array_key_exists( 'featured_image_id', $input ) ? array( '_thumbnail_id' ) : array()
+				);
 
 				return array(
 					'success'           => true,
@@ -5617,7 +5658,12 @@ function mcp_register_content_abilities(): void {
 					}
 				}
 				$translation_guard = mcp_expose_restore_translation_sibling_state( $translation_guard_snapshot );
-				$translation_guard['shutdown_restore_scheduled'] = mcp_expose_schedule_translation_sibling_state_restore( $translation_guard_snapshot );
+				$translation_guard['shutdown_restore_scheduled'] = mcp_expose_schedule_translation_sibling_state_restore(
+					$translation_guard_snapshot,
+					(int) $input['id'],
+					array_keys( $page_data ),
+					array_key_exists( 'featured_image_id', $input ) ? array( '_thumbnail_id' ) : array()
+				);
 
 				return array(
 					'success'           => true,
