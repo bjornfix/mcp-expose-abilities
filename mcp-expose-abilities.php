@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.94
+ * Version: 3.0.95
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -666,6 +666,7 @@ function mcp_expose_capture_translation_sibling_state( int $post_id ): array {
 			'post_status'  => (string) $post->post_status,
 			'post_parent'  => (int) $post->post_parent,
 			'menu_order'   => (int) $post->menu_order,
+			'post_author'  => (string) ( $post->post_author ?? '0' ),
 		);
 
 		$snapshot['meta'][ $sibling_id ] = array();
@@ -727,6 +728,15 @@ function mcp_expose_restore_translation_sibling_state( array $snapshot ): array 
 	$restored_posts = array();
 	$restored_meta  = array();
 
+	// A separate frontend request can change the database while this request
+	// still holds its earlier post/meta objects. Read fresh before comparing.
+	foreach ( array_unique( array_map( 'intval', (array) ( $snapshot['sibling_ids'] ?? array() ) ) ) as $post_id ) {
+		if ( $post_id > 0 ) {
+			wp_cache_delete( $post_id, 'posts' );
+			wp_cache_delete( $post_id, 'post_meta' );
+		}
+	}
+
 	foreach ( (array) ( $snapshot['posts'] ?? array() ) as $post_id => $fields ) {
 		$post_id = (int) $post_id;
 		$current = get_post( $post_id );
@@ -748,7 +758,7 @@ function mcp_expose_restore_translation_sibling_state( array $snapshot ): array 
 				$wpdb->posts,
 				$fields,
 				array( 'ID' => $post_id ),
-				array( '%s', '%s', '%s', '%s', '%s', '%d', '%d' ),
+				array( '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d' ),
 				array( '%d' )
 			);
 			$restored_posts[] = $post_id;
@@ -817,7 +827,7 @@ function mcp_expose_schedule_translation_sibling_state_restore( array $snapshot,
 
 	$target = $target_post_id > 0 ? get_post( $target_post_id ) : null;
 	if ( $target ) {
-		$allowed_fields = array( 'post_title', 'post_content', 'post_excerpt', 'post_name', 'post_status', 'post_parent', 'menu_order' );
+		$allowed_fields = array( 'post_title', 'post_content', 'post_excerpt', 'post_name', 'post_status', 'post_parent', 'menu_order', 'post_author' );
 		foreach ( array_intersect( $post_fields, $allowed_fields ) as $field ) {
 			$pending['posts'][ $target_post_id ][ $field ] = $target->{$field};
 		}
@@ -1286,7 +1296,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.94');
+define('MCP_VERSION', '3.0.95');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
