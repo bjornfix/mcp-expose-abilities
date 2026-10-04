@@ -2,12 +2,12 @@
 
 Give an AI assistant WordPress tools it can use to finish real site work: inspect pages, correct selected content, organise media, update menus and check installed plugins.
 
-[![Release 3.0.96](https://img.shields.io/badge/release-3.0.96-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
+[![Release 3.0.97](https://img.shields.io/badge/release-3.0.97-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
 [![License](https://img.shields.io/badge/license-GPL--2.0--or--later-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![WordPress](https://img.shields.io/badge/WordPress-6.9%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://www.php.net/)
 
-**Stable tag:** 3.0.96<br>
+**Stable tag:** 3.0.97<br>
 **Tested up to:** 7.1<br>
 **License:** GPL-2.0-or-later<br>
 **Tags:** mcp, ai, automation, content, rest-api
@@ -66,6 +66,8 @@ WordPress MCP Adapter carries requests from the client to WordPress. The Abiliti
 - The standalone [WordPress MCP Adapter](https://github.com/WordPress/mcp-adapter/).
 - An MCP-compatible client with an authenticated connection to your WordPress site.
 - Gutenberg block-content writes require [MCP Abilities Block Editor](https://devenia.com/plugins/mcp-abilities-block-editor/) for syntax checks. These checks do not replace validation in the native Gutenberg editor.
+
+The standard WordPress MCP endpoint remains available when Elementor’s separate MCP server is disabled. Elementor’s server and saved switch are not enabled by this compatibility behavior. Other default-server policy filters still apply. Discovery includes all eligible installed WordPress abilities, not only one add-on.
 
 MCP transport access defaults to the WordPress `manage_options` capability. Each requested operation also checks its own permissions. Changing the transport capability with `mcp_expose_mcp_transport_capability` does not grant the underlying WordPress permissions.
 
@@ -298,6 +300,10 @@ wp plugin install mcp-expose-abilities.zip --activate
 ```
 
 ## Recent Changes
+
+### 3.0.97
+
+- Keep the standard WordPress MCP endpoint independent of Elementor’s separate MCP switch, with the existing administrator and per-operation permission checks. Preserve other server policies and Elementor settings.
 
 ### 3.0.96
 

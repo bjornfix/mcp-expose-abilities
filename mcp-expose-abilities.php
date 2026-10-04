@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.96
+ * Version: 3.0.97
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -122,6 +122,27 @@ function mcp_expose_filter_mcp_execute_ability_capability(): string {
 
 add_filter( 'mcp_adapter_default_transport_permission_user_capability', 'mcp_expose_filter_mcp_transport_capability', 20 );
 add_filter( 'mcp_adapter_execute_ability_capability', 'mcp_expose_filter_mcp_execute_ability_capability', 20 );
+
+/**
+ * Keep the canonical server independent of Elementor's separate MCP switch.
+ *
+ * Elementor Composer adds the shared __return_false callback at priority 10
+ * when its own server is disabled. Detach that callback before it runs, while
+ * retaining the incoming value and all other default-server policy callbacks.
+ * Elementor settings, server registration and transport permissions are unchanged.
+ *
+ * @param mixed $create_default Current default-server policy.
+ * @return bool
+ */
+function mcp_expose_preserve_independent_default_server( $create_default ): bool {
+	$controller = 'Elementor\\MCP\\Composer\\Admin\\McpSettingsController';
+	if ( class_exists( $controller, false ) && ! $controller::is_enabled()
+		&& 10 === has_filter( 'mcp_adapter_create_default_server', '__return_false' ) ) {
+		remove_filter( 'mcp_adapter_create_default_server', '__return_false', 10 );
+	}
+	return (bool) $create_default;
+}
+add_filter( 'mcp_adapter_create_default_server', 'mcp_expose_preserve_independent_default_server', 9 );
 
 /**
  * Watch MCP HTTP requests from below the adapter layer.
@@ -1316,7 +1337,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.96');
+define('MCP_VERSION', '3.0.97');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS

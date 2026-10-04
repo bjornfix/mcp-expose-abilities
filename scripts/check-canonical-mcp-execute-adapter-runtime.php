@@ -7,7 +7,7 @@
 declare( strict_types=1 );
 
 define( 'ABSPATH', __DIR__ . '/wordpress-fixture/' );
-define( 'WP_PLUGIN_DIR', dirname( __DIR__, 2 ) );
+define( 'WP_PLUGIN_DIR', getenv( 'MCP_EXPOSE_RUNTIME_PLUGIN_DIR' ) ?: dirname( __DIR__, 2 ) );
 
 /** @var array<string,array<int,array{callback:callable,priority:int}>> $mcp_expose_runtime_filters */
 $mcp_expose_runtime_filters = array();
@@ -42,6 +42,7 @@ function activate_plugin(): null { return null; }
 function wp_update_plugins(): null { return null; }
 function wp_generate_attachment_metadata(): array { return array(); }
 function wp_create_user(): int { return 1; }
+function get_current_screen() { return null; }
 
 class Plugin_Upgrader {}
 class WP_Ajax_Upgrader_Skin {}
@@ -55,13 +56,16 @@ function is_wp_error( $value ): bool { return $value instanceof WP_Error; }
 function is_user_logged_in(): bool { return true; }
 function current_user_can( string $capability ): bool { return 'mcp_expose_canonical_execute_adapter_unavailable' !== $capability; }
 
-final class MCP_Expose_Execute_Target_Fixture {
+class WP_Ability {}
+final class MCP_Expose_Execute_Target_Fixture extends WP_Ability {
 	/** @var mixed */
 	public $permission_input;
 	/** @var mixed */
 	public $execute_input;
 
 	public function get_meta(): array { return array( 'mcp' => array( 'public' => true ) ); }
+	public function get_input_schema(): array { return array( 'type' => 'object' ); }
+	public function get_name(): string { return 'fixture/empty-object'; }
 	public function check_permissions( $input ): bool { $this->permission_input = $input; return true; }
 	public function execute( $input ): array { $this->execute_input = $input; return array( 'received' => $input ); }
 }
@@ -73,6 +77,9 @@ function wp_get_ability( string $name ) {
 	return 'fixture/empty-object' === $name ? $mcp_expose_execute_target : null;
 }
 
+if ( is_readable( WP_PLUGIN_DIR . '/mcp-adapter/vendor/autoload.php' ) ) {
+	require WP_PLUGIN_DIR . '/mcp-adapter/vendor/autoload.php';
+}
 require dirname( __DIR__ ) . '/mcp-expose-abilities.php';
 
 spl_autoload_register(
