@@ -3,7 +3,7 @@ Contributors: basicus
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.1
-Stable tag: 3.0.97
+Stable tag: 3.0.98
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -53,6 +53,9 @@ Install add-ons only when your site actually uses that product:
 * Store Locator: mcp-abilities-store-locator
 
 == Changelog ==
+
+= 3.0.98 =
+* Read must-use plugin PHP source through the core plugin tools, including nested loader code, with pagination and explicit read errors.
 
 = 3.0.97 =
 * Fixed: The standard WordPress MCP endpoint remains independent of Elementor’s separate MCP switch. Existing administrator and per-operation permission checks, other server policies and Elementor settings are preserved.

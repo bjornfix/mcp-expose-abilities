@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.97
+ * Version: 3.0.98
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -7806,6 +7806,107 @@ function mcp_register_content_abilities(): void {
 	// =========================================================================
 	// PLUGINS - List
 	// =========================================================================
+	// MU plugin source belongs to plugin inspection, not general filesystem access.
+	wp_register_ability(
+		'plugins/read-mu-plugins',
+		array(
+			'label'               => 'Read Must-Use Plugins',
+			'description'         => 'Read PHP source files in the must-use plugin directory, including nested loader code. Read-only, paginated, and bounded. Missing directories and failed reads are reported separately.',
+			'category'            => 'site',
+			'input_schema'        => array(
+				'type'                 => array( 'object', 'null' ),
+				'properties'           => array(
+					'page'      => array( 'type' => 'integer', 'minimum' => 1, 'default' => 1 ),
+					'per_page'  => array( 'type' => 'integer', 'minimum' => 1, 'maximum' => 50, 'default' => 10 ),
+					'max_bytes' => array( 'type' => 'integer', 'minimum' => 1, 'maximum' => 1048576, 'default' => 262144 ),
+				),
+				'additionalProperties' => false,
+			),
+			'output_schema'       => array(
+				'type'       => 'object',
+				'properties' => array(
+					'success'          => array( 'type' => 'boolean' ),
+					'directory_exists' => array( 'type' => 'boolean' ),
+					'files'            => array( 'type' => 'array' ),
+					'total'            => array( 'type' => 'integer' ),
+					'page'             => array( 'type' => 'integer' ),
+					'pages'            => array( 'type' => 'integer' ),
+					'errors'           => array( 'type' => 'array' ),
+				),
+			),
+			'execute_callback'    => static function ( $input = array() ): array {
+				global $wp_filesystem;
+				$input    = is_array( $input ) ? $input : array();
+				$page     = max( 1, (int) ( $input['page'] ?? 1 ) );
+				$per_page = min( 50, max( 1, (int) ( $input['per_page'] ?? 10 ) ) );
+				$limit    = min( 1048576, max( 1, (int) ( $input['max_bytes'] ?? 262144 ) ) );
+				$result   = array( 'success' => true, 'directory_exists' => false, 'files' => array(), 'total' => 0, 'page' => $page, 'pages' => 0, 'errors' => array() );
+				if ( ! is_dir( WPMU_PLUGIN_DIR ) ) {
+					return $result;
+				}
+				$result['directory_exists'] = true;
+				$root                       = realpath( WPMU_PLUGIN_DIR );
+				if ( false === $root || ! is_readable( $root ) || ! WP_Filesystem() ) {
+					$result['success']  = false;
+					$result['errors'][] = 'Must-use plugin directory could not be read.';
+					return $result;
+				}
+				$pending = array( array( $root, '' ) );
+				$paths   = array();
+				$visited = 0;
+				while ( $pending ) {
+					list( $directory, $relative ) = array_pop( $pending );
+					$entries                      = $wp_filesystem->dirlist( $directory, true, false );
+					if ( false === $entries ) {
+						$result['errors'][] = 'Directory listing failed: ' . $relative;
+						continue;
+					}
+					foreach ( $entries as $name => $entry ) {
+						++$visited;
+						if ( $visited > 5000 ) {
+							$result['errors'][] = 'Must-use plugin inventory exceeds 5000 entries.';
+							break 2;
+						}
+						$path = $directory . '/' . $name;
+						$key  = $relative . $name;
+						$real = realpath( $path );
+						if ( is_link( $path ) || false === $real || ! str_starts_with( $real, $root . DIRECTORY_SEPARATOR ) ) {
+							$result['errors'][] = 'Unsafe or unresolved plugin path: ' . $key;
+							continue;
+						}
+						if ( 'd' === $entry['type'] ) {
+							$pending[] = array( $real, $key . '/' );
+						} elseif ( 'php' === strtolower( pathinfo( $name, PATHINFO_EXTENSION ) ) ) {
+							$paths[ $key ] = $real;
+						}
+					}
+				}
+				ksort( $paths, SORT_STRING );
+				$result['total'] = count( $paths );
+				$result['pages'] = (int) ceil( count( $paths ) / $per_page );
+				foreach ( array_slice( $paths, ( $page - 1 ) * $per_page, $per_page, true ) as $file => $path ) {
+					$size = $wp_filesystem->size( $path );
+					if ( false === $size || $size > $limit || ! is_readable( $path ) ) {
+						$result['errors'][] = 'Plugin file unreadable or exceeds byte limit: ' . $file;
+						continue;
+					}
+					$content = $wp_filesystem->get_contents( $path );
+					if ( false === $content || strlen( $content ) > $limit ) {
+						$result['errors'][] = 'Plugin file read failed or exceeds byte limit: ' . $file;
+						continue;
+					}
+					$result['files'][] = array( 'file' => $file, 'size' => strlen( $content ), 'sha256' => hash( 'sha256', $content ), 'content' => $content );
+				}
+				$result['success'] = empty( $result['errors'] );
+				return $result;
+			},
+			'permission_callback' => static function (): bool {
+				return current_user_can( 'manage_options' );
+			},
+			'meta'                => array( 'annotations' => array( 'readonly' => true, 'destructive' => false, 'idempotent' => true ) ),
+		)
+	);
+
 	wp_register_ability(
 		'plugins/list',
 		array(
