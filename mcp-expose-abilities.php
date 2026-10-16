@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.99
+ * Version: 3.0.100
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -27,11 +27,11 @@ add_action( 'admin_init', static function () {
 } );
 
 /**
- * Bind generic execution and session storage to the standalone MCP Adapter.
+ * Bind generic execution and HTTP session validation to the standalone MCP Adapter.
  *
  * Some plugins bundle a private MCP Adapter copy under the same namespace. A
  * later Composer autoloader can otherwise claim this shared class and change
- * the public parameter contract or bypass standalone session storage fixes.
+ * the public parameter contract or bypass standalone session validation and storage fixes.
  *
  * @return bool
  */
@@ -46,6 +46,7 @@ function mcp_expose_load_canonical_execute_adapter(): bool {
 		'WP\\MCP\\Abilities\\McpAbilityHelperTrait' => WP_PLUGIN_DIR . '/mcp-adapter/includes/Abilities/McpAbilityHelperTrait.php',
 		'WP\\MCP\\Abilities\\ExecuteAbilityAbility' => WP_PLUGIN_DIR . '/mcp-adapter/includes/Abilities/ExecuteAbilityAbility.php',
 		'WP\\MCP\\Transport\\Infrastructure\\SessionManager' => WP_PLUGIN_DIR . '/mcp-adapter/includes/Transport/Infrastructure/SessionManager.php',
+		'WP\\MCP\\Transport\\Infrastructure\\HttpSessionValidator' => WP_PLUGIN_DIR . '/mcp-adapter/includes/Transport/Infrastructure/HttpSessionValidator.php',
 	);
 
 	foreach ( $symbols as $symbol => $file ) {

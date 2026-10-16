@@ -40,6 +40,8 @@ function wp_normalize_path( string $path ): string {
 	return str_replace( '\\', '/', $path );
 }
 
+function __( string $text, string $domain = '' ): string { return $text; }
+
 function WP_Filesystem(): bool { return true; }
 function plugins_api() { return null; }
 function activate_plugin(): null { return null; }
@@ -52,7 +54,8 @@ class Plugin_Upgrader {}
 class WP_Ajax_Upgrader_Skin {}
 
 class WP_Error {
-	public function __construct( private string $code = '', private string $message = '' ) {}
+	public function __construct( private string $code = '', private string $message = '', private $data = null ) {}
+	public function get_error_data() { return $this->data; }
 	public function get_error_message(): string { return $this->message; }
 }
 
@@ -61,6 +64,7 @@ function maybe_serialize( $value ) { return is_array( $value ) || is_object( $va
 
 function is_wp_error( $value ): bool { return $value instanceof WP_Error; }
 function is_user_logged_in(): bool { return true; }
+function get_current_user_id(): int { return 1; }
 function current_user_can( string $capability ): bool { return 'mcp_expose_canonical_execute_adapter_unavailable' !== $capability; }
 
 class WP_Ability {}
@@ -91,6 +95,11 @@ require dirname( __DIR__ ) . '/mcp-expose-abilities.php';
 
 spl_autoload_register(
 	static function ( string $class ): void {
+		if ( 'WP\\MCP\\Transport\\Infrastructure\\HttpSessionValidator' === $class ) {
+			eval( 'namespace WP\\MCP\\Transport\\Infrastructure; final class HttpSessionValidator {}' );
+			return;
+		}
+
 		if ( 'WP\\MCP\\Transport\\Infrastructure\\SessionManager' === $class ) {
 			eval( 'namespace WP\\MCP\\Transport\\Infrastructure; final class SessionManager {}' );
 			return;
@@ -164,3 +173,19 @@ if ( version_compare( trim( $adapter_version[1] ), '0.7.1', '>=' ) ) {
 	fwrite( STDOUT, "Canonical session storage security checks passed.\n" );
 }
 fwrite( STDOUT, "Canonical SessionManager binding checks passed.\n" );
+
+$validator_class = 'WP\\MCP\\Transport\\Infrastructure\\HttpSessionValidator';
+$validator = new ReflectionClass( $validator_class );
+if ( wp_normalize_path( WP_PLUGIN_DIR . '/mcp-adapter/includes/Transport/Infrastructure/HttpSessionValidator.php' ) !== wp_normalize_path( (string) $validator->getFileName() ) ) {
+	throw new RuntimeException( 'A later bundled adapter claimed HttpSessionValidator.' );
+}
+if ( version_compare( trim( $adapter_version[1] ), '0.7.1', '>=' ) ) {
+	$logger = new class implements \WP\MCP\Infrastructure\ErrorHandling\Contracts\McpErrorHandlerInterface {
+		public function log( string $message, array $context = array(), string $type = 'error' ): void {}
+	};
+	$error = $validator_class::create_session_with_error_handler( array( 'name' => str_repeat( 'x', 8192 ) ), $logger, 9171 );
+	if ( -32602 !== ( $error['error']['code'] ?? null ) || 9171 !== ( $error['id'] ?? null ) ) {
+		throw new RuntimeException( 'Oversized initialization did not retain Invalid params and the request ID.' );
+	}
+}
+fwrite( STDOUT, "Canonical HTTP session validation checks passed.\n" );
