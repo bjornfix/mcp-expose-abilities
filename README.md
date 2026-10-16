@@ -2,12 +2,12 @@
 
 Give an AI assistant WordPress tools it can use to finish real site work: inspect pages, correct selected content, organise media, update menus and check installed plugins.
 
-[![Release 3.0.101](https://img.shields.io/badge/release-3.0.101-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
+[![Release 3.0.102](https://img.shields.io/badge/release-3.0.102-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
 [![License](https://img.shields.io/badge/license-GPL--2.0--or--later-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![WordPress](https://img.shields.io/badge/WordPress-6.9%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://www.php.net/)
 
-**Stable tag:** 3.0.101<br>
+**Stable tag:** 3.0.102<br>
 **Tested up to:** 7.1<br>
 **License:** GPL-2.0-or-later<br>
 **Tags:** mcp, ai, automation, content, rest-api
@@ -301,6 +301,10 @@ wp plugin install mcp-expose-abilities.zip --activate
 ```
 
 ## Recent Changes
+
+### 3.0.102
+
+Allow `content/update-post` to set the native WordPress `menu_order` field independently of publication dates. Retain per-post permissions, dry-run validation and translation-sibling protection, and verify the saved order.
 
 ### 3.0.101
 

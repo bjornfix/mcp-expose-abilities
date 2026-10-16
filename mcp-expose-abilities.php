@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.101
+ * Version: 3.0.102
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -4263,7 +4263,7 @@ function mcp_register_content_abilities(): void {
 		'content/update-post',
 		array(
 			'label'               => 'Update Post',
-			'description'         => 'Update post. Params: id (required), title, content, content_write_mode (guarded or full_rebuild), excerpt, status, slug, date, category_ids, tag_ids, author_id, meta_input, featured_image_id.',
+			'description'         => 'Update post. Params: id (required), title, content, content_write_mode (guarded or full_rebuild), excerpt, status, slug, date, menu_order, category_ids, tag_ids, author_id, meta_input, featured_image_id.',
 			'category'            => 'site',
 			'input_schema'        => array(
 				'type'                 => 'object',
@@ -4308,6 +4308,10 @@ function mcp_register_content_abilities(): void {
 					'date'         => array(
 						'type'        => 'string',
 						'description' => 'New local post date in Y-m-d H:i:s format.',
+					),
+					'menu_order' => array(
+						'type' => 'integer',
+						'description' => 'Native WordPress display order. Does not change publication dates.',
 					),
 					'category_ids' => array(
 						'type'        => 'array',
@@ -4402,6 +4406,9 @@ function mcp_register_content_abilities(): void {
 					$post_data['post_date_gmt'] = get_gmt_from_date( $date );
 					$post_data['edit_date']     = true;
 				}
+				if ( isset( $input['menu_order'] ) ) {
+					$post_data['menu_order'] = (int) $input['menu_order'];
+				}
 				if ( isset( $input['author_id'] ) ) {
 					$author_id = intval( $input['author_id'] );
 					if ( $author_id !== get_current_user_id() && ! current_user_can( 'edit_others_posts' ) ) {
@@ -4467,6 +4474,12 @@ function mcp_register_content_abilities(): void {
 							'translation_guard' => $translation_guard,
 						)
 					);
+				}
+
+				if ( isset( $input['menu_order'] ) && (int) get_post( (int) $input['id'] )->menu_order !== (int) $input['menu_order'] ) {
+					mcp_expose_restore_translation_sibling_state( $translation_guard_snapshot );
+					mcp_expose_schedule_translation_sibling_state_restore( $translation_guard_snapshot );
+					return array( 'success' => false, 'message' => esc_html__( 'WordPress did not persist the requested display order.', 'mcp-expose-abilities' ) );
 				}
 
 				if ( isset( $input['category_ids'] ) ) {
