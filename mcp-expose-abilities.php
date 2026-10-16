@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.100
+ * Version: 3.0.101
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -46,7 +46,6 @@ function mcp_expose_load_canonical_execute_adapter(): bool {
 		'WP\\MCP\\Abilities\\McpAbilityHelperTrait' => WP_PLUGIN_DIR . '/mcp-adapter/includes/Abilities/McpAbilityHelperTrait.php',
 		'WP\\MCP\\Abilities\\ExecuteAbilityAbility' => WP_PLUGIN_DIR . '/mcp-adapter/includes/Abilities/ExecuteAbilityAbility.php',
 		'WP\\MCP\\Transport\\Infrastructure\\SessionManager' => WP_PLUGIN_DIR . '/mcp-adapter/includes/Transport/Infrastructure/SessionManager.php',
-		'WP\\MCP\\Transport\\Infrastructure\\HttpSessionValidator' => WP_PLUGIN_DIR . '/mcp-adapter/includes/Transport/Infrastructure/HttpSessionValidator.php',
 	);
 
 	foreach ( $symbols as $symbol => $file ) {
@@ -79,6 +78,40 @@ function mcp_expose_load_canonical_execute_adapter(): bool {
 }
 
 mcp_expose_load_canonical_execute_adapter();
+
+/**
+ * Keep the standalone adapter namespace ahead of later bundled Composer loaders.
+ *
+ * All plugin files have loaded here, while MCP servers initialize at init or
+ * rest_api_init. Preserve a single adapter implementation across that graph.
+ */
+function mcp_expose_register_canonical_adapter_autoloader(): void {
+	if ( ! mcp_expose_load_canonical_execute_adapter() ) {
+		return;
+	}
+
+	spl_autoload_register(
+		static function ( string $class ): void {
+			$prefix = 'WP\\MCP\\';
+			if ( 0 !== strpos( $class, $prefix ) ) {
+				return;
+			}
+			$parts = explode( '\\', substr( $class, strlen( $prefix ) ) );
+			foreach ( $parts as $part ) {
+				if ( ! preg_match( '/^[A-Za-z_][A-Za-z0-9_]*$/D', $part ) ) {
+					return;
+				}
+			}
+			$file = WP_PLUGIN_DIR . '/mcp-adapter/includes/' . implode( '/', $parts ) . '.php';
+			if ( is_readable( $file ) ) {
+				require_once $file;
+			}
+		},
+		true,
+		true
+	);
+}
+add_action( 'plugins_loaded', 'mcp_expose_register_canonical_adapter_autoloader', PHP_INT_MAX );
 
 /**
  * Return the minimum WordPress capability required to reach MCP transport and

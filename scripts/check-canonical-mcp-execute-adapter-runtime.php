@@ -95,6 +95,12 @@ require dirname( __DIR__ ) . '/mcp-expose-abilities.php';
 
 spl_autoload_register(
 	static function ( string $class ): void {
+		if ( in_array( $class, array( 'WP\\MCP\\Transport\\Infrastructure\\HttpRequestHandler', 'WP\\MCP\\Transport\\Infrastructure\\HttpRequestContext', 'WP\\MCP\\Transport\\Infrastructure\\RequestRouter' ), true ) ) {
+			$name = substr( $class, strrpos( $class, '\\' ) + 1 );
+			eval( 'namespace WP\\MCP\\Transport\\Infrastructure; final class ' . $name . ' {}' );
+			return;
+		}
+
 		if ( 'WP\\MCP\\Transport\\Infrastructure\\HttpSessionValidator' === $class ) {
 			eval( 'namespace WP\\MCP\\Transport\\Infrastructure; final class HttpSessionValidator {}' );
 			return;
@@ -125,6 +131,8 @@ spl_autoload_register(
 	true,
 	true
 );
+
+apply_filters( 'plugins_loaded', null );
 
 $class = 'WP\\MCP\\Abilities\\ExecuteAbilityAbility';
 $input = array( 'ability_name' => 'fixture/empty-object', 'parameters' => array() );
@@ -189,3 +197,12 @@ if ( version_compare( trim( $adapter_version[1] ), '0.7.1', '>=' ) ) {
 	}
 }
 fwrite( STDOUT, "Canonical HTTP session validation checks passed.\n" );
+
+foreach ( array( 'HttpRequestHandler', 'HttpRequestContext', 'RequestRouter' ) as $name ) {
+	$class = 'WP\\MCP\\Transport\\Infrastructure\\' . $name;
+	$reflection = new ReflectionClass( $class );
+	if ( wp_normalize_path( WP_PLUGIN_DIR . '/mcp-adapter/includes/Transport/Infrastructure/' . $name . '.php' ) !== wp_normalize_path( (string) $reflection->getFileName() ) ) {
+		throw new RuntimeException( 'A later bundled adapter claimed ' . $name );
+	}
+}
+fwrite( STDOUT, "Canonical adapter transport graph checks passed.\n" );

@@ -3,7 +3,7 @@ Contributors: basicus
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.1
-Stable tag: 3.0.100
+Stable tag: 3.0.101
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -54,8 +54,8 @@ Install add-ons only when your site actually uses that product:
 
 == Changelog ==
 
-= 3.0.100 =
-* Preserve standalone HTTP session validation so oversized initialization returns Invalid params instead of an internal error when another plugin bundles an older adapter.
+= 3.0.101 =
+* Keep standalone MCP Adapter transport classes together, preserving session initialization and Invalid params responses for oversized requests when another plugin bundles an older adapter.
 
 = 3.0.99 =
 * Preserve the standalone MCP Adapter session manager when another plugin bundles an older copy, so installed session-storage fixes remain active.

@@ -2,12 +2,12 @@
 
 Give an AI assistant WordPress tools it can use to finish real site work: inspect pages, correct selected content, organise media, update menus and check installed plugins.
 
-[![Release 3.0.100](https://img.shields.io/badge/release-3.0.100-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
+[![Release 3.0.101](https://img.shields.io/badge/release-3.0.101-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
 [![License](https://img.shields.io/badge/license-GPL--2.0--or--later-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![WordPress](https://img.shields.io/badge/WordPress-6.9%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://www.php.net/)
 
-**Stable tag:** 3.0.100<br>
+**Stable tag:** 3.0.101<br>
 **Tested up to:** 7.1<br>
 **License:** GPL-2.0-or-later<br>
 **Tags:** mcp, ai, automation, content, rest-api
@@ -302,9 +302,9 @@ wp plugin install mcp-expose-abilities.zip --activate
 
 ## Recent Changes
 
-### 3.0.100
+### 3.0.101
 
-Preserves standalone HTTP session validation when another plugin bundles an older adapter, so oversized initialization returns Invalid params instead of an internal error.
+Keeps the standalone MCP Adapter transport classes together when another plugin bundles an older adapter, preserving session initialization and Invalid params responses for oversized requests.
 
 ### 3.0.99
 
