@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.103
+ * Version: 3.0.104
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -10591,12 +10591,12 @@ function mcp_register_content_abilities(): void {
 		'cache/purge-proxy-urls',
 		array(
 			'label' => 'Purge Selected Proxy Cache URLs',
-			'description' => 'Submit 1–25 same-origin, query-free URLs to the active Proxy Cache Purge plugin native API. Does not change provider settings. Fetch clean URLs afterwards to verify freshness.',
+			'description' => 'Submit 1–25 same-origin URLs to the existing native Proxy Cache Purge API. Queries require explicit allow_search_queries and only bounded s/e_search_props parameters. Broad purge flags are refused. Verify public freshness after submission.',
 			'category' => 'site',
 			'input_schema' => array(
 				'type' => 'object',
 				'required' => array( 'urls' ),
-				'properties' => array( 'urls' => array( 'type' => 'array', 'items' => array( 'type' => 'string', 'format' => 'uri' ), 'minItems' => 1, 'maxItems' => 25 ) ),
+				'properties' => array( 'urls' => array( 'type' => 'array', 'items' => array( 'type' => 'string', 'format' => 'uri' ), 'minItems' => 1, 'maxItems' => 25 ), 'allow_search_queries' => array( 'type' => 'boolean', 'default' => false ) ),
 				'additionalProperties' => false,
 			),
 			'output_schema' => array(
@@ -10618,8 +10618,19 @@ function mcp_register_content_abilities(): void {
 				$origin = wp_parse_url( home_url( '/' ) );
 				foreach ( $urls as $url ) {
 					$parts = is_string( $url ) && filter_var( $url, FILTER_VALIDATE_URL ) ? wp_parse_url( $url ) : false;
-					if ( ! is_array( $origin ) || ! is_array( $parts ) || strtolower( $parts['scheme'] ?? '' ) !== strtolower( $origin['scheme'] ?? '' ) || strtolower( $parts['host'] ?? '' ) !== strtolower( $origin['host'] ?? '' ) || (int) ( $parts['port'] ?? ( 'https' === strtolower( $parts['scheme'] ?? '' ) ? 443 : 80 ) ) !== (int) ( $origin['port'] ?? ( 'https' === strtolower( $origin['scheme'] ?? '' ) ? 443 : 80 ) ) || isset( $parts['user'] ) || isset( $parts['pass'] ) || isset( $parts['fragment'] ) || ! empty( $parts['query'] ) ) {
-						return array( 'success' => false, 'message' => 'Every selected URL must use the site origin without credentials, fragments or query strings.' );
+					$query_allowed = empty( $parts['query'] );
+					if ( ! $query_allowed && true === ( $input['allow_search_queries'] ?? false ) && strlen( $parts['query'] ) <= 4096 ) {
+						$params = array();
+						wp_parse_str( $parts['query'], $params );
+						$query_allowed = ! array_diff( array_keys( $params ), array( 's', 'e_search_props' ) )
+							&& count( explode( '&', $parts['query'] ) ) === count( $params )
+							&& isset( $params['s'] ) && is_string( $params['s'] ) && '' !== trim( $params['s'] ) && strlen( $params['s'] ) <= 200
+							&& ! preg_match( '/[\x00-\x1F\x7F]/', $params['s'] )
+							&& ( ! isset( $params['e_search_props'] ) || ( is_string( $params['e_search_props'] ) && 1 === preg_match( '/^[A-Za-z0-9_-]{1,128}$/D', $params['e_search_props'] ) ) );
+					}
+
+					if ( ! is_array( $origin ) || ! is_array( $parts ) || strtolower( $parts['scheme'] ?? '' ) !== strtolower( $origin['scheme'] ?? '' ) || strtolower( $parts['host'] ?? '' ) !== strtolower( $origin['host'] ?? '' ) || (int) ( $parts['port'] ?? ( 'https' === strtolower( $parts['scheme'] ?? '' ) ? 443 : 80 ) ) !== (int) ( $origin['port'] ?? ( 'https' === strtolower( $origin['scheme'] ?? '' ) ? 443 : 80 ) ) || isset( $parts['user'] ) || isset( $parts['pass'] ) || isset( $parts['fragment'] ) || ! $query_allowed ) {
+						return array( 'success' => false, 'message' => 'Use the site origin without credentials or fragments. Queries require explicit allow_search_queries and only bounded native s/e_search_props parameters.' );
 					}
 				}
 				if ( ! is_callable( array( 'VarnishPurger', 'purge_url' ) ) ) {
