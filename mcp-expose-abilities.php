@@ -719,6 +719,8 @@ function mcp_expose_capture_translation_sibling_state( int $post_id ): array {
 			'post_content' => (string) $post->post_content,
 			'post_excerpt' => (string) $post->post_excerpt,
 			'post_name'    => (string) $post->post_name,
+			'post_date'    => (string) $post->post_date,
+			'post_date_gmt' => (string) $post->post_date_gmt,
 			'post_status'  => (string) $post->post_status,
 			'post_parent'  => (int) $post->post_parent,
 			'menu_order'   => (int) $post->menu_order,
@@ -885,7 +887,7 @@ function mcp_expose_schedule_translation_sibling_state_restore( array $snapshot,
 
 	$target = $target_post_id > 0 ? get_post( $target_post_id ) : null;
 	if ( $target ) {
-		$allowed_fields = array( 'post_title', 'post_content', 'post_excerpt', 'post_name', 'post_status', 'post_parent', 'menu_order', 'post_author' );
+		$allowed_fields = array( 'post_title', 'post_content', 'post_excerpt', 'post_name', 'post_status', 'post_parent', 'menu_order', 'post_author', 'post_date', 'post_date_gmt' );
 		foreach ( array_intersect( $post_fields, $allowed_fields ) as $field ) {
 			$pending['posts'][ $target_post_id ][ $field ] = $target->{$field};
 		}
@@ -4408,6 +4410,11 @@ function mcp_register_content_abilities(): void {
 				}
 				if ( isset( $input['menu_order'] ) ) {
 					$post_data['menu_order'] = (int) $input['menu_order'];
+					if ( ! isset( $input['date'] ) ) {
+						$post_data['post_date'] = (string) $post->post_date;
+						$post_data['post_date_gmt'] = (string) $post->post_date_gmt;
+						$post_data['edit_date'] = true;
+					}
 				}
 				if ( isset( $input['author_id'] ) ) {
 					$author_id = intval( $input['author_id'] );

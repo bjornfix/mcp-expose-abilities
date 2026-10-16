@@ -55,7 +55,7 @@ Install add-ons only when your site actually uses that product:
 == Changelog ==
 
 = 3.0.102 =
-* Added: Native post display order through content/update-post without changing publication dates; retain permissions, dry-run and translation-sibling protection with saved-order verification.
+* Added: Native post display order through content/update-post without changing publication dates; retain permissions, dry-run and translation-sibling protection with saved-order verification. Preserve existing draft dates and translated sibling dates during order-only edits.
 
 = 3.0.101 =
 * Keep standalone MCP Adapter transport classes together, preserving session initialization and Invalid params responses for oversized requests when another plugin bundles an older adapter.

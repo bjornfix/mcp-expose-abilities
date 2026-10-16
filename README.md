@@ -304,7 +304,7 @@ wp plugin install mcp-expose-abilities.zip --activate
 
 ### 3.0.102
 
-Allow `content/update-post` to set the native WordPress `menu_order` field independently of publication dates. Retain per-post permissions, dry-run validation and translation-sibling protection, and verify the saved order.
+Allow `content/update-post` to set the native WordPress `menu_order` field independently of publication dates. Retain per-post permissions, dry-run validation and translation-sibling protection, and verify the saved order. Preserve existing draft dates and translated sibling dates during an order-only edit.
 
 ### 3.0.101
 
