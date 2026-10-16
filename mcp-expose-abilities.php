@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.102
+ * Version: 3.0.103
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -3715,6 +3715,7 @@ function mcp_register_content_abilities(): void {
 					'excerpt'        => array( 'type' => 'string' ),
 					'date'           => array( 'type' => 'string' ),
 					'modified'       => array( 'type' => 'string' ),
+					'menu_order'     => array( 'type' => 'integer' ),
 					'author_id'      => array( 'type' => 'integer' ),
 					'author_name'    => array( 'type' => 'string' ),
 					'categories'     => array( 'type' => 'array', 'items' => array( 'type' => 'object' ) ),
@@ -3777,6 +3778,7 @@ function mcp_register_content_abilities(): void {
 					'excerpt'        => $post->post_excerpt,
 					'date'           => $post->post_date,
 					'modified'       => $post->post_modified,
+					'menu_order'     => (int) $post->menu_order,
 					'author_id'      => (int) $post->post_author,
 					'author_name'    => $author ? $author->display_name : '',
 					'categories'     => array_map( function ( $cat ) {
@@ -10581,6 +10583,61 @@ function mcp_register_content_abilities(): void {
 					'idempotent'  => false,
 				),
 			),
+		)
+	);
+
+	// Native proxy-cache provider bridge; no cache settings or credentials are changed.
+	wp_register_ability(
+		'cache/purge-proxy-urls',
+		array(
+			'label' => 'Purge Selected Proxy Cache URLs',
+			'description' => 'Submit 1–25 same-origin, query-free URLs to the active Proxy Cache Purge plugin native API. Does not change provider settings. Fetch clean URLs afterwards to verify freshness.',
+			'category' => 'site',
+			'input_schema' => array(
+				'type' => 'object',
+				'required' => array( 'urls' ),
+				'properties' => array( 'urls' => array( 'type' => 'array', 'items' => array( 'type' => 'string', 'format' => 'uri' ), 'minItems' => 1, 'maxItems' => 25 ) ),
+				'additionalProperties' => false,
+			),
+			'output_schema' => array(
+				'type' => 'object',
+				'properties' => array(
+					'success' => array( 'type' => 'boolean' ),
+					'provider' => array( 'type' => 'string' ),
+					'submitted_urls' => array( 'type' => 'array', 'items' => array( 'type' => 'string' ) ),
+					'submitted_count' => array( 'type' => 'integer' ),
+					'verification_required' => array( 'type' => 'boolean' ),
+					'message' => array( 'type' => 'string' ),
+				),
+			),
+			'execute_callback' => static function ( $input = array() ): array {
+				$urls = is_array( $input ) && isset( $input['urls'] ) && is_array( $input['urls'] ) ? $input['urls'] : array();
+				if ( empty( $urls ) || count( $urls ) > 25 ) {
+					return array( 'success' => false, 'message' => 'Supply 1–25 selected URLs.' );
+				}
+				$origin = wp_parse_url( home_url( '/' ) );
+				foreach ( $urls as $url ) {
+					$parts = is_string( $url ) && filter_var( $url, FILTER_VALIDATE_URL ) ? wp_parse_url( $url ) : false;
+					if ( ! is_array( $origin ) || ! is_array( $parts ) || strtolower( $parts['scheme'] ?? '' ) !== strtolower( $origin['scheme'] ?? '' ) || strtolower( $parts['host'] ?? '' ) !== strtolower( $origin['host'] ?? '' ) || (int) ( $parts['port'] ?? ( 'https' === strtolower( $parts['scheme'] ?? '' ) ? 443 : 80 ) ) !== (int) ( $origin['port'] ?? ( 'https' === strtolower( $origin['scheme'] ?? '' ) ? 443 : 80 ) ) || isset( $parts['user'] ) || isset( $parts['pass'] ) || isset( $parts['fragment'] ) || ! empty( $parts['query'] ) ) {
+						return array( 'success' => false, 'message' => 'Every selected URL must use the site origin without credentials, fragments or query strings.' );
+					}
+				}
+				if ( ! is_callable( array( 'VarnishPurger', 'purge_url' ) ) ) {
+					return array( 'success' => false, 'message' => 'The native Proxy Cache Purge API is not active.' );
+				}
+				$submitted = array();
+				foreach ( array_values( array_unique( $urls ) ) as $url ) {
+					try {
+						VarnishPurger::purge_url( $url );
+						$submitted[] = $url;
+					} catch ( \Throwable $error ) {
+						return array( 'success' => false, 'provider' => 'Proxy Cache Purge', 'submitted_urls' => $submitted, 'submitted_count' => count( $submitted ), 'verification_required' => true, 'message' => 'A native purge request failed. Verify selected URLs before retrying.' );
+					}
+				}
+				return array( 'success' => true, 'provider' => 'Proxy Cache Purge', 'submitted_urls' => $submitted, 'submitted_count' => count( $submitted ), 'verification_required' => true, 'message' => 'Native purge requests submitted. Fetch the clean URLs to verify freshness.' );
+			},
+			'permission_callback' => static function (): bool { return current_user_can( 'manage_options' ); },
+			'meta' => array( 'annotations' => array( 'readonly' => false, 'destructive' => false, 'idempotent' => true ) ),
 		)
 	);
 

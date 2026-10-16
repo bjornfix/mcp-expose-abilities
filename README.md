@@ -2,19 +2,19 @@
 
 Give an AI assistant WordPress tools it can use to finish real site work: inspect pages, correct selected content, organise media, update menus and check installed plugins.
 
-[![Release 3.0.102](https://img.shields.io/badge/release-3.0.102-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
+[![Release 3.0.103](https://img.shields.io/badge/release-3.0.103-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
 [![License](https://img.shields.io/badge/license-GPL--2.0--or--later-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![WordPress](https://img.shields.io/badge/WordPress-6.9%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://www.php.net/)
 
-**Stable tag:** 3.0.102<br>
+**Stable tag:** 3.0.103<br>
 **Tested up to:** 7.1<br>
 **License:** GPL-2.0-or-later<br>
 **Tags:** mcp, ai, automation, content, rest-api
 
 ## What It Does
 
-MCP Expose Abilities supplies 80 WordPress operations through the WordPress Abilities API. With WordPress MCP Adapter and a compatible authenticated client, your assistant can read the site's actual records and make the changes you request.
+MCP Expose Abilities supplies 81 WordPress operations through the WordPress Abilities API. With WordPress MCP Adapter and a compatible authenticated client, your assistant can read the site's actual records and make the changes you request.
 
 For example, ask it to find a named set of articles, inspect their contact details, and turn the selected phone numbers into clickable links. The assistant can read each result back and report which pages changed. The plugin supplies the operations; your client handles the conversation, task selection and review.
 
@@ -55,7 +55,7 @@ Each operation has a name, an input definition and a permission check. Content, 
 
 | Plugin | Abilities | Role |
 |---|---|---|
-| **MCP Expose Abilities** (core) | 80 | Supplies the WordPress content, media, menu and administration operations listed below |
+| **MCP Expose Abilities** (core) | 81 | Supplies the WordPress content, media, menu and administration operations listed below |
 
 WordPress MCP Adapter carries requests from the client to WordPress. The Abilities API registers and executes the operations. This plugin provides the core WordPress tools. Add-ons supply operations for specific builders or plugins; their own documentation defines their current coverage.
 
@@ -276,6 +276,16 @@ Choose the real attachment ID from a prior read and describe what the image actu
 
 Use `menus/list` to find the active theme location, then `menus/get-items` to identify the exact item. Omitting `position` preserves the stored order. Supplying a position requests a move in the menu's flat order; parent relationships remain separate.
 
+### Native proxy cache
+
+`cache/purge-proxy-urls` submits selected same-origin URLs through the active Proxy Cache Purge plugin. It requires `manage_options`, accepts at most 25 URLs, and rejects query strings, fragments, credentials and other origins. It does not change cache settings or supply proxy credentials. Its receipt confirms submission; fetch the clean public URLs to verify freshness.
+
+```json
+{"urls": ["https://example.com/services/"]}
+```
+
+`content/get-post` includes the native `menu_order` value so an existing display order can be inspected before a targeted change.
+
 ## Safety and Ownership Boundaries
 
 WordPress remains the authority for authentication, records and permissions. The plugin does not include an AI model or decide whether a requested editorial change is good. The client and operator must review the task and result.
@@ -301,6 +311,10 @@ wp plugin install mcp-expose-abilities.zip --activate
 ```
 
 ## Recent Changes
+
+### 3.0.103
+
+Expose native post display order in content reads. Add bounded, administrator-only same-origin proxy-cache requests through the existing native provider, with explicit freshness verification after submission.
 
 ### 3.0.102
 

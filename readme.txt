@@ -3,7 +3,7 @@ Contributors: basicus
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.1
-Stable tag: 3.0.102
+Stable tag: 3.0.103
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -53,6 +53,9 @@ Install add-ons only when your site actually uses that product:
 * Store Locator: mcp-abilities-store-locator
 
 == Changelog ==
+
+= 3.0.103 =
+* Added: Native display-order reads and bounded same-origin proxy-cache requests through the existing Proxy Cache Purge API. Preserve provider settings and require clean-URL freshness verification.
 
 = 3.0.102 =
 * Added: Native post display order through content/update-post without changing publication dates; retain permissions, dry-run and translation-sibling protection with saved-order verification. Preserve existing draft dates and translated sibling dates during order-only edits.
