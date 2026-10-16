@@ -6,6 +6,10 @@
 
 declare( strict_types=1 );
 
+define( 'DAY_IN_SECONDS', 86400 );
+define( 'HOUR_IN_SECONDS', 3600 );
+define( 'MINUTE_IN_SECONDS', 60 );
+
 define( 'ABSPATH', __DIR__ . '/wordpress-fixture/' );
 define( 'WP_PLUGIN_DIR', getenv( 'MCP_EXPOSE_RUNTIME_PLUGIN_DIR' ) ?: dirname( __DIR__, 2 ) );
 
@@ -52,6 +56,9 @@ class WP_Error {
 	public function get_error_message(): string { return $this->message; }
 }
 
+function wp_has_ability( string $name ): bool { return wp_get_ability( $name ) instanceof WP_Ability; }
+function maybe_serialize( $value ) { return is_array( $value ) || is_object( $value ) ? serialize( $value ) : $value; }
+
 function is_wp_error( $value ): bool { return $value instanceof WP_Error; }
 function is_user_logged_in(): bool { return true; }
 function current_user_can( string $capability ): bool { return 'mcp_expose_canonical_execute_adapter_unavailable' !== $capability; }
@@ -84,6 +91,11 @@ require dirname( __DIR__ ) . '/mcp-expose-abilities.php';
 
 spl_autoload_register(
 	static function ( string $class ): void {
+		if ( 'WP\\MCP\\Transport\\Infrastructure\\SessionManager' === $class ) {
+			eval( 'namespace WP\\MCP\\Transport\\Infrastructure; final class SessionManager {}' );
+			return;
+		}
+
 		if ( 'WP\\MCP\\Abilities\\ExecuteAbilityAbility' !== $class ) {
 			return;
 		}
@@ -128,3 +140,27 @@ if ( 'manage_options' !== apply_filters( 'mcp_adapter_execute_ability_capability
 }
 
 fwrite( STDOUT, "Canonical MCP execute Adapter runtime checks passed.\n" );
+
+$session_class    = 'WP\\MCP\\Transport\\Infrastructure\\SessionManager';
+$session          = new ReflectionClass( $session_class );
+$session_expected = wp_normalize_path( WP_PLUGIN_DIR . '/mcp-adapter/includes/Transport/Infrastructure/SessionManager.php' );
+if ( $session_expected !== wp_normalize_path( (string) $session->getFileName() ) ) {
+	throw new RuntimeException( 'A later bundled adapter claimed SessionManager.' );
+}
+$adapter_header = file_get_contents( WP_PLUGIN_DIR . '/mcp-adapter/mcp-adapter.php' );
+if ( ! preg_match( '/Version:\s*([^\r\n]+)/', $adapter_header, $adapter_version ) ) {
+	throw new RuntimeException( 'The adapter package version could not be verified.' );
+}
+if ( version_compare( trim( $adapter_version[1] ), '0.7.1', '>=' ) ) {
+	if ( 4096 !== $session->getConstant( 'MAX_CLIENT_PARAMS_BYTES' ) ) {
+		throw new RuntimeException( 'The loaded SessionManager does not have the 4 KiB security limit.' );
+	}
+	if ( true !== $session_class::validate_client_params( array( 'name' => 'small-client' ) ) ) {
+		throw new RuntimeException( 'Small initialization parameters were rejected.' );
+	}
+	if ( ! is_wp_error( $session_class::validate_client_params( array( 'name' => str_repeat( 'x', 8192 ) ) ) ) ) {
+		throw new RuntimeException( 'Oversized initialization parameters were accepted.' );
+	}
+	fwrite( STDOUT, "Canonical session storage security checks passed.\n" );
+}
+fwrite( STDOUT, "Canonical SessionManager binding checks passed.\n" );
