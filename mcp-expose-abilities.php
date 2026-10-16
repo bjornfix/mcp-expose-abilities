@@ -10621,10 +10621,10 @@ function mcp_register_content_abilities(): void {
 				if ( isset( $input['secondary_language_prefix'] ) ) {
 					global $sitepress;
 					$language = (string) $input['secondary_language_prefix'];
-					if ( ! is_object( $sitepress ) || ! is_callable( array( $sitepress, 'get_active_languages' ) ) || ! is_callable( array( $sitepress, 'get_default_language' ) ) ) { return array( 'success' => false, 'message' => 'Native WPML language resolution is required for a secondary-language prefix.' ); }
+					if ( ! is_object( $sitepress ) || ! is_callable( array( $sitepress, 'get_active_languages' ) ) || ! is_callable( array( $sitepress, 'get_default_language' ) ) || ! is_callable( array( $sitepress, 'language_url' ) ) ) { return array( 'success' => false, 'message' => 'Native WPML language resolution is required for a secondary-language prefix.' ); }
 					$languages = $sitepress->get_active_languages();
 					if ( ! isset( $languages[ $language ] ) || $language === $sitepress->get_default_language() || 1 !== count( $urls ) ) { return array( 'success' => false, 'message' => 'Select one active secondary-language home URL.' ); }
-					$resolved = apply_filters( 'wpml_permalink', home_url( '/' ), $language, true );
+					$resolved = $sitepress->language_url( $language, true );
 					$prefix_parts = is_string( $resolved ) ? wp_parse_url( $resolved ) : false;
 					if ( ! is_array( $prefix_parts ) || ! preg_match( '~^(?:/[A-Za-z0-9_-]+)+/$~D', $prefix_parts['path'] ?? '' ) || isset( $prefix_parts['query'] ) || isset( $prefix_parts['fragment'] ) || $urls[0] !== $resolved ) { return array( 'success' => false, 'message' => 'The URL must exactly match the native secondary-language home with a literal non-root directory path.' ); }
 					$native_prefix = $resolved;
