@@ -2,12 +2,12 @@
 
 Give an AI assistant WordPress tools it can use to finish real site work: inspect pages, correct selected content, organise media, update menus and check installed plugins.
 
-[![Release 3.0.105](https://img.shields.io/badge/release-3.0.105-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
+[![Release 3.0.106](https://img.shields.io/badge/release-3.0.106-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
 [![License](https://img.shields.io/badge/license-GPL--2.0--or--later-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![WordPress](https://img.shields.io/badge/WordPress-6.9%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://www.php.net/)
 
-**Stable tag:** 3.0.105<br>
+**Stable tag:** 3.0.106<br>
 **Tested up to:** 7.1<br>
 **License:** GPL-2.0-or-later<br>
 **Tags:** mcp, ai, automation, content, rest-api
@@ -278,7 +278,7 @@ Use `menus/list` to find the active theme location, then `menus/get-items` to id
 
 ### Native proxy cache
 
-`cache/purge-proxy-urls` submits selected same-origin URLs through the active Proxy Cache Purge plugin. It requires `manage_options`, accepts at most 25 URLs, and rejects fragments, credentials and other origins. Queries are rejected by default. Explicit `allow_search_queries: true` permits only a nonempty bounded `s` search term and optional native `e_search_props` identifier. Unknown parameters, arrays, duplicate query keys and broad purge flags remain refused. It does not change cache settings or supply proxy credentials. Its receipt confirms submission and includes native provider HTTP status codes when available. Backend endpoints, headers and response bodies are not returned. Transport success does not prove freshness; fetch the public URLs to verify the cached output.
+`cache/purge-proxy-urls` submits selected same-origin URLs through the active Proxy Cache Purge plugin. It requires `manage_options`, accepts at most 25 URLs, and rejects fragments, credentials and other origins. Queries are rejected by default. Explicit `allow_search_queries: true` permits only a nonempty bounded `s` search term and optional native `e_search_props` identifier. Unknown parameters, arrays, duplicate query keys and broad purge flags remain refused. It does not change cache settings or supply proxy credentials. Its receipt confirms submission and includes native provider HTTP status codes when available. Backend endpoints, headers and response bodies are not returned. Transport success does not prove freshness; fetch the public URLs to verify the cached output. For a global secondary-language change, explicit `secondary_language_prefix: "en"` with exactly its native WPML home URL delegates the existing provider’s prefix operation. Only an active non-default language with a same-origin literal directory home is allowed; the root/default language, arbitrary paths, patterns and extra URLs are refused. No provider setting is changed.
 
 ```json
 {"urls": ["https://example.com/services/"]}
@@ -311,6 +311,10 @@ wp plugin install mcp-expose-abilities.zip --activate
 ```
 
 ## Recent Changes
+
+### 3.0.106
+
+Delegate a bounded native secondary-language directory purge when explicitly selected, with native WPML home resolution and no caller-supplied pattern or provider setting change.
 
 ### 3.0.105
 

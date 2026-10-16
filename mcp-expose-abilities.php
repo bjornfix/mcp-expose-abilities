@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.105
+ * Version: 3.0.106
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -10591,12 +10591,12 @@ function mcp_register_content_abilities(): void {
 		'cache/purge-proxy-urls',
 		array(
 			'label' => 'Purge Selected Proxy Cache URLs',
-			'description' => 'Submit 1–25 same-origin URLs to the existing native Proxy Cache Purge API. Queries require explicit allow_search_queries and only bounded s/e_search_props parameters. Broad purge flags are refused. Verify public freshness after submission.',
+			'description' => 'Submit 1–25 same-origin URLs to the existing native Proxy Cache Purge API. Queries require explicit allow_search_queries and only bounded s/e_search_props parameters. Raw broad purge flags are refused. Optional secondary_language_prefix resolves one active non-default WPML home and uses only its literal native directory prefix. Verify public freshness after submission.',
 			'category' => 'site',
 			'input_schema' => array(
 				'type' => 'object',
 				'required' => array( 'urls' ),
-				'properties' => array( 'urls' => array( 'type' => 'array', 'items' => array( 'type' => 'string', 'format' => 'uri' ), 'minItems' => 1, 'maxItems' => 25 ), 'allow_search_queries' => array( 'type' => 'boolean', 'default' => false ) ),
+				'properties' => array( 'urls' => array( 'type' => 'array', 'items' => array( 'type' => 'string', 'format' => 'uri' ), 'minItems' => 1, 'maxItems' => 25 ), 'allow_search_queries' => array( 'type' => 'boolean', 'default' => false ), 'secondary_language_prefix' => array( 'type' => 'string', 'minLength' => 1, 'maxLength' => 7 ) ),
 				'additionalProperties' => false,
 			),
 			'output_schema' => array(
@@ -10607,6 +10607,7 @@ function mcp_register_content_abilities(): void {
 					'submitted_urls' => array( 'type' => 'array', 'items' => array( 'type' => 'string' ) ),
 					'submitted_count' => array( 'type' => 'integer' ),
 					'provider_attempts' => array( 'type' => 'array', 'items' => array( 'type' => 'object' ) ),
+					'scope' => array( 'type' => 'string' ),
 					'verification_required' => array( 'type' => 'boolean' ),
 					'message' => array( 'type' => 'string' ),
 				),
@@ -10615,6 +10616,18 @@ function mcp_register_content_abilities(): void {
 				$urls = is_array( $input ) && isset( $input['urls'] ) && is_array( $input['urls'] ) ? $input['urls'] : array();
 				if ( empty( $urls ) || count( $urls ) > 25 ) {
 					return array( 'success' => false, 'message' => 'Supply 1–25 selected URLs.' );
+				}
+				$native_prefix = null;
+				if ( isset( $input['secondary_language_prefix'] ) ) {
+					global $sitepress;
+					$language = (string) $input['secondary_language_prefix'];
+					if ( ! is_object( $sitepress ) || ! is_callable( array( $sitepress, 'get_active_languages' ) ) || ! is_callable( array( $sitepress, 'get_default_language' ) ) ) { return array( 'success' => false, 'message' => 'Native WPML language resolution is required for a secondary-language prefix.' ); }
+					$languages = $sitepress->get_active_languages();
+					if ( ! isset( $languages[ $language ] ) || $language === $sitepress->get_default_language() || 1 !== count( $urls ) ) { return array( 'success' => false, 'message' => 'Select one active secondary-language home URL.' ); }
+					$resolved = apply_filters( 'wpml_permalink', home_url( '/' ), $language, true );
+					$prefix_parts = is_string( $resolved ) ? wp_parse_url( $resolved ) : false;
+					if ( ! is_array( $prefix_parts ) || ! preg_match( '~^(?:/[A-Za-z0-9_-]+)+/$~D', $prefix_parts['path'] ?? '' ) || isset( $prefix_parts['query'] ) || isset( $prefix_parts['fragment'] ) || $urls[0] !== $resolved ) { return array( 'success' => false, 'message' => 'The URL must exactly match the native secondary-language home with a literal non-root directory path.' ); }
+					$native_prefix = $resolved;
 				}
 				$origin = wp_parse_url( home_url( '/' ) );
 				foreach ( $urls as $url ) {
@@ -10646,7 +10659,7 @@ function mcp_register_content_abilities(): void {
 					};
 					add_action( 'after_purge_url', $observe, 10, 3 );
 					try {
-						VarnishPurger::purge_url( $url );
+						VarnishPurger::purge_url( null !== $native_prefix ? $native_prefix . '?vhp-regex' : $url );
 						$submitted[] = $url;
 					} catch ( \Throwable $error ) {
 						return array( 'success' => false, 'provider' => 'Proxy Cache Purge', 'submitted_urls' => $submitted, 'submitted_count' => count( $submitted ), 'verification_required' => true, 'provider_attempts' => $attempts, 'message' => 'A native purge request failed. Verify selected URLs before retrying.' );
@@ -10654,7 +10667,7 @@ function mcp_register_content_abilities(): void {
 						remove_action( 'after_purge_url', $observe, 10 );
 					}
 				}
-				return array( 'success' => true, 'provider' => 'Proxy Cache Purge', 'submitted_urls' => $submitted, 'submitted_count' => count( $submitted ), 'verification_required' => true, 'provider_attempts' => $attempts, 'message' => 'Native purge requests submitted. Provider HTTP statuses describe transport only; fetch the public URLs to verify freshness.' );
+				return array( 'success' => true, 'provider' => 'Proxy Cache Purge', 'submitted_urls' => $submitted, 'submitted_count' => count( $submitted ), 'verification_required' => true, 'provider_attempts' => $attempts, 'scope' => null !== $native_prefix ? 'native_secondary_language_prefix' : 'selected_urls', 'message' => 'Native purge requests submitted. Provider HTTP statuses describe transport only; fetch the public URLs to verify freshness.' );
 			},
 			'permission_callback' => static function (): bool { return current_user_can( 'manage_options' ); },
 			'meta' => array( 'annotations' => array( 'readonly' => false, 'destructive' => false, 'idempotent' => true ) ),
