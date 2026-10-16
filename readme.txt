@@ -3,7 +3,7 @@ Contributors: basicus
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.1
-Stable tag: 3.0.104
+Stable tag: 3.0.105
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -53,6 +53,9 @@ Install add-ons only when your site actually uses that product:
 * Store Locator: mcp-abilities-store-locator
 
 == Changelog ==
+
+= 3.0.105 =
+* Report native proxy-provider HTTP status codes without exposing backend endpoints, headers or response bodies. Verify public freshness separately.
 
 = 3.0.104 =
 * Allow explicitly selected exact native search-query cache purges with bounded s/e_search_props parameters. Preserve default query refusal and reject broad flags before any provider call.

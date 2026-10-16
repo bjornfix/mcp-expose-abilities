@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.104
+ * Version: 3.0.105
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -10606,6 +10606,7 @@ function mcp_register_content_abilities(): void {
 					'provider' => array( 'type' => 'string' ),
 					'submitted_urls' => array( 'type' => 'array', 'items' => array( 'type' => 'string' ) ),
 					'submitted_count' => array( 'type' => 'integer' ),
+					'provider_attempts' => array( 'type' => 'array', 'items' => array( 'type' => 'object' ) ),
 					'verification_required' => array( 'type' => 'boolean' ),
 					'message' => array( 'type' => 'string' ),
 				),
@@ -10637,15 +10638,23 @@ function mcp_register_content_abilities(): void {
 					return array( 'success' => false, 'message' => 'The native Proxy Cache Purge API is not active.' );
 				}
 				$submitted = array();
+				$attempts = array();
 				foreach ( array_values( array_unique( $urls ) ) as $url ) {
+					$observe = static function ( $parsed_url, $purge_url, $response ) use ( &$attempts, $url ): void {
+						// The selected public URL is safe to return; backend URLs, headers and bodies are not.
+						$attempts[] = array( 'url' => $url, 'http_status' => is_wp_error( $response ) ? 0 : (int) wp_remote_retrieve_response_code( $response ), 'error_code' => is_wp_error( $response ) ? (string) $response->get_error_code() : '' );
+					};
+					add_action( 'after_purge_url', $observe, 10, 3 );
 					try {
 						VarnishPurger::purge_url( $url );
 						$submitted[] = $url;
 					} catch ( \Throwable $error ) {
-						return array( 'success' => false, 'provider' => 'Proxy Cache Purge', 'submitted_urls' => $submitted, 'submitted_count' => count( $submitted ), 'verification_required' => true, 'message' => 'A native purge request failed. Verify selected URLs before retrying.' );
+						return array( 'success' => false, 'provider' => 'Proxy Cache Purge', 'submitted_urls' => $submitted, 'submitted_count' => count( $submitted ), 'verification_required' => true, 'provider_attempts' => $attempts, 'message' => 'A native purge request failed. Verify selected URLs before retrying.' );
+					} finally {
+						remove_action( 'after_purge_url', $observe, 10 );
 					}
 				}
-				return array( 'success' => true, 'provider' => 'Proxy Cache Purge', 'submitted_urls' => $submitted, 'submitted_count' => count( $submitted ), 'verification_required' => true, 'message' => 'Native purge requests submitted. Fetch the clean URLs to verify freshness.' );
+				return array( 'success' => true, 'provider' => 'Proxy Cache Purge', 'submitted_urls' => $submitted, 'submitted_count' => count( $submitted ), 'verification_required' => true, 'provider_attempts' => $attempts, 'message' => 'Native purge requests submitted. Provider HTTP statuses describe transport only; fetch the public URLs to verify freshness.' );
 			},
 			'permission_callback' => static function (): bool { return current_user_can( 'manage_options' ); },
 			'meta' => array( 'annotations' => array( 'readonly' => false, 'destructive' => false, 'idempotent' => true ) ),
