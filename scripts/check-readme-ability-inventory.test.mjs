@@ -29,7 +29,7 @@ function verify(readme) {
 try {
   assert.equal(verify(readmeSource).status, 0, "Current source and README inventory must agree.");
   assert.notEqual(
-    verify(readmeSource.replace("## Core Plugin Abilities (79)", "## Core Plugin Abilities (78)")).status,
+    verify(readmeSource.replace(/(## Core Plugin Abilities \()(\d+)(\))/, (_match, start, count, end) => `${start}${Number(count) - 1}${end}`)).status,
     0,
     "A stale core heading count must fail.",
   );
@@ -39,7 +39,7 @@ try {
     "A missing registered ability must fail.",
   );
   assert.notEqual(
-    verify(readmeSource.replace("| **MCP Expose Abilities** (core) | 79 |", "| **MCP Expose Abilities** (core) | 78 |")).status,
+    verify(readmeSource.replace(/(\| \*\*MCP Expose Abilities\*\* \(core\) \| )(\d+)( \|)/, (_match, start, count, end) => `${start}${Number(count) - 1}${end}`)).status,
     0,
     "A stale architecture core count must fail.",
   );
