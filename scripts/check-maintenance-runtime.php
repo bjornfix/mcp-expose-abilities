@@ -77,8 +77,8 @@ function check( $v, $message ) { ++$GLOBALS['checks']; if ( !$v ) { throw new Ru
 function run( $name, $input = array() ) { $a = $GLOBALS['abilities'][ $name ]; check( $a['permission_callback'](), 'Permission preflight failed' ); $r = ($a['execute_callback'])( $input ); check( !str_contains( json_encode( $r ), 'SECRET' ), 'Secret disclosed' ); return $r; }
 $r = run( 'system/get-maintenance-status' );
 check( $r['success'] && !$refreshes, 'Default read refreshed providers or missed caches' );
-check( $r['plugins']['items'][0]['auto_update_selected'] && $r['plugins']['items'][0]['offer_auto_update_allowed'], 'Saved plugin choice lost' );
-check( !$r['themes']['items'][0]['auto_update_selected'] && $r['themes']['items'][0]['offer_auto_update_allowed'], 'Filtered policy and saved theme choice conflated' );
+check( null === $r['plugins']['items'][0]['offer_auto_update_forced'] && !$r['saved_plugin_theme_choices_included'] && 'options/get' === $r['saved_choices_reader'], 'Unforced offer conflated with saved choice' );
+check( $r['themes']['items'][0]['offer_auto_update_forced'] && $r['themes']['auto_update_ui_enabled'], 'Native forced theme policy omitted' );
 check( !$r['plugins']['items'][0]['mcp_update_allowed_by_policy'], 'Existing code-write guard bypassed' );
 check( $r['core']['constant_change_supported'], 'Narrow configuration operation missing' );
 if ( defined( 'WP_AUTO_UPDATE_CORE' ) ) { check( WP_AUTO_UPDATE_CORE === $r['core']['auto_update_constant'], 'Constant enum lost' ); }
@@ -89,7 +89,7 @@ if ( getenv( 'MCP_EXPOSE_NATIVE_CORE_UPGRADER' ) ) {
 run( 'system/get-maintenance-status', array( 'refresh' => true ) ); check( 3 === $refreshes && 1 === $cache_cleans, 'Refresh failed, used stale cache or repeated' );
 $automatic_disabled = true;
 $r = run( 'system/get-maintenance-status' );
-check( !$r['plugins']['items'][0]['offer_auto_update_allowed'] && !$r['themes']['items'][0]['offer_auto_update_allowed'] && !$r['core']['offers'][0]['offer_auto_update_allowed'], 'Global automatic-updater guard ignored' );
+check( $r['automatic_updater_disabled'] && !$r['core']['offers'][0]['offer_auto_update_allowed'], 'Global automatic-updater guard omitted' );
 $caches = array();
 $r = run( 'system/get-maintenance-status' ); check( !$r['success'] && null === $r['plugins']['items'][0]['update_available'] && !$r['core']['inventory_known'], 'Missing cache claimed no updates' );
 $r = run( 'system/get-site-health' ); check( $r['success'] && 11 === count( $r['tests'] ) && !$r['debug_dump_returned'], 'Fixed native test coverage missing' );

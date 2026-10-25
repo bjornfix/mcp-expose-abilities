@@ -45,35 +45,31 @@ function mcp_expose_get_maintenance_status( $input = array() ): array {
 		$plugin_known = is_object( $plugin_cache ) && isset( $plugin_cache->response ) && is_array( $plugin_cache->response );
 		$theme_known = is_object( $theme_cache ) && isset( $theme_cache->response ) && is_array( $theme_cache->response );
 		$core_known = is_object( $core_cache ) && isset( $core_cache->updates ) && is_array( $core_cache->updates );
-		$selected_plugins = (array) get_site_option( 'auto_update_plugins', array() );
-		$selected_themes = (array) get_site_option( 'auto_update_themes', array() );
 		$automatic_disabled = ( new WP_Automatic_Updater() )->is_disabled();
 		$items = array();
 		foreach ( $plugins as $file => $plugin ) {
 			$offer = $plugin_known ? ( $plugin_cache->response[ $file ] ?? null ) : null;
-			$selected = in_array( $file, $selected_plugins, true );
-			$base = $offer && ( ! empty( $offer->autoupdate ) || ( wp_is_auto_update_enabled_for_type( 'plugin' ) && $selected ) );
+			$forced = $offer ? wp_is_auto_update_forced_for_item( 'plugin', null, $offer ) : null;
 			$items[] = array(
 				'plugin' => $file, 'current_version' => (string) $plugin['Version'],
 				'new_version' => $offer ? (string) ( $offer->new_version ?? '' ) : null,
 				'update_available' => $plugin_known ? null !== $offer : null,
-				'auto_update_selected' => $selected,
-				'offer_auto_update_allowed' => $offer ? ! $automatic_disabled && (bool) wp_is_auto_update_forced_for_item( 'plugin', (bool) $base, $offer ) : null,
+				'offer_auto_update_forced' => null === $forced ? null : (bool) $forced,
+				'provider_auto_update' => $offer ? ! empty( $offer->autoupdate ) : null,
 				'mcp_update_allowed_by_policy' => mcp_expose_plugin_code_writes_enabled( 'plugins/update' ) || mcp_expose_is_policy_allowed_plugin_update( $file ),
 			);
 		}
 		$theme_items = array();
 		foreach ( $themes as $stylesheet => $theme ) {
 			$offer = $theme_known ? ( $theme_cache->response[ $stylesheet ] ?? null ) : null;
-			$selected = in_array( $stylesheet, $selected_themes, true );
 			$native_offer = $offer ? (object) $offer : null;
-			$base = $offer && ( ! empty( $native_offer->autoupdate ) || ( wp_is_auto_update_enabled_for_type( 'theme' ) && $selected ) );
+			$forced = $offer ? wp_is_auto_update_forced_for_item( 'theme', null, $native_offer ) : null;
 			$theme_items[] = array(
 				'theme' => $stylesheet, 'current_version' => (string) $theme->get( 'Version' ),
 				'new_version' => $offer ? (string) ( $native_offer->new_version ?? '' ) : null,
 				'update_available' => $theme_known ? null !== $offer : null,
-				'auto_update_selected' => $selected,
-				'offer_auto_update_allowed' => $offer ? ! $automatic_disabled && (bool) wp_is_auto_update_forced_for_item( 'theme', (bool) $base, $native_offer ) : null,
+				'offer_auto_update_forced' => null === $forced ? null : (bool) $forced,
+				'provider_auto_update' => $offer ? ! empty( $native_offer->autoupdate ) : null,
 			);
 		}
 		$core_offers = array();
@@ -96,10 +92,11 @@ function mcp_expose_get_maintenance_status( $input = array() ): array {
 				'last_checked' => $core_known ? (int) ( $core_cache->last_checked ?? 0 ) : null,
 				'auto_update_constant' => mcp_expose_core_auto_update_constant(), 'saved_auto_update_options' => $core_options,
 				'constant_change_supported' => true ),
-			'plugins' => array( 'inventory_known' => $plugin_known, 'last_checked' => $plugin_known ? (int) ( $plugin_cache->last_checked ?? 0 ) : null, 'items' => $items ),
-			'themes' => array( 'inventory_known' => $theme_known, 'last_checked' => $theme_known ? (int) ( $theme_cache->last_checked ?? 0 ) : null, 'items' => $theme_items ),
-			'automatic_updater_disabled' => $automatic_disabled,
-			'note' => 'Cached offers and saved choices are distinct. Policy eligibility does not prove filesystem, cron or runtime success. No software or policy was changed.',
+			'plugins' => array( 'auto_update_ui_enabled' => wp_is_auto_update_enabled_for_type( 'plugin' ), 'inventory_known' => $plugin_known, 'last_checked' => $plugin_known ? (int) ( $plugin_cache->last_checked ?? 0 ) : null, 'items' => $items ),
+			'themes' => array( 'auto_update_ui_enabled' => wp_is_auto_update_enabled_for_type( 'theme' ), 'inventory_known' => $theme_known, 'last_checked' => $theme_known ? (int) ( $theme_cache->last_checked ?? 0 ) : null, 'items' => $theme_items ),
+			'automatic_updater_disabled' => $automatic_disabled, 'saved_plugin_theme_choices_included' => false,
+			'saved_choices_reader' => 'options/get',
+			'note' => 'Read saved plugin/theme choices through the existing options/get Interface. Forced native offer policy, provider defaults and native UI availability are separate from those choices. No software or policy was changed.',
 		);
 	} catch ( Throwable $error ) {
 		return array( 'success' => false, 'failed_stage' => $stage, 'inventory_known' => false, 'software_changed' => false, 'policy_changed' => false );

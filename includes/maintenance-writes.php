@@ -23,7 +23,7 @@ function mcp_expose_official_maintenance_package( string $url, string $kind, str
 		return 'downloads.wordpress.org' === $host && '/theme/' . $slug . '.' . $version . '.zip' === $path;
 	}
 	return in_array( $host, array( 'downloads.wordpress.org', 'wordpress.org' ), true )
-		&& '' !== $version && (bool) preg_match( '~^/(?:release/(?:[A-Za-z_]+/)?|)wordpress-' . preg_quote( $version, '~' ) . '(?:-[A-Za-z0-9._-]+)?\.zip$~D', $path );
+		&& '' !== $version && (bool) preg_match( '~^/(?:release/(?:[A-Za-z0-9_-]+/)?|)wordpress-' . preg_quote( $version, '~' ) . '(?:-[A-Za-z0-9._-]+)?\.zip$~D', $path );
 }
 
 /** Read only the installed native WordPress version after an upgrade. */

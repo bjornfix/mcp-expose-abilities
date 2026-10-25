@@ -2,12 +2,12 @@
 
 Give an AI assistant WordPress tools it can use to finish real site work: inspect pages, correct selected content, organise media, update menus and check installed plugins.
 
-[![Release 3.0.109](https://img.shields.io/badge/release-3.0.109-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
+[![Release 3.0.110](https://img.shields.io/badge/release-3.0.110-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
 [![License](https://img.shields.io/badge/license-GPL--2.0--or--later-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![WordPress](https://img.shields.io/badge/WordPress-6.9%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://www.php.net/)
 
-**Stable tag:** 3.0.109<br>
+**Stable tag:** 3.0.110<br>
 **Tested up to:** 7.1<br>
 **License:** GPL-2.0-or-later<br>
 **Tags:** mcp, ai, automation, content, rest-api
@@ -229,7 +229,7 @@ If discovery fails, check authentication and the adapter connection first. If on
 |---------|-------------|
 | `system/set-core-auto-update-policy` | Preview or enable only an existing literal WP_AUTO_UPDATE_CORE definition against a reviewed hash |
 | `system/update-wordpress-core` | Install the selected currently offered official stable WordPress release with native checks and rollback |
-| `system/get-maintenance-status` | Read native core/plugin/theme offers, saved automatic-update choices and policy without package URLs |
+| `system/get-maintenance-status` | Read native core/plugin/theme offers and forced policy without package URLs; use existing option reads for saved choices |
 | `system/get-site-health` | Run selected native tests and return fixed test IDs and status values without debug information |
 | `system/get-transient` | Get transient value |
 | `system/ability-timings` | Read recent slow or failed ability timings |
@@ -302,7 +302,7 @@ Use `menus/list` to find the active theme location, then `menus/get-items` to id
 
 `content/get-post` includes the native `menu_order` value so an existing display order can be inspected before a targeted change.
 
-`system/get-maintenance-status` reads cached core, plugin and theme offers by default. Set `refresh: true` to ask the registered native update providers for current offers. Missing update data remains unknown. Saved automatic-update choices and filtered eligibility for each actual offer are separate fields; neither proves that cron or filesystem access will succeed. Package URLs are excluded. Existing `plugins/update` confirmation and server policy still govern installation. `WP_AUTO_UPDATE_CORE` is reported as an enum and cannot be changed through this operation.
+`system/get-maintenance-status` reads cached core, plugin and theme offers by default. Set `refresh: true` to ask the registered native update providers for current offers. Missing update data remains unknown. Read saved plugin and theme automatic-update choices through `options/get`. This operation returns native forced policy, provider defaults and UI availability separately from the saved choices; no field claims that a future update will run. Core offer eligibility is evaluated by the native policy functions. Package URLs are excluded. Existing `plugins/update` confirmation and server policy still govern installation. `WP_AUTO_UPDATE_CORE` is reported as an enum and cannot be changed through this operation.
 
 `system/set-core-auto-update-policy` accepts only `enabled: true`. First request a preview, then supply its `expected_config_hash` and exact `confirm_dangerous_action`. It changes only one existing unconditional literal definition of `WP_AUTO_UPDATE_CORE` to true. Comments, other settings and configuration bytes remain intact. Dynamic, duplicate or shadowed definitions are refused. Direct native filesystem access is required; no new filesystem credentials are requested. Verify the effective policy in a fresh request after a save.
 
@@ -336,9 +336,9 @@ wp plugin install mcp-expose-abilities.zip --activate
 
 ## Recent Changes
 
-### 3.0.109
+### 3.0.110
 
-Read native WordPress, plugin and theme update offers and automatic-update choices separately from update execution. Run selected native Site Health tests with only fixed test IDs and status enums returned. Add separate reviewed actions for the fixed core automatic-update constant and native official core/theme updates; preserve administrator permissions and reject arbitrary packages.
+Read native WordPress, plugin and theme update offers and policy separately from update execution. Keep saved plugin/theme choices at the existing option Interface. Run selected native Site Health tests with only fixed test IDs and status enums returned. Add separate reviewed actions for the fixed core automatic-update constant and native official core/theme updates; preserve administrator permissions and reject arbitrary packages.
 
 ### 3.0.107
 

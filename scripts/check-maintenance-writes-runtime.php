@@ -80,6 +80,7 @@ $checks = 0;
 function check( $v, $message ) { ++$GLOBALS['checks']; if ( !$v ) { throw new RuntimeException( $message ); } }
 function run( $name, $input ) { $a = $GLOBALS['abilities'][$name]; check( $a['permission_callback'](), 'Permission fixture failed' ); $r = ($a['execute_callback'])( $input ); check( !str_contains( json_encode( $r ), 'EXAMPLE_SECRET' ), 'Private content or native error leaked' ); return $r; }
 foreach ( $names as $name ) { check( false === $abilities[$name]['input_schema']['additionalProperties'], 'Broad write parameters accepted' ); check( false === $abilities[$name]['meta']['annotations']['idempotent'], 'Transport may retry an uncertain write' ); }
+check( mcp_expose_official_maintenance_package( 'https://downloads.wordpress.org/release/pt_PT_ao90/wordpress-7.0.1.zip', 'core', '', '7.0.1' ), 'Native locale identifiers with digits rejected' );
 $core_input = array( 'target_version' => '7.0.1', 'expected_current_version' => '7.0', 'confirm_dangerous_action' => 'system/update-wordpress-core' );
 $r = run( 'system/update-wordpress-core', array_diff_key( $core_input, array( 'confirm_dangerous_action' => true ) ) ); check( !$r['success'] && !$core_updates, 'Unconfirmed core update ran' );
 $r = run( 'system/update-wordpress-core', array_merge( $core_input, array( 'expected_current_version' => '6.9' ) ) ); check( !$r['success'] && !$core_updates, 'Stale core version ran' );
