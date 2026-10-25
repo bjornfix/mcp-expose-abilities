@@ -56,6 +56,11 @@ if ( getenv( 'MCP_EXPOSE_NATIVE_CORE_UPGRADER' ) ) {
 } else {
 	class Core_Upgrader { public static function should_update_to_version( $version ) { return !defined( 'WP_AUTO_UPDATE_CORE' ) || false !== WP_AUTO_UPDATE_CORE; } }
 }
+if ( getenv( 'MCP_EXPOSE_NATIVE_AUTO_UPDATE_READER' ) ) {
+	require getenv( 'MCP_EXPOSE_NATIVE_AUTO_UPDATE_READER' );
+} else {
+	function wp_is_auto_update_forced_for_item( $type, $update, $item ) { return apply_filters( 'auto_update_' . $type, $update, $item ); }
+}
 class WP_Site_Health {
 	public static function get_instance() { return new self(); }
 	public function __call( $name, $args ) {

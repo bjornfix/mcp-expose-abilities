@@ -58,7 +58,7 @@ function mcp_expose_get_maintenance_status( $input = array() ): array {
 				'new_version' => $offer ? (string) ( $offer->new_version ?? '' ) : null,
 				'update_available' => $plugin_known ? null !== $offer : null,
 				'auto_update_selected' => $selected,
-				'offer_auto_update_allowed' => $offer ? ! $automatic_disabled && (bool) apply_filters( 'auto_update_plugin', (bool) $base, $offer ) : null,
+				'offer_auto_update_allowed' => $offer ? ! $automatic_disabled && (bool) wp_is_auto_update_forced_for_item( 'plugin', (bool) $base, $offer ) : null,
 				'mcp_update_allowed_by_policy' => mcp_expose_plugin_code_writes_enabled( 'plugins/update' ) || mcp_expose_is_policy_allowed_plugin_update( $file ),
 			);
 		}
@@ -73,7 +73,7 @@ function mcp_expose_get_maintenance_status( $input = array() ): array {
 				'new_version' => $offer ? (string) ( $native_offer->new_version ?? '' ) : null,
 				'update_available' => $theme_known ? null !== $offer : null,
 				'auto_update_selected' => $selected,
-				'offer_auto_update_allowed' => $offer ? ! $automatic_disabled && (bool) apply_filters( 'auto_update_theme', (bool) $base, $native_offer ) : null,
+				'offer_auto_update_allowed' => $offer ? ! $automatic_disabled && (bool) wp_is_auto_update_forced_for_item( 'theme', (bool) $base, $native_offer ) : null,
 			);
 		}
 		$core_offers = array();
@@ -82,7 +82,7 @@ function mcp_expose_get_maintenance_status( $input = array() ): array {
 			$core_offers[] = array(
 				'version' => $version,
 				'response' => in_array( $offer->response ?? '', array( 'upgrade', 'latest', 'development' ), true ) ? $offer->response : 'unknown',
-				'offer_auto_update_allowed' => ! $automatic_disabled && (bool) apply_filters( 'auto_update_core', Core_Upgrader::should_update_to_version( $version ), $offer ),
+				'offer_auto_update_allowed' => ! $automatic_disabled && (bool) wp_is_auto_update_forced_for_item( 'core', Core_Upgrader::should_update_to_version( $version ), $offer ),
 			);
 		}
 		$core_options = array();
