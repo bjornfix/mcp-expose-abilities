@@ -3,7 +3,7 @@ Contributors: basicus
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.1
-Stable tag: 3.0.113
+Stable tag: 3.0.114
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -53,6 +53,9 @@ Install add-ons only when your site actually uses that product:
 * Store Locator: mcp-abilities-store-locator
 
 == Changelog ==
+
+= 3.0.114 =
+* Add bounded native page-cache median/threshold timing and fixed cache/auth-context flags. Keep raw diagnostics, headers and credentials private; do not alter cache behavior or native outcomes.
 
 = 3.0.113 =
 * Expand native Site Health coverage with a fixed 28-test inventory, safe canonical labels and precise reason codes. Separate executed results, native failures and tests that were not run.

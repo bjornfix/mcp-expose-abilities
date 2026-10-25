@@ -301,6 +301,49 @@ function mcp_expose_health_safe_label( string $source ): string {
 	return (string) preg_replace( '/%(?:[0-9]+\$)?[sdif]/', '[value omitted]', $source );
 }
 
+/** Fixed native page-cache messages. Only rounded, bounded millisecond values can leave this seam. */
+function mcp_expose_health_cache_messages(): array {
+	return array(
+		'Median server response time was %1$s milliseconds. This is less than the recommended %2$s milliseconds threshold.',
+		'Median server response time was %1$s milliseconds. It should be less than the recommended %2$s milliseconds threshold.',
+		'No client caching response headers were detected.',
+		'A page cache plugin was detected.',
+		'A page cache plugin was not detected.',
+	);
+}
+
+function mcp_expose_health_cache_measurement(array $result, array $templates): array {
+	$description = html_entity_decode(wp_strip_all_tags((string) ($result['description'] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+	$metric = array('median_response_time_ms'=>null, 'recommended_threshold_ms'=>null, 'native_client_cache_headers_detected'=>null, 'native_page_cache_plugin_detected'=>null,
+		'wp_cache_enabled'=>defined('WP_CACHE') && (bool) WP_CACHE,
+		'advanced_cache_dropin_present'=>defined('WP_CONTENT_DIR') && file_exists(WP_CONTENT_DIR . '/advanced-cache.php'),
+		'external_object_cache_in_use'=>function_exists('wp_using_ext_object_cache') ? (bool) wp_using_ext_object_cache() : null,
+		'varnish_purge_api_available'=>is_callable(array('VarnishPurger','purge_url')),
+		'native_loopback_basic_auth_available'=>isset($_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW']),
+		'measurement_scope'=>'Native median of three homepage loopback GET requests, rounded by WordPress; may forward initiating Basic authentication. Integration flags do not prove an external server cache is enabled.');
+	$messages = mcp_expose_health_cache_messages();
+	foreach (array_slice($messages,0,2) as $source) {
+		$template = $templates[$source] ?? $source; $ordinals = array(); $pattern = '';
+		$parts = preg_split('/(%[12]\\$s)/', $template, -1, PREG_SPLIT_DELIM_CAPTURE);
+		foreach ($parts as $part) {
+			if (preg_match('/^%([12])\\$s$/D', $part, $match)) { $ordinals[] = (int) $match[1]; $pattern .= '([0-9][0-9.,\\s\\x{00a0}\\x{202f}]*)'; }
+			else { $pattern .= preg_quote($part,'~'); }
+		}
+		if (2 !== count($ordinals) || !preg_match('~'.$pattern.'~u', $description, $matches)) { continue; }
+		$values = array();
+		foreach ($ordinals as $index=>$ordinal) {
+			$digits = preg_replace('/[^0-9]/','',$matches[$index+1]);
+			if (strlen($digits)>8 || (int)$digits>86400000) { $values=array(); break; }
+			$values[$ordinal] = (int)$digits;
+		}
+		if (isset($values[1],$values[2])) { $metric['median_response_time_ms']=$values[1]; $metric['recommended_threshold_ms']=$values[2]; break; }
+	}
+	if (str_contains($description, $templates[$messages[2]] ?? $messages[2])) { $metric['native_client_cache_headers_detected']=false; }
+	if (str_contains($description, $templates[$messages[3]] ?? $messages[3])) { $metric['native_page_cache_plugin_detected']=true; }
+	elseif (str_contains($description, $templates[$messages[4]] ?? $messages[4])) { $metric['native_page_cache_plugin_detected']=false; }
+	return $metric;
+}
+
 /** Run only fixed native health methods; never execute callbacks supplied by the registry. */
 function mcp_expose_get_site_health( $input = array() ): array {
 	$catalog = mcp_expose_health_catalog();
@@ -352,6 +395,7 @@ function mcp_expose_get_site_health( $input = array() ): array {
 			$templates = array();
 			foreach ( $messages['labels'] as $source => $code ) { $templates[ $source ] = $source; }
 			foreach ( $messages['details'] as $detail ) { $templates[ $detail['source'] ] = $detail['source']; }
+			if ('page_cache' === $name) { foreach (mcp_expose_health_cache_messages() as $source) { $templates[$source]=$source; } }
 			// Observe native translations only to recognize fixed messages in any site locale.
 			// Neither translated text nor raw result values are returned.
 			$observe = static function ( $translation, $source, $domain ) use ( &$templates ) {
@@ -377,6 +421,7 @@ function mcp_expose_get_site_health( $input = array() ): array {
 						$row['label'] = mcp_expose_health_safe_label( $detail['source'] ); $row['reason_code'] = $detail['code']; break;
 					}
 				}
+				if ('page_cache' === $name) { $row['measurement']=mcp_expose_health_cache_measurement($result,$templates); }
 				$diagnostics_complete = $diagnostics_complete && $row['native_label_recognized'];
 			} catch ( Throwable $error ) {
 				$row['outcome'] = 'execution_error'; $row['status'] = 'unavailable'; $row['label'] = 'Native health test could not return a valid result'; $row['reason_code'] = 'native_test_execution_failed';
@@ -390,8 +435,8 @@ function mcp_expose_get_site_health( $input = array() ): array {
 	}
 	return array( 'success' => $execution_complete && $diagnostics_complete, 'complete' => $execution_complete && $diagnostics_complete && 0 === $counts['not_run'] && 0 === $unlisted_count,
 		'execution_complete' => $execution_complete, 'diagnostics_complete' => $diagnostics_complete, 'tests' => $tests, 'counts' => $counts,
-		'additional_registered_tests_not_run' => $unlisted_count, 'scope' => 'fixed_native_allowlist', 'debug_dump_returned' => false, 'native_variable_data_returned' => false,
-		'note' => 'Only fixed native methods run. Canonical catalog labels and reason codes omit all substitutions. Native descriptions, errors, debug data, paths, credentials and registry callbacks are never returned. Authorization-header browser probe and additional registered tests are not executed. Native tests can refresh caches, schedule health checks and make loopback requests.' );
+		'additional_registered_tests_not_run' => $unlisted_count, 'scope' => 'fixed_native_allowlist', 'debug_dump_returned' => false, 'native_variable_data_returned' => true, 'raw_native_variable_data_returned'=>false, 'safe_numeric_page_cache_measurement_returned'=>true,
+		'note' => 'Only fixed native methods run. Canonical catalog labels and reason codes omit substitutions. Only bounded page-cache millisecond measurements and fixed cache/auth-context flags are separately projected. Native descriptions, errors, debug data, paths, credentials and registry callbacks are never returned. Authorization-header browser probe and additional registered tests are not executed. Native tests can refresh caches, schedule health checks and make loopback requests.' );
 }
 
 /** Verify only files listed in one installed plugin's existing signed release identity. */

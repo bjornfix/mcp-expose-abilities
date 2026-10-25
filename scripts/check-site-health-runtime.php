@@ -22,7 +22,7 @@ $labels = array(
 function add_action(...$args) {} function add_filter( $name, $callback, $priority=10, $accepted=1 ) { $GLOBALS['filters'][$name][$priority][] = $callback; }
 function remove_filter( $name, $callback, $priority=10 ) { foreach ( $GLOBALS['filters'][$name][$priority] ?? array() as $i=>$cb ) { if ( $cb === $callback ) { unset( $GLOBALS['filters'][$name][$priority][$i] ); } } }
 function apply_filters( $name, $value, ...$args ) { $f=$GLOBALS['filters'][$name]??array(); ksort($f); foreach($f as $list) { foreach($list as $cb) {$value=$cb($value,...$args);} } return $value; }
-function __( $text, $domain='default' ) { return apply_filters('gettext', 'fixture-nb::'.$text, $text, $domain); } function esc_html__($text,...$args) {return __($text,...$args);}
+function __( $text, $domain='default' ) { $translated='fixture-nb::'.$text; if ('cache_reordered'===$GLOBALS['mode'] && str_starts_with($text,'Median server response time was')) { $translated='Terskel %2$s ms, faktisk median %1$s ms.'; } return apply_filters('gettext', $translated, $text, $domain); } function esc_html__($text,...$args) {return __($text,...$args);}
 function wp_strip_all_tags($text) {return strip_tags($text);}
 function current_user_can($cap,...$args) {return 'manage_options'===$cap?$GLOBALS['admin']:$GLOBALS['can_health'];}
 function wp_register_ability($name,$args) {$GLOBALS['abilities'][$name]=$args;}
@@ -46,6 +46,10 @@ class WP_Site_Health {
   $status=in_array($name,array('plugin_version','theme_version'),true)?'recommended':'good';
   $source=$GLOBALS['labels'][$name]; $label=sprintf(__($source),'SECRET-substitution','SECRET-substitution');
   $description='SECRET /var/private/SECRET credential=SECRET';
+  if ('page_cache'===$name && str_starts_with($GLOBALS['mode'],'cache_')) {
+   $value='cache_hostile'===$GLOBALS['mode']?'SECRET':('cache_overflow'===$GLOBALS['mode']?'999999999999':'1 234');
+   $description.='<li>'.sprintf(__('Median server response time was %1$s milliseconds. It should be less than the recommended %2$s milliseconds threshold.'),$value,'600').'</li><li>'.__('No client caching response headers were detected.').'</li><li>'.__('A page cache plugin was not detected.').'</li>';
+  }
   if ('critical'===$GLOBALS['mode'] && 'available_updates_disk_space'===$name) {$status='critical';$description=sprintf(__('Available disk space is critically low, less than %s available. Proceed with caution, updates may fail.'),'SECRET');}
   if ('unknown_label'===$GLOBALS['mode'] && 'plugin_version'===$name) {$label='SECRET unknown native label';}
   if ('invalid'===$GLOBALS['mode'] && 'php_sessions'===$name) {$status='SECRET';}
@@ -70,7 +74,14 @@ $mode='throw';$r=run();check(!$r['success']&&'execution_error'===row($r,'php_ses
 $mode='invalid';$r=run();check(!$r['success']&&'unavailable'===row($r,'php_sessions')['status'],'Invalid native status accepted');
 $mode='unknown_label';$r=run();check(!$r['success']&&!$r['diagnostics_complete']&&'unrecognized_native_diagnostic'===row($r,'plugin_version')['reason_code'],'Unrecognized diagnostic invented a cause');
 $mode='unregistered';$r=run();check('not_registered_for_this_site'===row($r,'page_cache')['reason_code']&&!row($r,'page_cache')['executed'],'Disabled native test executed or claimed passed');
+$mode='cache_numeric';$_SERVER['PHP_AUTH_USER']='SECRET';$_SERVER['PHP_AUTH_PW']='SECRET';$r=run();$metric=row($r,'page_cache')['measurement'];
+check(1234===$metric['median_response_time_ms']&&600===$metric['recommended_threshold_ms'],'Native rounded millisecond projection incorrect');
+check(false===$metric['native_client_cache_headers_detected']&&false===$metric['native_page_cache_plugin_detected'],'Native cache detection changed');
+check($metric['native_loopback_basic_auth_available'],'Native Basic-auth context omitted');unset($_SERVER['PHP_AUTH_USER'],$_SERVER['PHP_AUTH_PW']);
+$mode='cache_reordered';$r=run();check(1234===row($r,'page_cache')['measurement']['median_response_time_ms']&&600===row($r,'page_cache')['measurement']['recommended_threshold_ms'],'Localized reordered placeholders reversed timing');
+$mode='cache_hostile';$r=run();check(null===row($r,'page_cache')['measurement']['median_response_time_ms'],'Untrusted numeric native substitution leaked');
+$mode='cache_overflow';$r=run();check(null===row($r,'page_cache')['measurement']['median_response_time_ms'],'Unbounded native measurement returned');
 $mode='no_direct_fs';$r=run();check('requires_direct_native_filesystem'===row($r,'update_temp_backup_writable')['reason_code']&&!row($r,'update_temp_backup_writable')['executed'],'Non-direct filesystem login attempted');
 check(false===$a['input_schema']['additionalProperties']&&empty((array)$a['input_schema']['properties']),'Caller callback/path input introduced');
 $admin=false;check(!$a['permission_callback'](),'Administrator permission removed');$admin=true;$can_health=false;check(!$a['permission_callback'](),'Native health permission removed');
-echo "PASS: {$checks} health coverage, localized causes, critical/advisory/error/not-run outcomes, no callback execution, no native variable data or output\n";
+echo "PASS: {$checks} health coverage, localized causes, critical/advisory/error/not-run outcomes, no callback execution, bounded page-cache metrics, no private native text or output\n";
