@@ -55,8 +55,9 @@ Install add-ons only when your site actually uses that product:
 == Changelog ==
 
 = 3.0.108 =
-* Add native maintenance status for core, plugins and themes, including saved automatic-update choices and filtered offer policy. Exclude download URLs and keep configuration constants read-only.
+* Add native maintenance status for core, plugins and themes, including saved automatic-update choices and filtered offer policy. Exclude download URLs. Add a separate hash-reviewed action that enables only the existing literal WP_AUTO_UPDATE_CORE definition.
 * Add selected native Site Health tests with only fixed test IDs and status values; exclude descriptions, debug information and raw errors.
+* Add exact official stable core and installed-theme updates with native administrator capabilities, per-call confirmation, version checks and partial-write readback. No arbitrary package, theme switching or general configuration editing.
 
 = 3.0.107 =
 * Preserve translated publication status and dates when restoring related posts after content or builder updates. Use native WordPress field types for complete and partial restores.

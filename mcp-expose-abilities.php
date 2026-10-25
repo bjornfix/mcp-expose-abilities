@@ -22,6 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 require_once __DIR__ . '/includes/maintenance-abilities.php';
+require_once __DIR__ . '/includes/maintenance-writes.php';
 
 add_action( 'admin_init', static function () {
 	require_once __DIR__ . '/includes/devenia-updater-notice.php';
@@ -1376,7 +1377,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.97');
+define('MCP_VERSION', '3.0.108');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -10673,6 +10674,59 @@ function mcp_register_content_abilities(): void {
 			},
 			'permission_callback' => static function (): bool { return current_user_can( 'manage_options' ); },
 			'meta' => array( 'annotations' => array( 'readonly' => false, 'destructive' => false, 'idempotent' => true ) ),
+		)
+	);
+
+	wp_register_ability(
+		'system/set-core-auto-update-policy',
+		array(
+			'label' => 'Enable Core Automatic Updates',
+			'description' => 'Preview or enable only the existing literal WP_AUTO_UPDATE_CORE constant. No arbitrary path, setting or PHP is accepted. Confirm against the reviewed config hash; verify effective policy in a fresh request.',
+			'category' => 'site',
+			'input_schema' => array( 'type' => 'object', 'properties' => array(
+				'enabled' => array( 'type' => 'boolean', 'enum' => array( true ) ),
+				'expected_config_hash' => array( 'type' => 'string', 'pattern' => '^[a-f0-9]{64}$' ),
+				'confirm_dangerous_action' => mcp_expose_dangerous_action_confirmation_schema( 'system/set-core-auto-update-policy' ),
+			), 'required' => array( 'enabled' ), 'additionalProperties' => false ),
+			'output_schema' => array( 'type' => 'object' ),
+			'execute_callback' => 'mcp_expose_set_core_auto_update_policy',
+			'permission_callback' => static function (): bool { return mcp_expose_maintenance_permission( 'update_core' ); },
+			'meta' => array( 'annotations' => array( 'readonly' => false, 'destructive' => true, 'idempotent' => false ) ),
+		)
+	);
+	wp_register_ability(
+		'system/update-wordpress-core',
+		array(
+			'label' => 'Update WordPress Core',
+			'description' => 'Install the exact currently offered official stable WordPress release using the native updater. Requires the reviewed installed version and exact confirmation. No caller package URL or downgrade.',
+			'category' => 'site',
+			'input_schema' => array( 'type' => 'object', 'properties' => array(
+				'target_version' => array( 'type' => 'string', 'pattern' => '^[0-9]+\\.[0-9]+(?:\\.[0-9]+)?$' ),
+				'expected_current_version' => array( 'type' => 'string', 'minLength' => 1, 'maxLength' => 64 ),
+				'confirm_dangerous_action' => mcp_expose_dangerous_action_confirmation_schema( 'system/update-wordpress-core' ),
+			), 'required' => array( 'target_version', 'expected_current_version', 'confirm_dangerous_action' ), 'additionalProperties' => false ),
+			'output_schema' => array( 'type' => 'object' ),
+			'execute_callback' => 'mcp_expose_update_wordpress_core',
+			'permission_callback' => static function (): bool { return mcp_expose_maintenance_permission( 'update_core' ); },
+			'meta' => array( 'annotations' => array( 'readonly' => false, 'destructive' => true, 'idempotent' => false ) ),
+		)
+	);
+	wp_register_ability(
+		'themes/update',
+		array(
+			'label' => 'Update Installed Theme',
+			'description' => 'Update one installed theme from its exact official WordPress.org offer. Preserve the active theme. No upload, package URL, installation or theme switch.',
+			'category' => 'site',
+			'input_schema' => array( 'type' => 'object', 'properties' => array(
+				'stylesheet' => array( 'type' => 'string', 'pattern' => '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$' ),
+				'target_version' => array( 'type' => 'string', 'minLength' => 1, 'maxLength' => 64 ),
+				'expected_current_version' => array( 'type' => 'string', 'minLength' => 1, 'maxLength' => 64 ),
+				'confirm_dangerous_action' => mcp_expose_dangerous_action_confirmation_schema( 'themes/update' ),
+			), 'required' => array( 'stylesheet', 'target_version', 'expected_current_version', 'confirm_dangerous_action' ), 'additionalProperties' => false ),
+			'output_schema' => array( 'type' => 'object' ),
+			'execute_callback' => 'mcp_expose_update_theme',
+			'permission_callback' => static function (): bool { return mcp_expose_maintenance_permission( 'update_themes' ); },
+			'meta' => array( 'annotations' => array( 'readonly' => false, 'destructive' => true, 'idempotent' => false ) ),
 		)
 	);
 

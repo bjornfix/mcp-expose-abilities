@@ -75,7 +75,7 @@ check( $r['success'] && !$refreshes, 'Default read refreshed providers or missed
 check( $r['plugins']['items'][0]['auto_update_selected'] && $r['plugins']['items'][0]['offer_auto_update_allowed'], 'Saved plugin choice lost' );
 check( !$r['themes']['items'][0]['auto_update_selected'] && $r['themes']['items'][0]['offer_auto_update_allowed'], 'Filtered policy and saved theme choice conflated' );
 check( !$r['plugins']['items'][0]['mcp_update_allowed_by_policy'], 'Existing code-write guard bypassed' );
-check( !$r['core']['constant_change_supported'], 'Configuration constant treated as writable option' );
+check( $r['core']['constant_change_supported'], 'Narrow configuration operation missing' );
 if ( defined( 'WP_AUTO_UPDATE_CORE' ) ) { check( WP_AUTO_UPDATE_CORE === $r['core']['auto_update_constant'], 'Constant enum lost' ); }
 if ( getenv( 'MCP_EXPOSE_NATIVE_CORE_UPGRADER' ) ) {
 	check( (!defined( 'WP_AUTO_UPDATE_CORE' ) || false !== WP_AUTO_UPDATE_CORE) === $r['core']['offers'][0]['offer_auto_update_allowed'], 'Native minor policy differs from report' );

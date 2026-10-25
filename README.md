@@ -14,7 +14,7 @@ Give an AI assistant WordPress tools it can use to finish real site work: inspec
 
 ## What It Does
 
-MCP Expose Abilities supplies 83 WordPress operations through the WordPress Abilities API. With WordPress MCP Adapter and a compatible authenticated client, your assistant can read the site's actual records and make the changes you request.
+MCP Expose Abilities supplies 86 WordPress operations through the WordPress Abilities API. With WordPress MCP Adapter and a compatible authenticated client, your assistant can read the site's actual records and make the changes you request.
 
 For example, ask it to find a named set of articles, inspect their contact details, and turn the selected phone numbers into clickable links. The assistant can read each result back and report which pages changed. The plugin supplies the operations; your client handles the conversation, task selection and review.
 
@@ -55,7 +55,7 @@ Each operation has a name, an input definition and a permission check. Content, 
 
 | Plugin | Abilities | Role |
 |---|---|---|
-| **MCP Expose Abilities** (core) | 83 | Supplies the WordPress content, media, menu and administration operations listed below |
+| **MCP Expose Abilities** (core) | 86 | Supplies the WordPress content, media, menu and administration operations listed below |
 
 WordPress MCP Adapter carries requests from the client to WordPress. The Abilities API registers and executes the operations. This plugin provides the core WordPress tools. Add-ons supply operations for specific builders or plugins; their own documentation defines their current coverage.
 
@@ -89,7 +89,7 @@ MCP transport access defaults to the WordPress `manage_options` capability. Each
 
 If discovery fails, check authentication and the adapter connection first. If one operation fails, inspect its required input, permissions and dependencies. A working read proves that connection for that operation; it does not prove that every write or add-on is available.
 
-## Core Plugin Abilities (83)
+## Core Plugin Abilities (86)
 
 ### Content Management (27)
 
@@ -197,6 +197,12 @@ If discovery fails, check authentication and the adapter connection first. If on
 | `plugins/switch` | Activate one plugin and deactivate one or more others |
 | `plugins/delete` | Delete inactive plugin |
 
+### Theme Management (1)
+
+| Ability | Description |
+|---------|-------------|
+| `themes/update` | Update one installed theme from its exact official native offer while preserving the active theme |
+
 ### Comments (7)
 
 | Ability | Description |
@@ -217,10 +223,12 @@ If discovery fails, check authentication and the adapter connection first. If on
 | `options/update` | Update option (protected options blocked) |
 | `options/list` | List all options |
 
-### System (6)
+### System (8)
 
 | Ability | Description |
 |---------|-------------|
+| `system/set-core-auto-update-policy` | Preview or enable only an existing literal WP_AUTO_UPDATE_CORE definition against a reviewed hash |
+| `system/update-wordpress-core` | Install the selected currently offered official stable WordPress release with native checks and rollback |
 | `system/get-maintenance-status` | Read native core/plugin/theme offers, saved automatic-update choices and policy without package URLs |
 | `system/get-site-health` | Run selected native tests and return fixed test IDs and status values without debug information |
 | `system/get-transient` | Get transient value |
@@ -296,6 +304,10 @@ Use `menus/list` to find the active theme location, then `menus/get-items` to id
 
 `system/get-maintenance-status` reads cached core, plugin and theme offers by default. Set `refresh: true` to ask the registered native update providers for current offers. Missing update data remains unknown. Saved automatic-update choices and filtered eligibility for each actual offer are separate fields; neither proves that cron or filesystem access will succeed. Package URLs are excluded. Existing `plugins/update` confirmation and server policy still govern installation. `WP_AUTO_UPDATE_CORE` is reported as an enum and cannot be changed through this operation.
 
+`system/set-core-auto-update-policy` accepts only `enabled: true`. First request a preview, then supply its `expected_config_hash` and exact `confirm_dangerous_action`. It changes only one existing unconditional literal definition of `WP_AUTO_UPDATE_CORE` to true. Comments, other settings and configuration bytes remain intact. Dynamic, duplicate or shadowed definitions are refused. Direct native filesystem access is required; no new filesystem credentials are requested. Verify the effective policy in a fresh request after a save.
+
+`system/update-wordpress-core` accepts `target_version`, `expected_current_version` and its exact confirmation. The target must be the currently offered stable release from the official WordPress publisher. Native integrity checks and rollback stay enabled. `themes/update` additionally requires one installed `stylesheet` and binds its exact official offer to the requested version. It does not install or switch themes. Repeating a completed version change does not reinstall it. Native failures include readable stored changes; read uncertain outcomes before repeating a write. Both actions require the corresponding native update capability, administrator permission and allowed file modifications.
+
 `system/get-site-health` runs eleven selected native tests and returns only fixed test IDs with good, recommended, critical or unavailable status. Native checks can refresh caches, schedule the normal health check and make native loopback requests. Descriptions, debug dumps, paths, URLs and raw errors are excluded. Both maintenance operations retain native administrator and corresponding WordPress capabilities.
 
 ## Safety and Ownership Boundaries
@@ -326,7 +338,7 @@ wp plugin install mcp-expose-abilities.zip --activate
 
 ### 3.0.108
 
-Read native WordPress, plugin and theme update offers and automatic-update choices separately from update execution. Run selected native Site Health tests with only fixed test IDs and status enums returned. Configuration constants remain read-only.
+Read native WordPress, plugin and theme update offers and automatic-update choices separately from update execution. Run selected native Site Health tests with only fixed test IDs and status enums returned. Add separate reviewed actions for the fixed core automatic-update constant and native official core/theme updates; preserve administrator permissions and reject arbitrary packages.
 
 ### 3.0.107
 

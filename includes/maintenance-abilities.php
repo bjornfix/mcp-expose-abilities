@@ -95,7 +95,7 @@ function mcp_expose_get_maintenance_status( $input = array() ): array {
 			'core' => array( 'current_version' => (string) $wp_version, 'inventory_known' => $core_known, 'offers' => $core_offers,
 				'last_checked' => $core_known ? (int) ( $core_cache->last_checked ?? 0 ) : null,
 				'auto_update_constant' => mcp_expose_core_auto_update_constant(), 'saved_auto_update_options' => $core_options,
-				'constant_change_supported' => false ),
+				'constant_change_supported' => true ),
 			'plugins' => array( 'inventory_known' => $plugin_known, 'last_checked' => $plugin_known ? (int) ( $plugin_cache->last_checked ?? 0 ) : null, 'items' => $items ),
 			'themes' => array( 'inventory_known' => $theme_known, 'last_checked' => $theme_known ? (int) ( $theme_cache->last_checked ?? 0 ) : null, 'items' => $theme_items ),
 			'automatic_updater_disabled' => $automatic_disabled,
