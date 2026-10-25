@@ -3,7 +3,7 @@ Contributors: basicus
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.1
-Stable tag: 3.0.107
+Stable tag: 3.0.108
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -53,6 +53,10 @@ Install add-ons only when your site actually uses that product:
 * Store Locator: mcp-abilities-store-locator
 
 == Changelog ==
+
+= 3.0.108 =
+* Add native maintenance status for core, plugins and themes, including saved automatic-update choices and filtered offer policy. Exclude download URLs and keep configuration constants read-only.
+* Add selected native Site Health tests with only fixed test IDs and status values; exclude descriptions, debug information and raw errors.
 
 = 3.0.107 =
 * Preserve translated publication status and dates when restoring related posts after content or builder updates. Use native WordPress field types for complete and partial restores.

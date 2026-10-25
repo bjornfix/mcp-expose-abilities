@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.107
+ * Version: 3.0.108
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -20,6 +20,8 @@ declare( strict_types=1 );
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
+
+require_once __DIR__ . '/includes/maintenance-abilities.php';
 
 add_action( 'admin_init', static function () {
 	require_once __DIR__ . '/includes/devenia-updater-notice.php';
@@ -10670,6 +10672,33 @@ function mcp_register_content_abilities(): void {
 				return array( 'success' => true, 'provider' => 'Proxy Cache Purge', 'submitted_urls' => $submitted, 'submitted_count' => count( $submitted ), 'verification_required' => true, 'provider_attempts' => $attempts, 'scope' => null !== $native_prefix ? 'native_secondary_language_prefix' : 'selected_urls', 'message' => 'Native purge requests submitted. Provider HTTP statuses describe transport only; fetch the public URLs to verify freshness.' );
 			},
 			'permission_callback' => static function (): bool { return current_user_can( 'manage_options' ); },
+			'meta' => array( 'annotations' => array( 'readonly' => false, 'destructive' => false, 'idempotent' => true ) ),
+		)
+	);
+
+	wp_register_ability(
+		'system/get-maintenance-status',
+		array(
+			'label' => 'Get Maintenance Status',
+			'description' => 'Read native WordPress, plugin and theme update offers, saved automatic-update choices and policy. Optional refresh checks providers. No package URLs or software changes.',
+			'category' => 'site',
+			'input_schema' => array( 'type' => 'object', 'properties' => array( 'refresh' => array( 'type' => 'boolean', 'default' => false ) ), 'additionalProperties' => false ),
+			'output_schema' => array( 'type' => 'object' ),
+			'execute_callback' => 'mcp_expose_get_maintenance_status',
+			'permission_callback' => static function (): bool { return current_user_can( 'manage_options' ) && current_user_can( 'update_core' ) && current_user_can( 'update_plugins' ) && current_user_can( 'update_themes' ); },
+			'meta' => array( 'annotations' => array( 'readonly' => false, 'destructive' => false, 'idempotent' => true ) ),
+		)
+	);
+	wp_register_ability(
+		'system/get-site-health',
+		array(
+			'label' => 'Get Selected Site Health',
+			'description' => 'Run selected native Site Health tests and return only test IDs and enumerated statuses. Excludes debug dumps, descriptions, URLs, paths and raw errors.',
+			'category' => 'site',
+			'input_schema' => array( 'type' => 'object', 'properties' => new stdClass(), 'additionalProperties' => false ),
+			'output_schema' => array( 'type' => 'object' ),
+			'execute_callback' => 'mcp_expose_get_site_health',
+			'permission_callback' => static function (): bool { return current_user_can( 'manage_options' ) && current_user_can( 'view_site_health_checks' ); },
 			'meta' => array( 'annotations' => array( 'readonly' => false, 'destructive' => false, 'idempotent' => true ) ),
 		)
 	);
