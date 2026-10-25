@@ -2,12 +2,12 @@
 
 Give an AI assistant WordPress tools it can use to finish real site work: inspect pages, correct selected content, organise media, update menus and check installed plugins.
 
-[![Release 3.0.112](https://img.shields.io/badge/release-3.0.112-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
+[![Release 3.0.113](https://img.shields.io/badge/release-3.0.113-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
 [![License](https://img.shields.io/badge/license-GPL--2.0--or--later-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![WordPress](https://img.shields.io/badge/WordPress-6.9%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://www.php.net/)
 
-**Stable tag:** 3.0.112<br>
+**Stable tag:** 3.0.113<br>
 **Tested up to:** 7.1<br>
 **License:** GPL-2.0-or-later<br>
 **Tags:** mcp, ai, automation, content, rest-api
@@ -231,7 +231,7 @@ If discovery fails, check authentication and the adapter connection first. If on
 | `system/set-core-auto-update-policy` | Preview or enable only an existing literal WP_AUTO_UPDATE_CORE definition against a reviewed hash |
 | `system/update-wordpress-core` | Install the selected currently offered official stable WordPress release with native checks and rollback |
 | `system/get-maintenance-status` | Read native core/plugin/theme offers and forced policy without package URLs; use existing option reads for saved choices |
-| `system/get-site-health` | Run selected native tests and return fixed test IDs and status values without debug information |
+| `system/get-site-health` | Run fixed native tests with safe canonical labels, reasons and explicit execution/coverage outcomes |
 | `system/get-transient` | Get transient value |
 | `system/ability-timings` | Read recent slow or failed ability timings |
 | `system/debug-log` | Read debug.log file |
@@ -309,7 +309,7 @@ Use `menus/list` to find the active theme location, then `menus/get-items` to id
 
 `system/update-wordpress-core` accepts `target_version`, `expected_current_version` and its exact confirmation. The target must be the currently offered stable release from the official WordPress publisher. Native integrity checks and rollback stay enabled. `themes/update` additionally requires one installed `stylesheet` and binds its exact official offer to the requested version. It does not install or switch themes. Repeating a completed version change does not reinstall it. Native failures include readable stored changes; read uncertain outcomes before repeating a write. Both actions require the corresponding native update capability, administrator permission and allowed file modifications.
 
-`system/get-site-health` runs eleven selected native tests and returns only fixed test IDs with good, recommended, critical or unavailable status. Native checks can refresh caches, schedule the normal health check and make native loopback requests. Descriptions, debug dumps, paths, URLs and raw errors are excluded. Both maintenance operations retain native administrator and corresponding WordPress capabilities.
+`system/get-site-health` exposes a fixed inventory of 28 native checks, including PHP configuration, update readiness, caches, registration, indexing and WordPress.org communication. Each row separates support, execution, native status and outcome, with a canonical safe label and reason code. Known native messages are recognized across site languages; all substituted native values are omitted. Unknown diagnostics remain explicitly unknown. Native descriptions, debug data, paths, credentials, registry callbacks and raw errors are never returned. The authorization-header test requires its native browser probe and is explicitly not run through MCP. Tests removed from the site registry or unavailable in the installed WordPress version are not run. Additional registered tests are counted but their callbacks are never executed. `execution_complete` covers attempted supported tests; `diagnostics_complete` requires recognized causes; `complete` also requires no unrun or additional tests. A critical result is a failed health test, not a transport error. Native checks can refresh caches, schedule health checks and make native loopback requests. Administrator and native health permissions remain required.
 
 `plugins/verify-managed-installation` requires an exact installed plugin identifier and native administrator/update permission. Its existing signed updater must provide a trusted release identity. It compares only the listed release members inside that plugin directory and returns their hashes and match results. It accepts no path or package and returns no file contents. Additional files outside that signed member list are not scanned.
 
@@ -338,6 +338,10 @@ wp plugin install mcp-expose-abilities.zip --activate
 ```
 
 ## Recent Changes
+
+### 3.0.113
+
+Expand fixed native Site Health coverage with safe canonical labels and reason codes. Distinguish passed, advisory, failed, execution-error and not-run results without exposing native variable data or executing registry callbacks.
 
 ### 3.0.112
 

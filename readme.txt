@@ -3,7 +3,7 @@ Contributors: basicus
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.1
-Stable tag: 3.0.112
+Stable tag: 3.0.113
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -53,6 +53,10 @@ Install add-ons only when your site actually uses that product:
 * Store Locator: mcp-abilities-store-locator
 
 == Changelog ==
+
+= 3.0.113 =
+* Expand native Site Health coverage with a fixed 28-test inventory, safe canonical labels and precise reason codes. Separate executed results, native failures and tests that were not run.
+* Recognize native messages across site languages without returning substitutions, raw descriptions, debug information or credentials. Never execute callbacks from the Site Health registry. The browser authorization-header probe remains explicitly not run.
 
 = 3.0.112 =
 * Load the native PHP Site Health helper outside wp-admin while keeping labels, descriptions and debug data private.

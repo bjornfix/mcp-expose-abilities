@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.112
+ * Version: 3.0.113
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -1377,7 +1377,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.112');
+define('MCP_VERSION', '3.0.113');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -10762,8 +10762,8 @@ function mcp_register_content_abilities(): void {
 	wp_register_ability(
 		'system/get-site-health',
 		array(
-			'label' => 'Get Selected Site Health',
-			'description' => 'Run selected native Site Health tests and return only test IDs and enumerated statuses. Excludes debug dumps, descriptions, URLs, paths and raw errors.',
+			'label' => 'Get Native Site Health',
+			'description' => 'Run fixed native Site Health tests with canonical safe labels, reason codes and explicit supported/executed/outcome fields. Never run registry callbacks or return raw descriptions, variable data, debug information or credentials.',
 			'category' => 'site',
 			'input_schema' => array( 'type' => 'object', 'properties' => new stdClass(), 'additionalProperties' => false ),
 			'output_schema' => array( 'type' => 'object' ),

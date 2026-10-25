@@ -103,35 +103,295 @@ function mcp_expose_get_maintenance_status( $input = array() ): array {
 	}
 }
 
-/** Run a fixed set of native tests and return only enumerated status values. */
+/** Fixed native message catalog. Raw native labels/descriptions never become output. */
+function mcp_expose_health_catalog(): array {
+	return array(
+		'wordpress_version' => array('labels' => array(
+			'WordPress version %s' => 'wordpress_version',
+			'WordPress update available (%s)' => 'wordpress_update_available',
+			'Your version of WordPress (%s) is up to date' => 'your_version_of_wordpress_is_up_to_date',
+		), 'details' => array(
+		) ),
+		'plugin_version' => array('labels' => array(
+			'Your plugins are all up to date' => 'your_plugins_are_all_up_to_date',
+			'You have plugins waiting to be updated' => 'you_have_plugins_waiting_to_be_updated',
+			'You should remove inactive plugins' => 'you_should_remove_inactive_plugins',
+		), 'details' => array(
+		) ),
+		'theme_version' => array('labels' => array(
+			'Your themes are all up to date' => 'your_themes_are_all_up_to_date',
+			'You have themes waiting to be updated' => 'you_have_themes_waiting_to_be_updated',
+			'You should remove inactive themes' => 'you_should_remove_inactive_themes',
+			'Have a default theme available' => 'have_a_default_theme_available',
+		), 'details' => array(
+		) ),
+		'php_version' => array('labels' => array(
+			'Your site is running PHP %s' => 'your_site_is_running_php',
+			'Unable to determine the status of the current PHP version (%s)' => 'unable_to_determine_the_status_of_the_current_php_version',
+			'Your site is running a recommended version of PHP (%s)' => 'your_site_is_running_a_recommended_version_of_php',
+			'Your site is running on an older version of PHP (%s)' => 'your_site_is_running_on_an_older_version_of_php',
+			'Your site is running on an outdated version of PHP (%s), which soon will not be supported by WordPress.' => 'your_site_is_running_on_an_outdated_version_of_php_which_soon_will_not_be_supported_by_wordpress',
+			'Your site is running on an older version of PHP (%s), which should be updated' => 'your_site_is_running_on_an_older_version_of_php_which_should_be_updated',
+			'Your site is running on an outdated version of PHP (%s), which does not receive security updates and soon will not be supported by WordPress.' => 'your_site_is_running_on_an_outdated_version_of_php_which_does_not_receive_security_updates_and_soon_will_not_be_supported_by_wordpress',
+			'Your site is running on an outdated version of PHP (%s), which does not receive security updates. It should be updated.' => 'your_site_is_running_on_an_outdated_version_of_php_which_does_not_receive_security_updates_it_should_be_updated',
+		), 'details' => array(
+		) ),
+		'php_extensions' => array('labels' => array(
+			'Required and recommended modules are installed' => 'required_and_recommended_modules_are_installed',
+			'One or more recommended modules are missing' => 'one_or_more_recommended_modules_are_missing',
+			'One or more required modules are missing' => 'one_or_more_required_modules_are_missing',
+		), 'details' => array(
+		) ),
+		'sql_server' => array('labels' => array(
+			'SQL server is up to date' => 'sql_server_is_up_to_date',
+			'Outdated SQL server' => 'outdated_sql_server',
+			'Severely outdated SQL server' => 'severely_outdated_sql_server',
+		), 'details' => array(
+		) ),
+		'https_status' => array('labels' => array(
+			'Your website is using an active HTTPS connection' => 'your_website_is_using_an_active_https_connection',
+			'Your website does not use HTTPS' => 'your_website_does_not_use_https',
+		), 'details' => array(
+		) ),
+		'scheduled_events' => array('labels' => array(
+			'Scheduled events are running' => 'scheduled_events_are_running',
+			'It was not possible to check your scheduled events' => 'it_was_not_possible_to_check_your_scheduled_events',
+			'A scheduled event has failed' => 'a_scheduled_event_has_failed',
+			'A scheduled event is late' => 'a_scheduled_event_is_late',
+		), 'details' => array(
+		) ),
+		'background_updates' => array('labels' => array(
+			'Background updates are working' => 'background_updates_are_working',
+			'Background updates are not working as expected' => 'background_updates_are_not_working_as_expected',
+			'Background updates may not be working properly' => 'background_updates_may_not_be_working_properly',
+		), 'details' => array(
+		) ),
+		'loopback_requests' => array('labels' => array(
+			'Your site can perform loopback requests' => 'your_site_can_perform_loopback_requests',
+			'Your site could not complete a loopback request' => 'your_site_could_not_complete_a_loopback_request',
+		), 'details' => array(
+		) ),
+		'rest_availability' => array('labels' => array(
+			'The REST API is available' => 'the_rest_api_is_available',
+			'The REST API encountered an error' => 'the_rest_api_encountered_an_error',
+			'The REST API encountered an unexpected result' => 'the_rest_api_encountered_an_unexpected_result',
+			'The REST API did not behave correctly' => 'the_rest_api_did_not_behave_correctly',
+		), 'details' => array(
+		) ),
+		'php_default_timezone' => array('labels' => array(
+			'PHP default timezone is valid' => 'php_default_timezone_is_valid',
+			'PHP default timezone is invalid' => 'php_default_timezone_is_invalid',
+		), 'details' => array(
+		) ),
+		'php_sessions' => array('labels' => array(
+			'No PHP sessions detected' => 'no_php_sessions_detected',
+			'An active PHP session was detected' => 'an_active_php_session_was_detected',
+		), 'details' => array(
+		) ),
+		'ssl_support' => array('labels' => array(
+			'Your site can communicate securely with other services' => 'your_site_can_communicate_securely_with_other_services',
+			'Your site is unable to communicate securely with other services' => 'your_site_is_unable_to_communicate_securely_with_other_services',
+		), 'details' => array(
+		) ),
+		'http_requests' => array('labels' => array(
+			'HTTP requests seem to be working as expected' => 'http_requests_seem_to_be_working_as_expected',
+			'HTTP requests are blocked' => 'http_requests_are_blocked',
+			'HTTP requests are partially blocked' => 'http_requests_are_partially_blocked',
+		), 'details' => array(
+		) ),
+		'is_in_debug_mode' => array('labels' => array(
+			'Your site is not set to output debug information' => 'your_site_is_not_set_to_output_debug_information',
+			'Your site is set to log errors to a potentially public file' => 'your_site_is_set_to_log_errors_to_a_potentially_public_file',
+			'Your site is set to display errors to site visitors' => 'your_site_is_set_to_display_errors_to_site_visitors',
+		), 'details' => array(
+		) ),
+		'file_uploads' => array('labels' => array(
+			'Files can be uploaded' => 'files_can_be_uploaded',
+			'The "%1$s" value is smaller than "%2$s"' => 'the_value_is_smaller_than',
+		), 'details' => array(
+			array( 'code' => 'file_uploads_disabled', 'source' => '%1$s is set to %2$s. You won\'t be able to upload files on your site.', 'status' => 'critical' ),
+		) ),
+		'plugin_theme_auto_updates' => array('labels' => array(
+			'Plugin and theme auto-updates appear to be configured correctly' => 'plugin_and_theme_auto_updates_appear_to_be_configured_correctly',
+			'Your site may have problems auto-updating plugins and themes' => 'your_site_may_have_problems_auto_updating_plugins_and_themes',
+		), 'details' => array(
+			array( 'code' => 'auto_update_ui_policy_mismatch', 'source' => 'Auto-updates for plugins and/or themes appear to be disabled, but settings are still set to be displayed. This could cause auto-updates to not work as expected.', 'status' => 'critical' ),
+			array( 'code' => 'plugin_theme_updates_disabled', 'source' => 'Auto-updates for plugins and themes appear to be disabled. This will prevent your site from receiving new versions automatically when available.', 'status' => 'recommended' ),
+			array( 'code' => 'plugin_updates_disabled', 'source' => 'Auto-updates for plugins appear to be disabled. This will prevent your site from receiving new versions automatically when available.', 'status' => 'recommended' ),
+			array( 'code' => 'theme_updates_disabled', 'source' => 'Auto-updates for themes appear to be disabled. This will prevent your site from receiving new versions automatically when available.', 'status' => 'recommended' ),
+		) ),
+		'update_temp_backup_writable' => array('labels' => array(
+			'Plugin and theme temporary backup directory is writable' => 'plugin_and_theme_temporary_backup_directory_is_writable',
+			'Could not access filesystem' => 'could_not_access_filesystem',
+			'Unable to locate WordPress content directory' => 'unable_to_locate_wordpress_content_directory',
+			'Plugin and theme temporary backup directories exist but are not writable' => 'plugin_and_theme_temporary_backup_directories_exist_but_are_not_writable',
+			'Plugin temporary backup directory exists but is not writable' => 'plugin_temporary_backup_directory_exists_but_is_not_writable',
+			'Theme temporary backup directory exists but is not writable' => 'theme_temporary_backup_directory_exists_but_is_not_writable',
+			'The temporary backup directory exists but is not writable' => 'the_temporary_backup_directory_exists_but_is_not_writable',
+			'The upgrade directory exists but is not writable' => 'the_upgrade_directory_exists_but_is_not_writable',
+			'The upgrade directory cannot be created' => 'the_upgrade_directory_cannot_be_created',
+		), 'details' => array(
+		) ),
+		'available_updates_disk_space' => array('labels' => array(
+			'Disk space available to safely perform updates' => 'disk_space_available_to_safely_perform_updates',
+		), 'details' => array(
+			array( 'code' => 'disk_space_unknown', 'source' => 'Could not determine available disk space for updates.', 'status' => 'recommended' ),
+			array( 'code' => 'disk_space_critical', 'source' => 'Available disk space is critically low, less than %s available. Proceed with caution, updates may fail.', 'status' => 'critical' ),
+			array( 'code' => 'disk_space_low', 'source' => 'Available disk space is low, less than %s available.', 'status' => 'recommended' ),
+		) ),
+		'autoloaded_options' => array('labels' => array(
+			'Autoloaded options are acceptable' => 'autoloaded_options_are_acceptable',
+			'Autoloaded options could affect performance' => 'autoloaded_options_could_affect_performance',
+		), 'details' => array(
+		) ),
+		'insecure_registration' => array('labels' => array(
+			'Open Registration with privileged default role' => 'open_registration_with_privileged_default_role',
+		), 'details' => array(
+			array( 'code' => 'open_registration_privileged_default', 'source' => 'Registration is open to anyone, and the default role is set to a privileged role.', 'status' => 'critical' ),
+		) ),
+		'search_engine_visibility' => array('labels' => array(
+			'Search engine indexing is enabled.' => 'search_engine_indexing_is_enabled',
+			'Search engines are discouraged from indexing this site.' => 'search_engines_are_discouraged_from_indexing_this_site',
+		), 'details' => array(
+		) ),
+		'opcode_cache' => array('labels' => array(
+			'Opcode cache is enabled' => 'opcode_cache_is_enabled',
+			'Opcode cache is not enabled' => 'opcode_cache_is_not_enabled',
+		), 'details' => array(
+		) ),
+		'dotorg_communication' => array('labels' => array(
+			'Can communicate with WordPress.org' => 'can_communicate_with_wordpress_org',
+			'Could not reach WordPress.org' => 'could_not_reach_wordpress_org',
+		), 'details' => array(
+		) ),
+		'page_cache' => array('labels' => array(
+			'Unable to detect the presence of page cache' => 'unable_to_detect_the_presence_of_page_cache',
+			'Page cache is not detected but the server response time is OK' => 'page_cache_is_not_detected_but_the_server_response_time_is_ok',
+			'Page cache is detected and the server response time is good' => 'page_cache_is_detected_and_the_server_response_time_is_good',
+			'Page cache is not detected and the server response time is slow' => 'page_cache_is_not_detected_and_the_server_response_time_is_slow',
+			'Page cache is detected but the server response time is still slow' => 'page_cache_is_detected_but_the_server_response_time_is_still_slow',
+		), 'details' => array(
+		) ),
+		'persistent_object_cache' => array('labels' => array(
+			'A persistent object cache is being used' => 'a_persistent_object_cache_is_being_used',
+			'A persistent object cache is not required' => 'a_persistent_object_cache_is_not_required',
+			'You should use a persistent object cache' => 'you_should_use_a_persistent_object_cache',
+		), 'details' => array(
+		) ),
+		'authorization_header' => array('labels' => array(
+			'The Authorization header is working as expected' => 'the_authorization_header_is_working_as_expected',
+			'The authorization header is missing' => 'the_authorization_header_is_missing',
+			'The authorization header is invalid' => 'the_authorization_header_is_invalid',
+		), 'details' => array(
+		) ),
+	);
+}
+/** Match known native translation templates without returning their variable data. */
+function mcp_expose_health_message_matches( string $template, string $value, bool $within = false ): bool {
+	if ( strlen( $template ) > 8192 || strlen( $value ) > 65536 ) { return false; }
+	$normalize = static fn( $text ) => html_entity_decode( wp_strip_all_tags( $text ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+	$parts = preg_split( '/(%(?:[0-9]+\$)?[sdif])/', $normalize( $template ), -1, PREG_SPLIT_DELIM_CAPTURE );
+	$pattern = '';
+	foreach ( $parts as $part ) { $pattern .= preg_match( '/^%(?:[0-9]+\$)?[sdif]$/D', $part ) ? '.{0,2048}?' : preg_quote( $part, '~' ); }
+	return 1 === preg_match( '~' . ( $within ? '' : '^' ) . $pattern . ( $within ? '' : '$' ) . '~suD', $normalize( $value ) );
+}
+
+/** Return a static catalog message with all native substitutions omitted. */
+function mcp_expose_health_safe_label( string $source ): string {
+	return (string) preg_replace( '/%(?:[0-9]+\$)?[sdif]/', '[value omitted]', $source );
+}
+
+/** Run only fixed native health methods; never execute callbacks supplied by the registry. */
 function mcp_expose_get_site_health( $input = array() ): array {
+	$catalog = mcp_expose_health_catalog();
+	$initial_buffer = ob_get_level(); ob_start();
 	try {
 		require_once ABSPATH . 'wp-admin/includes/plugin.php';
 		require_once ABSPATH . 'wp-admin/includes/update.php';
 		require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
 		require_once ABSPATH . 'wp-admin/includes/misc.php';
+		require_once ABSPATH . 'wp-admin/includes/file.php';
 		require_once ABSPATH . 'wp-admin/includes/class-wp-site-health.php';
 		$health = WP_Site_Health::get_instance();
+		$registry = WP_Site_Health::get_tests();
+		if ( ! is_array( $registry['direct'] ?? null ) || ! is_array( $registry['async'] ?? null ) ) { throw new RuntimeException( 'Invalid native registry.' ); }
+		$registered = array_merge( $registry['direct'], $registry['async'] );
 	} catch ( Throwable $error ) {
-		return array( 'success' => false, 'complete' => false, 'tests' => array(), 'debug_dump_returned' => false );
+		return array( 'success' => false, 'complete' => false, 'execution_complete' => false, 'diagnostics_complete' => false, 'tests' => array(), 'reason_code' => 'native_health_bootstrap_failed', 'debug_dump_returned' => false );
+	} finally {
+		while ( ob_get_level() > $initial_buffer ) { ob_end_clean(); }
 	}
-	$tests = array();
-	$complete = true;
-	foreach ( array( 'wordpress_version', 'plugin_version', 'theme_version', 'php_version', 'php_extensions', 'sql_server', 'https_status', 'scheduled_events', 'background_updates', 'loopback_requests', 'rest_availability' ) as $name ) {
-		$status = 'unavailable';
-		try {
-			$result = $health->{'get_test_' . $name}();
-			if ( is_array( $result ) && in_array( $result['status'] ?? null, array( 'good', 'recommended', 'critical' ), true ) ) {
-				$status = $result['status'];
-			}
-		} catch ( Throwable $error ) {
-			$status = 'unavailable';
+	$tests = array(); $execution_complete = true; $diagnostics_complete = true;
+	$counts = array( 'allowlisted' => count( $catalog ), 'supported' => 0, 'executed' => 0, 'passed' => 0, 'recommended' => 0, 'failed' => 0, 'execution_error' => 0, 'not_run' => 0 );
+	$registry_ids = array_map( static fn( $name ) => 'is_in_debug_mode' === $name ? 'debug_enabled' : $name, array_keys( $catalog ) );
+	$unlisted_count = count( array_diff( array_keys( $registered ), $registry_ids ) );
+	foreach ( $catalog as $name => $messages ) {
+		$method = 'get_test_' . $name;
+		$registry_id = 'is_in_debug_mode' === $name ? 'debug_enabled' : $name;
+		$available = is_callable( array( $health, $method ) );
+		$context_supported = 'authorization_header' !== $name;
+		$context_reason = 'requires_native_browser_authorization_probe';
+		if ( 'update_temp_backup_writable' === $name && array_key_exists( $registry_id, $registered ) ) {
+			$probe_buffer = ob_get_level(); ob_start();
+			try { $context_supported = function_exists( 'get_filesystem_method' ) && 'direct' === get_filesystem_method(); } catch ( Throwable $error ) { $context_supported = false; } finally { while ( ob_get_level() > $probe_buffer ) { ob_end_clean(); } }
+			$context_reason = 'requires_direct_native_filesystem';
 		}
-		$complete = $complete && 'unavailable' !== $status;
-		$tests[] = array( 'test' => $name, 'status' => $status );
+		$supported = $available && $context_supported;
+		$counts['supported'] += (int) $supported;
+		$row = array( 'test' => $name, 'supported' => $supported, 'executed' => false, 'outcome' => 'not_run', 'status' => 'unavailable',
+			'label' => 'Native test was not run', 'reason_code' => 'native_method_unavailable', 'native_label_recognized' => false );
+		if ( ! array_key_exists( $registry_id, $registered ) ) {
+			$row['reason_code'] = 'not_registered_for_this_site';
+		} elseif ( ! $context_supported ) {
+			// The Authorization test needs its native browser probe. Filesystem checks require direct native access.
+			// Do not confuse MCP authentication with dummy probe credentials or create another login.
+			$row['reason_code'] = $context_reason;
+			$row['label'] = 'authorization_header' === $name ? 'Authorization header test requires its native browser probe' : 'Temporary backup permission test requires direct native filesystem access';
+		} elseif ( $supported ) {
+			$row['executed'] = true; ++$counts['executed'];
+			$templates = array();
+			foreach ( $messages['labels'] as $source => $code ) { $templates[ $source ] = $source; }
+			foreach ( $messages['details'] as $detail ) { $templates[ $detail['source'] ] = $detail['source']; }
+			// Observe native translations only to recognize fixed messages in any site locale.
+			// Neither translated text nor raw result values are returned.
+			$observe = static function ( $translation, $source, $domain ) use ( &$templates ) {
+				if ( 'default' === $domain && isset( $templates[ $source ] ) && is_string( $translation ) ) { $templates[ $source ] = $translation; }
+				return $translation;
+			};
+			add_filter( 'gettext', $observe, PHP_INT_MAX, 3 );
+			$buffer = ob_get_level(); ob_start();
+			try {
+				$result = $health->{$method}();
+				if ( ! is_array( $result ) || ! in_array( $result['status'] ?? null, array( 'good', 'recommended', 'critical' ), true ) || ! is_string( $result['label'] ?? null ) ) { throw new RuntimeException( 'Invalid native result.' ); }
+				$row['status'] = $result['status'];
+				$row['outcome'] = array( 'good' => 'passed', 'recommended' => 'recommended', 'critical' => 'failed' )[ $result['status'] ];
+				$row['label'] = 'Native result has an unrecognized diagnostic';
+				$row['reason_code'] = 'unrecognized_native_diagnostic';
+				foreach ( $messages['labels'] as $source => $code ) {
+					if ( mcp_expose_health_message_matches( $templates[ $source ], $result['label'] ) ) {
+						$row['label'] = mcp_expose_health_safe_label( $source ); $row['reason_code'] = $code; $row['native_label_recognized'] = true; break;
+					}
+				}
+				foreach ( $messages['details'] as $detail ) {
+					if ( $detail['status'] === $row['status'] && is_string( $result['description'] ?? null ) && mcp_expose_health_message_matches( $templates[ $detail['source'] ], $result['description'], true ) ) {
+						$row['label'] = mcp_expose_health_safe_label( $detail['source'] ); $row['reason_code'] = $detail['code']; break;
+					}
+				}
+				$diagnostics_complete = $diagnostics_complete && $row['native_label_recognized'];
+			} catch ( Throwable $error ) {
+				$row['outcome'] = 'execution_error'; $row['status'] = 'unavailable'; $row['label'] = 'Native health test could not return a valid result'; $row['reason_code'] = 'native_test_execution_failed';
+				$execution_complete = false;
+			} finally {
+				remove_filter( 'gettext', $observe, PHP_INT_MAX );
+				while ( ob_get_level() > $buffer ) { ob_end_clean(); }
+			}
+		}
+		++$counts[ $row['outcome'] ]; $tests[] = $row;
 	}
-	return array( 'success' => $complete, 'complete' => $complete, 'tests' => $tests, 'debug_dump_returned' => false,
-		'scope' => 'selected_native_tests', 'note' => 'Native tests can refresh caches and schedule the native health check. Descriptions, debug information, paths, URLs and raw errors are excluded.' );
+	return array( 'success' => $execution_complete && $diagnostics_complete, 'complete' => $execution_complete && $diagnostics_complete && 0 === $counts['not_run'] && 0 === $unlisted_count,
+		'execution_complete' => $execution_complete, 'diagnostics_complete' => $diagnostics_complete, 'tests' => $tests, 'counts' => $counts,
+		'additional_registered_tests_not_run' => $unlisted_count, 'scope' => 'fixed_native_allowlist', 'debug_dump_returned' => false, 'native_variable_data_returned' => false,
+		'note' => 'Only fixed native methods run. Canonical catalog labels and reason codes omit all substitutions. Native descriptions, errors, debug data, paths, credentials and registry callbacks are never returned. Authorization-header browser probe and additional registered tests are not executed. Native tests can refresh caches, schedule health checks and make loopback requests.' );
 }
 
 /** Verify only files listed in one installed plugin's existing signed release identity. */

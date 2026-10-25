@@ -3,7 +3,7 @@
 declare( strict_types=1 );
 $fixture = sys_get_temp_dir() . '/mcp-maintenance-' . bin2hex( random_bytes( 5 ) ) . '/';
 mkdir( $fixture . 'wp-admin/includes', 0700, true );
-foreach ( array( 'plugin.php', 'update.php', 'class-wp-upgrader.php', 'class-wp-site-health.php' ) as $file ) { file_put_contents( $fixture . 'wp-admin/includes/' . $file, "<?php\n" ); }
+foreach ( array( 'plugin.php', 'update.php', 'class-wp-upgrader.php', 'class-wp-site-health.php', 'file.php' ) as $file ) { file_put_contents( $fixture . 'wp-admin/includes/' . $file, "<?php\n" ); }
 file_put_contents( $fixture . 'wp-admin/includes/misc.php', '<?php function wp_check_php_version() { return array( \'recommended_version\' => PHP_VERSION ); }' );
 if ( getenv( 'MCP_EXPOSE_NATIVE_SITE_HEALTH_CLASS' ) ) {
 	$native_health = file_get_contents( getenv( 'MCP_EXPOSE_NATIVE_SITE_HEALTH_CLASS' ) );
@@ -35,6 +35,8 @@ function wp_register_ability( $name, $args ) { $GLOBALS['abilities'][ $name ] = 
 function wp_normalize_path( $path ) { return $path; }
 function __($text, ...$args) { return $text; }
 function esc_html__( $text, ...$args ) { return $text; }
+function remove_filter(...$args) {}
+function wp_strip_all_tags( $value ) { return strip_tags( $value ); }
 function esc_url( $value ) { return $value; }
 function wp_get_update_php_url() { return 'https://example.org/php'; }
 function get_post_types(...$args) { return array(); }
@@ -72,6 +74,7 @@ if ( getenv( 'MCP_EXPOSE_NATIVE_AUTO_UPDATE_READER' ) ) {
 }
 class WP_Site_Health {
 	public static function get_instance() { return new self(); }
+	public static function get_tests() { return array( 'direct' => array_fill_keys( array('wordpress_version','plugin_version','theme_version','php_version','php_extensions','sql_server','https_status','scheduled_events','background_updates','loopback_requests','rest_availability'), array() ), 'async' => array() ); }
 	public function __call( $name, $args ) {
 		if ( $GLOBALS['health_fail'] && 'get_test_php_version' === $name ) { throw new RuntimeException( 'SECRET' ); }
 		if ( 'get_test_php_version' === $name ) {
@@ -105,7 +108,7 @@ $r = run( 'system/get-maintenance-status' );
 check( $r['automatic_updater_disabled'] && !$r['core']['offers'][0]['offer_auto_update_allowed'], 'Global automatic-updater guard omitted' );
 $caches = array();
 $r = run( 'system/get-maintenance-status' ); check( !$r['success'] && null === $r['plugins']['items'][0]['update_available'] && !$r['core']['inventory_known'], 'Missing cache claimed no updates' );
-$r = run( 'system/get-site-health' ); check( $r['success'] && 11 === count( $r['tests'] ) && !$r['debug_dump_returned'], 'Fixed native test coverage missing' );
+$r = run( 'system/get-site-health' ); check( !$r['success'] && !$r['diagnostics_complete'] && 28 === count( $r['tests'] ) && !$r['debug_dump_returned'], 'Fixed native test coverage missing' );
 $health_fail = true;
 $r = run( 'system/get-site-health' ); check( !$r['complete'] && 'unavailable' === $r['tests'][3]['status'] && 'good' === $r['tests'][0]['status'], 'Partial native test failure destroyed other evidence' );
 $health_bad_status = true;
