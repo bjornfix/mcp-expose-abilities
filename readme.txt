@@ -3,7 +3,7 @@ Contributors: basicus
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.1
-Stable tag: 3.0.111
+Stable tag: 3.0.112
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -54,8 +54,11 @@ Install add-ons only when your site actually uses that product:
 
 == Changelog ==
 
-= 3.0.111 =
-* Load the native PHP Site Health helper outside wp-admin. Return selected fixed issue codes while keeping labels, descriptions and debug data private.
+= 3.0.112 =
+* Load the native PHP Site Health helper outside wp-admin while keeping labels, descriptions and debug data private.
+* Verify managed installed files against their existing trusted signed release member hashes. Return no file contents and accept no caller path or package.
+
+= 3.0.110 =
 * Add native maintenance status for core, plugins and themes, including native forced offer policy. Saved plugin/theme automatic-update choices remain available through the existing options/get Interface. Exclude download URLs. Add a separate hash-reviewed action that enables only the existing literal WP_AUTO_UPDATE_CORE definition.
 * Add selected native Site Health tests with only fixed test IDs and status values; exclude descriptions, debug information and raw errors.
 * Add exact official stable core and installed-theme updates with native administrator capabilities, per-call confirmation, version checks and partial-write readback. No arbitrary package, theme switching or general configuration editing.

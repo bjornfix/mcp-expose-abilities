@@ -2,19 +2,19 @@
 
 Give an AI assistant WordPress tools it can use to finish real site work: inspect pages, correct selected content, organise media, update menus and check installed plugins.
 
-[![Release 3.0.111](https://img.shields.io/badge/release-3.0.111-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
+[![Release 3.0.112](https://img.shields.io/badge/release-3.0.112-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
 [![License](https://img.shields.io/badge/license-GPL--2.0--or--later-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![WordPress](https://img.shields.io/badge/WordPress-6.9%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://www.php.net/)
 
-**Stable tag:** 3.0.111<br>
+**Stable tag:** 3.0.112<br>
 **Tested up to:** 7.1<br>
 **License:** GPL-2.0-or-later<br>
 **Tags:** mcp, ai, automation, content, rest-api
 
 ## What It Does
 
-MCP Expose Abilities supplies 86 WordPress operations through the WordPress Abilities API. With WordPress MCP Adapter and a compatible authenticated client, your assistant can read the site's actual records and make the changes you request.
+MCP Expose Abilities supplies 87 WordPress operations through the WordPress Abilities API. With WordPress MCP Adapter and a compatible authenticated client, your assistant can read the site's actual records and make the changes you request.
 
 For example, ask it to find a named set of articles, inspect their contact details, and turn the selected phone numbers into clickable links. The assistant can read each result back and report which pages changed. The plugin supplies the operations; your client handles the conversation, task selection and review.
 
@@ -55,7 +55,7 @@ Each operation has a name, an input definition and a permission check. Content, 
 
 | Plugin | Abilities | Role |
 |---|---|---|
-| **MCP Expose Abilities** (core) | 86 | Supplies the WordPress content, media, menu and administration operations listed below |
+| **MCP Expose Abilities** (core) | 87 | Supplies the WordPress content, media, menu and administration operations listed below |
 
 WordPress MCP Adapter carries requests from the client to WordPress. The Abilities API registers and executes the operations. This plugin provides the core WordPress tools. Add-ons supply operations for specific builders or plugins; their own documentation defines their current coverage.
 
@@ -89,7 +89,7 @@ MCP transport access defaults to the WordPress `manage_options` capability. Each
 
 If discovery fails, check authentication and the adapter connection first. If one operation fails, inspect its required input, permissions and dependencies. A working read proves that connection for that operation; it does not prove that every write or add-on is available.
 
-## Core Plugin Abilities (86)
+## Core Plugin Abilities (87)
 
 ### Content Management (27)
 
@@ -180,7 +180,7 @@ If discovery fails, check authentication and the adapter connection first. If on
 | `widgets/get-sidebar` | Get widgets in a sidebar |
 | `widgets/list-available` | List available widget types |
 
-### Plugin Management (12)
+### Plugin Management (13)
 
 | Ability | Description |
 |---------|-------------|
@@ -188,6 +188,7 @@ If discovery fails, check authentication and the adapter connection first. If on
 | `plugins/upload-base64` | Upload plugin from local file (base64 or zip path) |
 | `plugins/search-directory` | Search the official WordPress.org plugin directory |
 | `plugins/install-directory` | Install plugin from the official WordPress.org plugin directory by slug |
+| `plugins/verify-managed-installation` | Compare one managed installation with its trusted signed release member hashes without returning file contents |
 | `plugins/list` | List installed plugins |
 | `plugins/read-mu-plugins` | Read paginated must-use plugin PHP source, including nested loader code |
 | `plugins/list-updates` | List available plugin updates |
@@ -310,6 +311,8 @@ Use `menus/list` to find the active theme location, then `menus/get-items` to id
 
 `system/get-site-health` runs eleven selected native tests and returns only fixed test IDs with good, recommended, critical or unavailable status. Native checks can refresh caches, schedule the normal health check and make native loopback requests. Descriptions, debug dumps, paths, URLs and raw errors are excluded. Both maintenance operations retain native administrator and corresponding WordPress capabilities.
 
+`plugins/verify-managed-installation` requires an exact installed plugin identifier and native administrator/update permission. Its existing signed updater must provide a trusted release identity. It compares only the listed release members inside that plugin directory and returns their hashes and match results. It accepts no path or package and returns no file contents. Additional files outside that signed member list are not scanned.
+
 ## Safety and Ownership Boundaries
 
 WordPress remains the authority for authentication, records and permissions. The plugin does not include an AI model or decide whether a requested editorial change is good. The client and operator must review the task and result.
@@ -336,9 +339,11 @@ wp plugin install mcp-expose-abilities.zip --activate
 
 ## Recent Changes
 
-### 3.0.111
+### 3.0.112
 
-Load the native PHP Site Health helper outside wp-admin and return fixed issue codes for selected native recommendations.
+Load the native PHP Site Health helper outside wp-admin. Verify one managed installation against its existing signed release members without returning file contents.
+
+### 3.0.110
 
 Read native WordPress, plugin and theme update offers and policy separately from update execution. Keep saved plugin/theme choices at the existing option Interface. Run selected native Site Health tests with only fixed test IDs and status enums returned. Add separate reviewed actions for the fixed core automatic-update constant and native official core/theme updates; preserve administrator permissions and reject arbitrary packages.
 

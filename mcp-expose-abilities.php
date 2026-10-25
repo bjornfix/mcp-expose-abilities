@@ -3,7 +3,7 @@
  * Plugin Name: MCP Expose Abilities
  * Plugin URI: https://devenia.com/plugins/mcp-expose-abilities/
  * Description: Core WordPress abilities for MCP. Content, menus, users, media, widgets, plugins, options, and system management. Add-on plugins available for Elementor, GeneratePress, Cloudflare, and filesystem operations.
- * Version: 3.0.111
+ * Version: 3.0.112
  * Author: basicus
  * Author URI: https://profiles.wordpress.org/basicus/
  * License: GPL-2.0+
@@ -1377,7 +1377,7 @@ if ( ! function_exists( 'wp_create_user' ) ) {
 // PLUGIN CONSTANTS
 // ============================================================================
 define('MCP_TEXT_DOMAIN', 'mcp-expose-abilities');
-define('MCP_VERSION', '3.0.111');
+define('MCP_VERSION', '3.0.112');
 
 // ============================================================================
 // REUSABLE SCHEMA DEFINITIONS
@@ -10674,6 +10674,22 @@ function mcp_register_content_abilities(): void {
 			},
 			'permission_callback' => static function (): bool { return current_user_can( 'manage_options' ); },
 			'meta' => array( 'annotations' => array( 'readonly' => false, 'destructive' => false, 'idempotent' => true ) ),
+		)
+	);
+
+	wp_register_ability(
+		'plugins/verify-managed-installation',
+		array(
+			'label' => 'Verify Managed Plugin Installation',
+			'description' => 'Compare one installed managed plugin with its existing trusted signed release member hashes. Return hashes and match results only. No caller paths, package or code; files outside that plugin are excluded.',
+			'category' => 'site',
+			'input_schema' => array( 'type' => 'object', 'properties' => array(
+				'plugin' => array( 'type' => 'string', 'pattern' => '^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*\\.php$' ),
+			), 'required' => array( 'plugin' ), 'additionalProperties' => false ),
+			'output_schema' => array( 'type' => 'object' ),
+			'execute_callback' => 'mcp_expose_verify_managed_installation',
+			'permission_callback' => static function (): bool { return current_user_can( 'manage_options' ) && current_user_can( 'update_plugins' ); },
+			'meta' => array( 'annotations' => array( 'readonly' => true, 'destructive' => false, 'idempotent' => true ) ),
 		)
 	);
 

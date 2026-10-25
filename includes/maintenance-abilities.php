@@ -119,29 +119,64 @@ function mcp_expose_get_site_health( $input = array() ): array {
 	$complete = true;
 	foreach ( array( 'wordpress_version', 'plugin_version', 'theme_version', 'php_version', 'php_extensions', 'sql_server', 'https_status', 'scheduled_events', 'background_updates', 'loopback_requests', 'rest_availability' ) as $name ) {
 		$status = 'unavailable';
-		$issue = null;
 		try {
 			$result = $health->{'get_test_' . $name}();
 			if ( is_array( $result ) && in_array( $result['status'] ?? null, array( 'good', 'recommended', 'critical' ), true ) ) {
 				$status = $result['status'];
 			}
-			// Compare native labels internally; return fixed issue codes, never text.
-			$labels = array(
-				'inactive_plugins' => __( 'You should remove inactive plugins' ),
-				'inactive_themes' => __( 'You should remove inactive themes' ),
-				'default_theme_missing' => __( 'Have a default theme available' ),
-				'plugin_updates_available' => __( 'You have plugins waiting to be updated' ),
-				'theme_updates_available' => __( 'You have themes waiting to be updated' ),
-			);
-			foreach ( $labels as $code => $label ) {
-				if ( $label === ( $result['label'] ?? null ) ) { $issue = $code; break; }
-			}
 		} catch ( Throwable $error ) {
 			$status = 'unavailable';
 		}
 		$complete = $complete && 'unavailable' !== $status;
-		$tests[] = array( 'test' => $name, 'status' => $status, 'issue' => $issue );
+		$tests[] = array( 'test' => $name, 'status' => $status );
 	}
 	return array( 'success' => $complete, 'complete' => $complete, 'tests' => $tests, 'debug_dump_returned' => false,
 		'scope' => 'selected_native_tests', 'note' => 'Native tests can refresh caches and schedule the native health check. Descriptions, debug information, paths, URLs and raw errors are excluded.' );
+}
+
+/** Verify only files listed in one installed plugin's existing signed release identity. */
+function mcp_expose_verify_managed_installation( $input = array() ): array {
+	$plugin = (string) ( $input['plugin'] ?? '' );
+	if ( ! current_user_can( 'manage_options' ) || ! current_user_can( 'update_plugins' ) ) { return array( 'success' => false, 'code' => 'permission_denied' ); }
+	if ( ! preg_match( '~^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*\.php$~D', $plugin ) ) { return array( 'success' => false, 'code' => 'invalid_plugin_identifier' ); }
+	if ( ! function_exists( 'devenia_mcp_updater_manifest_plugins' ) ) { return array( 'success' => false, 'code' => 'native_signed_updater_unavailable' ); }
+	try {
+		require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		$installed = get_plugins();
+		$entries = devenia_mcp_updater_manifest_plugins();
+		$entry = $entries[ $plugin ] ?? null;
+		if ( ! isset( $installed[ $plugin ] ) || ! is_array( $entry ) ) { return array( 'success' => false, 'code' => 'installed_signed_identity_unavailable' ); }
+		$identity = $entry['releaseIdentity'] ?? array();
+		$members = $identity['members'] ?? array();
+		$slug = (string) ( $entry['slug'] ?? '' );
+		if ( ! preg_match( '/^[a-z0-9]+(?:-[a-z0-9]+)*$/D', $slug ) || dirname( $plugin ) !== $slug
+			|| ( $identity['mainFile'] ?? '' ) !== $plugin || ! is_array( $members ) || !$members || count( $members ) > 2000 ) { return array( 'success' => false, 'code' => 'unsupported_signed_identity' ); }
+		$plugins_root = realpath( WP_PLUGIN_DIR );
+		$root = realpath( WP_PLUGIN_DIR . '/' . $slug );
+		if ( false === $root || false === $plugins_root || ! str_starts_with( $root, $plugins_root . DIRECTORY_SEPARATOR ) ) { return array( 'success' => false, 'code' => 'plugin_root_unavailable' ); }
+		$results = array(); $matched = 0;
+		foreach ( $members as $member ) {
+			$member_path = (string) ( $member['path'] ?? '' );
+			$expected = (string) ( $member['sha256'] ?? '' );
+			if ( ! str_starts_with( $member_path, $slug . '/' ) || str_contains( $member_path, '\\' ) || str_contains( $member_path, "\0" )
+				|| in_array( '..', explode( '/', $member_path ), true ) || in_array( '.', explode( '/', $member_path ), true )
+				|| ! preg_match( '/^[a-f0-9]{64}$/D', $expected ) ) { return array( 'success' => false, 'code' => 'invalid_signed_member_path' ); }
+			$relative = substr( $member_path, strlen( $slug ) + 1 );
+			$path = realpath( $root . '/' . $relative );
+			$status = 'missing_or_outside_plugin'; $actual = null;
+			if ( false !== $path && str_starts_with( $path, $root . DIRECTORY_SEPARATOR ) && is_file( $path ) ) {
+				$actual = hash_file( 'sha256', $path );
+				$status = is_string( $actual ) && hash_equals( $expected, $actual ) && (int) $member['size'] === wp_filesize( $path ) ? 'matched' : 'mismatch';
+			}
+			if ( 'matched' === $status ) { ++$matched; }
+			$results[] = array( 'member' => $member_path, 'status' => $status, 'expected_sha256' => $expected, 'actual_sha256' => is_string( $actual ) ? $actual : null );
+		}
+		$version = (string) $installed[ $plugin ]['Version'];
+		return array( 'success' => count( $members ) === $matched && $version === (string) $entry['version'], 'plugin' => $plugin,
+			'installed_version' => $version, 'manifest_version' => (string) $entry['version'], 'package_sha256' => (string) $entry['sha256'],
+			'source_commit' => $identity['source']['commit'] ?? null, 'checked_files' => count( $results ), 'matched_files' => $matched,
+			'files' => $results, 'scope' => 'signed_release_members_only', 'additional_files_checked' => false, 'file_contents_returned' => false );
+	} catch ( Throwable $error ) {
+		return array( 'success' => false, 'code' => 'native_installation_verification_failed', 'file_contents_returned' => false );
+	}
 }
