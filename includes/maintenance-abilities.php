@@ -109,6 +109,7 @@ function mcp_expose_get_site_health( $input = array() ): array {
 		require_once ABSPATH . 'wp-admin/includes/plugin.php';
 		require_once ABSPATH . 'wp-admin/includes/update.php';
 		require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+		require_once ABSPATH . 'wp-admin/includes/misc.php';
 		require_once ABSPATH . 'wp-admin/includes/class-wp-site-health.php';
 		$health = WP_Site_Health::get_instance();
 	} catch ( Throwable $error ) {
@@ -118,16 +119,28 @@ function mcp_expose_get_site_health( $input = array() ): array {
 	$complete = true;
 	foreach ( array( 'wordpress_version', 'plugin_version', 'theme_version', 'php_version', 'php_extensions', 'sql_server', 'https_status', 'scheduled_events', 'background_updates', 'loopback_requests', 'rest_availability' ) as $name ) {
 		$status = 'unavailable';
+		$issue = null;
 		try {
 			$result = $health->{'get_test_' . $name}();
 			if ( is_array( $result ) && in_array( $result['status'] ?? null, array( 'good', 'recommended', 'critical' ), true ) ) {
 				$status = $result['status'];
 			}
+			// Compare native labels internally; return fixed issue codes, never text.
+			$labels = array(
+				'inactive_plugins' => __( 'You should remove inactive plugins' ),
+				'inactive_themes' => __( 'You should remove inactive themes' ),
+				'default_theme_missing' => __( 'Have a default theme available' ),
+				'plugin_updates_available' => __( 'You have plugins waiting to be updated' ),
+				'theme_updates_available' => __( 'You have themes waiting to be updated' ),
+			);
+			foreach ( $labels as $code => $label ) {
+				if ( $label === ( $result['label'] ?? null ) ) { $issue = $code; break; }
+			}
 		} catch ( Throwable $error ) {
 			$status = 'unavailable';
 		}
 		$complete = $complete && 'unavailable' !== $status;
-		$tests[] = array( 'test' => $name, 'status' => $status );
+		$tests[] = array( 'test' => $name, 'status' => $status, 'issue' => $issue );
 	}
 	return array( 'success' => $complete, 'complete' => $complete, 'tests' => $tests, 'debug_dump_returned' => false,
 		'scope' => 'selected_native_tests', 'note' => 'Native tests can refresh caches and schedule the native health check. Descriptions, debug information, paths, URLs and raw errors are excluded.' );

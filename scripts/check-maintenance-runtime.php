@@ -4,6 +4,13 @@ declare( strict_types=1 );
 $fixture = sys_get_temp_dir() . '/mcp-maintenance-' . bin2hex( random_bytes( 5 ) ) . '/';
 mkdir( $fixture . 'wp-admin/includes', 0700, true );
 foreach ( array( 'plugin.php', 'update.php', 'class-wp-upgrader.php', 'class-wp-site-health.php' ) as $file ) { file_put_contents( $fixture . 'wp-admin/includes/' . $file, "<?php\n" ); }
+file_put_contents( $fixture . 'wp-admin/includes/misc.php', '<?php function wp_check_php_version() { return array( \'recommended_version\' => PHP_VERSION ); }' );
+if ( getenv( 'MCP_EXPOSE_NATIVE_SITE_HEALTH_CLASS' ) ) {
+	$native_health = file_get_contents( getenv( 'MCP_EXPOSE_NATIVE_SITE_HEALTH_CLASS' ) );
+	if ( ! preg_match( '/public function get_test_php_version\(\).*?\n\t\}/s', $native_health, $native_method ) ) { throw new RuntimeException( 'Native PHP health method unavailable.' ); }
+	file_put_contents( $fixture . 'wp-admin/includes/native-php-health.php', '<?php class FixtureNativePhpHealth { ' . $native_method[0] . ' }' );
+	require $fixture . 'wp-admin/includes/native-php-health.php';
+}
 register_shutdown_function( static function () use ( $fixture ): void { foreach ( glob( $fixture . 'wp-admin/includes/*' ) as $file ) { unlink( $file ); } rmdir( $fixture . 'wp-admin/includes' ); rmdir( $fixture . 'wp-admin' ); rmdir( $fixture ); } );
 define( 'ABSPATH', $fixture );
 define( 'WP_PLUGIN_DIR', $fixture );
@@ -28,6 +35,8 @@ function wp_register_ability( $name, $args ) { $GLOBALS['abilities'][ $name ] = 
 function wp_normalize_path( $path ) { return $path; }
 function __($text, ...$args) { return $text; }
 function esc_html__( $text, ...$args ) { return $text; }
+function esc_url( $value ) { return $value; }
+function wp_get_update_php_url() { return 'https://example.org/php'; }
 function get_post_types(...$args) { return array(); }
 function get_taxonomies(...$args) { return array(); }
 function get_object_taxonomies(...$args) { return array(); }
@@ -65,6 +74,10 @@ class WP_Site_Health {
 	public static function get_instance() { return new self(); }
 	public function __call( $name, $args ) {
 		if ( $GLOBALS['health_fail'] && 'get_test_php_version' === $name ) { throw new RuntimeException( 'SECRET' ); }
+		if ( 'get_test_php_version' === $name ) {
+			wp_check_php_version();
+			if ( class_exists( 'FixtureNativePhpHealth' ) ) { return ( new FixtureNativePhpHealth() )->get_test_php_version(); }
+		}
 		return array( 'status' => $GLOBALS['health_bad_status'] ? 'SECRET' : 'good', 'label' => 'SECRET', 'description' => 'SECRET', 'actions' => 'SECRET', 'debug' => array( 'SECRET' ) );
 	}
 }
