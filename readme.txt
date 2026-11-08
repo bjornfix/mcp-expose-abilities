@@ -3,7 +3,7 @@ Contributors: basicus
 Tags: mcp, ai, automation, content, rest-api
 Requires at least: 6.9
 Tested up to: 7.1
-Stable tag: 3.0.114
+Stable tag: 3.0.115
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -15,6 +15,8 @@ Let AI assistants edit your WordPress site via MCP.
 Give a connected AI assistant native WordPress tools to inspect pages, correct selected content, organise media, update menus and check installed plugins. Your client handles the conversation and reviews the requested work.
 
 Core WordPress abilities for content, menus, users, media, widgets, plugins, options, and system management.
+
+Under Settings > General, you can skip confirmation emails for successful automatic plugin, theme and WordPress core updates. This optional setting is off by default. Failed, mixed and unknown results retain their existing notification decision; automatic updates and security alerts are unchanged.
 
 = Compatibility =
 
@@ -53,6 +55,9 @@ Install add-ons only when your site actually uses that product:
 * Store Locator: mcp-abilities-store-locator
 
 == Changelog ==
+
+= 3.0.115 =
+* Add an optional native General Settings choice that suppresses only successful automatic update confirmations, preserving failure notifications and automatic update choices.
 
 = 3.0.114 =
 * Add bounded native page-cache median/threshold timing and fixed cache/auth-context flags. Keep raw diagnostics, headers and credentials private; do not alter cache behavior or native outcomes.

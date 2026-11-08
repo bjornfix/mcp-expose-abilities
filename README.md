@@ -2,12 +2,12 @@
 
 Give an AI assistant WordPress tools it can use to finish real site work: inspect pages, correct selected content, organise media, update menus and check installed plugins.
 
-[![Release 3.0.114](https://img.shields.io/badge/release-3.0.114-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
+[![Release 3.0.115](https://img.shields.io/badge/release-3.0.115-blue.svg)](https://downloads.devenia.com/mcp-expose-abilities.zip)
 [![License](https://img.shields.io/badge/license-GPL--2.0--or--later-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![WordPress](https://img.shields.io/badge/WordPress-6.9%2B-blue.svg)](https://wordpress.org/)
 [![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple.svg)](https://www.php.net/)
 
-**Stable tag:** 3.0.114<br>
+**Stable tag:** 3.0.115<br>
 **Tested up to:** 7.1<br>
 **License:** GPL-2.0-or-later<br>
 **Tags:** mcp, ai, automation, content, rest-api
@@ -27,6 +27,10 @@ For example, ask it to find a named set of articles, inspect their contact detai
 5. Read the saved record and check the rendered page when appearance matters.
 
 A useful first task is a single page correction. Once that works, the client can repeat the same narrow task across your selected pages. There is no fixed completion time or automatic quality guarantee.
+
+## Automatic Update Confirmations
+
+Under **Settings → General**, enable **Skip confirmation emails for successful automatic updates** to silence only successful plugin, theme and WordPress core update confirmations. The setting is off by default. Failed, mixed and unknown outcomes retain their existing notification decision. Automatic update choices, security alerts and other mail are unchanged. This setting works through WordPress even when no assistant is connected.
 
 ## Why This Feels Different
 
@@ -338,6 +342,10 @@ wp plugin install mcp-expose-abilities.zip --activate
 ```
 
 ## Recent Changes
+
+### 3.0.115
+
+Adds an optional General Settings choice for successful automatic update confirmations. Preserves failure notifications, security alerts and automatic update choices.
 
 ### 3.0.114
 
